@@ -13,9 +13,13 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install ESPHome
-        run: pip install esphome==2026.4.4
+        run: pip install esphome==2026.9.0
       - name: Protocol vectors
         run: python -m unittest discover -s tests -v
+      - name: Build address learning C++ test
+        run: g++ -std=c++17 -Wall -Wextra -pedantic tests/test_address_learning.cpp -o /tmp/test_address_learning
+      - name: Run address learning C++ test
+        run: /tmp/test_address_learning
       - name: Create compile-only secrets
         run: |
           cat > secrets.yaml <<'EOF'

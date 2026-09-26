@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include "halo2_address_learning.h"
 #include "driver/gpio.h"
 #include "esp_rom_sys.h"
 #include "esp_cpu.h"
@@ -15,9 +16,31 @@
 namespace bm5602_halo2 {
 constexpr gpio_num_t CSN=GPIO_NUM_22, SCK=GPIO_NUM_23;
 constexpr gpio_num_t MOSI=GPIO_NUM_19, MISO=GPIO_NUM_33;
-constexpr gpio_num_t TBCLK=GPIO_NUM_25; // BM pin 8 / GIO3 after seventh wire
+constexpr gpio_num_t TBCLK=GPIO_NUM_25; // BCT pin 9 / GIO3 after seventh wire
 constexpr std::array<uint8_t,4> RADIO_ADDRESS{0x9C,0xEA,0xBB,0x86};
 constexpr uint8_t RADIO_CHANNEL=5;
+inline std::array<uint8_t,4> active_radio_address=RADIO_ADDRESS;
+inline AddressVotes address_votes;
+inline bool address_learning=false;
+inline uint32_t learning_captures=0,learning_rejected=0;
+inline uint32_t learning_session=0;
+inline std::array<uint8_t,32> learning_last_raw{};
+inline uint8_t learning_last_length=0;
+inline uint32_t normal_rx_session=0;
+inline uint32_t normal_rx_captures=0,normal_rx_rejected=0;
+inline std::array<uint8_t,32> normal_rx_last_raw{};
+inline uint8_t normal_rx_last_length=0;
+inline uint16_t active_crc_seed=0xEFDF;
+inline bool crc_seed_ready=true;
+inline bool tx_pcf_prefix_zero=false;
+inline CrcSeedVotes crc_seed_votes;
+inline uint16_t normal_rx_last_seed=0;
+inline uint8_t normal_rx_last_seed_votes=0;
+inline bool normal_rx_seed_found_event=false;
+inline uint8_t halo_app_pid=0;
+inline std::array<uint8_t,13> captured_remote_off{};
+inline bool captured_remote_off_valid=false;
+inline bool captured_remote_off_event=false;
 inline portMUX_TYPE tbclk_mux=portMUX_INITIALIZER_UNLOCKED;
 
 inline void half() { esp_rom_delay_us(5); } // Pico reference uses 100 kHz SPI.
@@ -91,23 +114,75 @@ inline uint8_t send_no_ack(const uint8_t *payload,size_t n){
 inline void prepare_halo_receive(){
   command(0x0C); write_reg(0x06,0x48); set_bank(0);
   write_reg(0x10,RADIO_CHANNEL); write_reg(0x11,0x82);
-  write_bytes(0x10,RADIO_ADDRESS.data(),RADIO_ADDRESS.size());
+  write_bytes(0x10,active_radio_address.data(),active_radio_address.size());
   write_reg(0x03,static_cast<uint8_t>(read_reg(0x03)|0x01U)); // PRX
-  write_reg(0x2A,0x00); write_reg(0x2B,0x00); write_reg(0x2C,13);
+  write_reg(0x2A,0x00); write_reg(0x2B,0x00); write_reg(0x2C,14);
   write_reg(0x09,0x00); write_reg(0x32,0x00); // passive: CRC/AutoACK off
   command(0x89); write_reg(0x04,0x40); command(0x8E);
 }
 
+inline void start_address_learning(){
+  address_votes.reset(); address_learning=true;
+  ++learning_session;
+  learning_captures=0; learning_rejected=0;
+  learning_last_raw={}; learning_last_length=0;
+  command(0x0C); write_reg(0x06,0x48); set_bank(0);
+  write_reg(0x10,RADIO_CHANNEL);
+  write_reg(0x11,0x42); // 125 kbps and 3-byte sync address.
+  write_bytes(0x10,LEARNING_SYNC.data(),LEARNING_SYNC.size());
+  write_reg(0x03,static_cast<uint8_t>(read_reg(0x03)|0x01U));
+  write_reg(0x2A,0x00); write_reg(0x2B,0x00); write_reg(0x2C,16);
+  write_reg(0x09,0x00); write_reg(0x32,0x00); // passive, CRC and ACK disabled
+  command(0x89); write_reg(0x04,0x40); command(0x8E);
+}
+
+inline void stop_address_learning(){
+  address_learning=false;
+  prepare_halo_receive();
+}
+
+inline AddressVotes::Result poll_address_learning(){
+  if(!address_learning || (read_reg(0x05)&0x01U))return {};
+  ++learning_captures;
+  const uint8_t length=read_reg(0x0C);
+  std::array<uint8_t,32> raw{};
+  if(length && length<=raw.size())read_bytes(0xBF,raw.data(),length);
+  command(0x89); write_reg(0x04,0x40); command(0x8E);
+  learning_last_raw=raw; learning_last_length=length;
+  const auto candidate=extract_address_candidate(raw.data(),length);
+  if(!candidate.valid)++learning_rejected;
+  return address_votes.add(candidate);
+}
+
+inline bool apply_found_address(){
+  if(!address_votes.found())return false;
+  active_radio_address=address_votes.address();
+  ++normal_rx_session;
+  normal_rx_captures=0; normal_rx_rejected=0;
+  normal_rx_last_raw={}; normal_rx_last_length=0;
+  active_crc_seed=0xEFDF;
+  crc_seed_ready=(active_radio_address==RADIO_ADDRESS);
+  tx_pcf_prefix_zero=false;
+  crc_seed_votes.reset();
+  normal_rx_last_seed=0; normal_rx_last_seed_votes=0;
+  normal_rx_seed_found_event=false;
+  halo_app_pid=0;
+  captured_remote_off={}; captured_remote_off_valid=false;
+  captured_remote_off_event=false;
+  stop_address_learning();
+  return true;
+}
+
 inline uint16_t halo_crc(uint8_t pcf,const uint8_t* payload,size_t length){
-  // 0xEFDF is the protocol CRC state before the four on-air address bytes.
-  uint16_t crc=0xEFDF;
+  // The CRC state before the four on-air address bytes is pair-specific.
+  uint16_t crc=active_crc_seed;
   auto feed=[&](uint8_t b){
     crc^=static_cast<uint16_t>(b)<<8U;
     for(int i=0;i<8;++i)crc=(crc&0x8000U)
       ?static_cast<uint16_t>((crc<<1U)^0x1021U)
       :static_cast<uint16_t>(crc<<1U);
   };
-  for(size_t i=RADIO_ADDRESS.size();i>0;--i)feed(RADIO_ADDRESS[i-1]);
+  for(size_t i=active_radio_address.size();i>0;--i)feed(active_radio_address[i-1]);
   feed(pcf); for(size_t i=0;i<length;++i)feed(payload[i]); return crc;
 }
 
@@ -117,29 +192,74 @@ struct HaloRxState {
   uint16_t color_temperature=0;
 };
 inline bool poll_halo_receive(HaloRxState& s){
+  normal_rx_last_seed_votes=0;
+  normal_rx_seed_found_event=false;
+  captured_remote_off_event=false;
   if(read_reg(0x05)&0x01U)return false;
+  if(normal_rx_session)++normal_rx_captures;
   const uint8_t length=read_reg(0x0C);
-  std::array<uint8_t,24> raw{};
-  if(!length||length>raw.size()){command(0x89);command(0x8E);return false;}
+  std::array<uint8_t,32> raw{};
+  if(normal_rx_session){normal_rx_last_length=length;normal_rx_last_raw={};}
+  if(!length||length>24){
+    if(normal_rx_session)++normal_rx_rejected;
+    command(0x89);command(0x8E);return false;
+  }
   read_bytes(0xBF,raw.data(),length);
   write_reg(0x04,0x40); command(0x8E);
-  if(length!=13||raw[9]!=0x01||raw[10]!=0x02)return false;
-  const uint8_t payload_length=static_cast<uint8_t>((raw[0]&0xF8U)>>3U);
-  // Stock requests use an even PID; odd PID frames are lamp replies and their
-  // control byte is not authoritative state (e.g. ON request 0x11 -> reply 0x10).
-  if(payload_length!=10||(raw[0]&0x01U)||raw[1]>0x05)return false;
-  const uint16_t expected_crc=halo_crc(raw[0],raw.data()+1,10);
-  const uint16_t received_crc=static_cast<uint16_t>((raw[11]<<8U)|raw[12]);
-  if(expected_crc!=received_crc)return false;
-  s.pcf=raw[0];s.command=raw[1];
-  const uint8_t control=raw[2];s.power=control&1U;s.pir=control&0x20U;
+  if(normal_rx_session)normal_rx_last_raw=raw;
+  std::array<uint8_t,13> frame{};
+  if(!align_normal_rx(raw.data(),length,frame) ||
+     (frame[0]&0xF8U)!=0x50U || frame[1]>0x05 ||
+     frame[9]!=0x01 || frame[10]!=0x02){
+    if(normal_rx_session)++normal_rx_rejected;
+    return false;
+  }
+  const uint8_t control=frame[2];
   const uint8_t mode=static_cast<uint8_t>((control&0x18U)>>3U);
-  const uint16_t temperature=static_cast<uint16_t>((raw[4]<<8U)|raw[5]);
-  if(mode>2||raw[3]<1||raw[3]>100||raw[6]<1||raw[6]>100||
-     temperature<2700||temperature>6500)return false;
+  const uint16_t temperature=static_cast<uint16_t>((frame[4]<<8U)|frame[5]);
+  if(mode>2||frame[3]<1||frame[3]>100||frame[6]<1||frame[6]>100||
+     temperature<2700||temperature>6500){
+    if(normal_rx_session)++normal_rx_rejected;
+    return false;
+  }
+  const uint16_t received_crc=static_cast<uint16_t>((frame[11]<<8U)|frame[12]);
+  if(!crc_seed_ready){
+    const uint16_t candidate=recover_crc_seed(received_crc,active_radio_address,
+                                               frame[0],frame.data()+1,10);
+    const auto vote=crc_seed_votes.add(candidate);
+    if(vote.accepted){
+      normal_rx_last_seed=candidate;
+      normal_rx_last_seed_votes=vote.votes;
+    }
+    if(vote.found){
+      active_crc_seed=candidate;
+      tx_pcf_prefix_zero=(crc_with_zero_before_pcf(active_radio_address,
+        frame[0],frame.data()+1,10)==received_crc);
+      crc_seed_ready=true;
+      normal_rx_seed_found_event=true;
+    }
+  }
+  if(!crc_seed_ready)return false;
+  const uint16_t expected_crc=halo_crc(frame[0],frame.data()+1,10);
+  if(expected_crc!=received_crc){
+    if(normal_rx_session)++normal_rx_rejected;
+    return false;
+  }
+  // Odd PIDs are lamp replies; their control byte is not authoritative state.
+  if(frame[0]&0x01U){
+    if(normal_rx_session)++normal_rx_rejected;
+    return false;
+  }
+  if(frame[1]==0x02 && !(control&0x01U) && !captured_remote_off_valid){
+    captured_remote_off=frame;
+    captured_remote_off_valid=true;
+    captured_remote_off_event=true;
+  }
+  s.pcf=frame[0];s.command=frame[1];
+  s.power=control&1U;s.pir=control&0x20U;
   s.front=(mode==0||mode==2);s.back=(mode==1||mode==2);
-  s.front_brightness=raw[3];s.color_temperature=temperature;
-  s.back_brightness=raw[6];s.valid=true;return true;
+  s.front_brightness=frame[3];s.color_temperature=temperature;
+  s.back_brightness=frame[6];s.valid=true;return true;
 }
 
 
@@ -162,8 +282,9 @@ inline bool wait_clock_edge(int target_level,uint32_t timeout_cycles=2400000){
 inline bool send_direct_stock_clocked(int update_level,bool invert=false,
                                       bool reverse_air=false,bool lsb_first=false,
                                       const uint8_t* payload_override=nullptr,
-                                      uint8_t pcf=0x54){
-  setup_exact_pico(RADIO_ADDRESS,RADIO_CHANNEL);
+                                      uint8_t pcf=0x54,
+                                      uint8_t channel=RADIO_CHANNEL){
+  setup_exact_pico(active_radio_address,channel);
   gpio_set_direction(TBCLK,GPIO_MODE_INPUT);
   set_bank(2); write_reg(0x34,0xAF); write_reg(0x35,0x21);
   set_bank(0); write_reg(0x38,0x15); write_reg(0x20,0x08);
@@ -179,10 +300,11 @@ inline bool send_direct_stock_clocked(int update_level,bool invert=false,
   };
   // Extra alternating symbols let the receiver settle before the address.
   add(0xAA); add(0xAA); add(0xAA); add(0xAA);
-  if(reverse_air)for(uint8_t b:RADIO_ADDRESS)add(b);
-  else for(size_t i=RADIO_ADDRESS.size();i>0;--i)add(RADIO_ADDRESS[i-1]);
-  // Direct input expects the captured canonical PCF byte immediately followed
-  // by payload. Adding a separate ninth bit shifted every payload bit right.
+  if(reverse_air)for(uint8_t b:active_radio_address)add(b);
+  else for(size_t i=active_radio_address.size();i>0;--i)add(active_radio_address[i-1]);
+  // Learned 9-bit PCF framing requires a zero bit before the canonical PCF.
+  // The original validated pair uses the legacy eight-bit direct frame.
+  if(tx_pcf_prefix_zero)bits[n++]=0;
   add(pcf);
   const uint8_t stock_payload[10]{0x04,0x10,0x0C,0x0F,0x55,0x5B,0x0F,0x55,0x01,0x02};
   const uint8_t* payload=payload_override?payload_override:stock_payload;
@@ -208,13 +330,42 @@ inline bool send_direct_stock_clocked(int update_level,bool invert=false,
   return ok;
 }
 
-inline uint8_t halo_app_pid=0;
 inline uint8_t halo_last_pcf=0;
 inline uint16_t halo_last_crc=0;
+inline bool halo_last_tx_packet_engine=false;
+inline uint8_t halo_last_tx_irq=0;
+inline uint8_t halo_last_tx_fifo_status=0;
+
+struct PacketEngineResult {
+  uint8_t irq=0;
+  uint8_t fifo_status=0;
+  uint8_t mode=0;
+  bool attempted=false;
+  bool sent() const { return attempted && (irq&0x20U) && !(irq&0x10U) && (fifo_status&0x10U); }
+};
+
+inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t length){
+  PacketEngineResult result;
+  if(address_learning||!crc_seed_ready||!tx_pcf_prefix_zero||
+     !payload||length==0||length>32)return result;
+  setup_exact_pico(active_radio_address,RADIO_CHANNEL);
+  command(0x09); // Flush TX FIFO.
+  write_reg(0x04,0x70); // Clear TX_DS, MAX_RT and RX_DR.
+  write_bytes(0x11,payload,length); // Hardware 9-bit PCF and CRC, with ACK.
+  result.attempted=true;
+  command(0x0E); // Trigger TX, including configured hardware retries.
+  esp_rom_delay_us(10000);
+  result.irq=read_reg(0x04);
+  result.fifo_status=read_reg(0x05);
+  result.mode=read_reg(0x26)&0x07U;
+  prepare_halo_receive();
+  return result;
+}
 
 inline bool send_halo_state(uint8_t command,bool power,bool pir,bool front,bool back,
                             uint8_t front_brightness,uint8_t back_brightness,
                             uint16_t color_temperature){
+  if(address_learning||!crc_seed_ready)return false;
   uint8_t lamp_mode=0;
   if(front && back)lamp_mode=2;
   else if(back)lamp_mode=1;
@@ -224,11 +375,50 @@ inline bool send_halo_state(uint8_t command,bool power,bool pir,bool front,bool 
     static_cast<uint8_t>(color_temperature>>8U),static_cast<uint8_t>(color_temperature),
     back_brightness,static_cast<uint8_t>(color_temperature>>8U),
     static_cast<uint8_t>(color_temperature),0x01,0x02};
+  if(tx_pcf_prefix_zero){
+    const auto result=send_packet_engine(payload,sizeof(payload));
+    halo_last_tx_packet_engine=true;
+    halo_last_tx_irq=result.irq;
+    halo_last_tx_fifo_status=result.fifo_status;
+    return result.sent();
+  }
+  halo_last_tx_packet_engine=false;
+  halo_last_tx_irq=0;
+  halo_last_tx_fifo_status=0;
   halo_last_pcf=static_cast<uint8_t>(0x50U|((halo_app_pid++&3U)<<1U));
   halo_last_crc=halo_crc(halo_last_pcf,payload,sizeof(payload));
   const bool ok=send_direct_stock_clocked(0,false,false,false,payload,halo_last_pcf);
   prepare_halo_receive();
   return ok;
+}
+
+inline bool replay_captured_remote_off(int update_level=0,bool invert=false,
+                                       bool fresh_pcf=false,uint8_t channel=RADIO_CHANNEL){
+  if(address_learning||!crc_seed_ready||!captured_remote_off_valid)return false;
+  const auto &frame=captured_remote_off;
+  const uint16_t captured_crc=static_cast<uint16_t>((frame[11]<<8U)|frame[12]);
+  if(halo_crc(frame[0],frame.data()+1,10)!=captured_crc)return false;
+  halo_last_pcf=frame[0];
+  if(fresh_pcf){
+    halo_last_pcf=static_cast<uint8_t>(0x50U|((halo_app_pid++&3U)<<1U));
+    if(halo_last_pcf==frame[0])
+      halo_last_pcf=static_cast<uint8_t>(0x50U|((halo_app_pid++&3U)<<1U));
+  }
+  halo_last_crc=fresh_pcf?halo_crc(halo_last_pcf,frame.data()+1,10):captured_crc;
+  const bool ok=send_direct_stock_clocked(update_level,invert,false,false,
+                                          frame.data()+1,halo_last_pcf,channel);
+  prepare_halo_receive();
+  return ok;
+}
+
+inline PacketEngineResult send_captured_off_packet_engine(){
+  PacketEngineResult result;
+  if(address_learning||!crc_seed_ready||!captured_remote_off_valid||
+     !tx_pcf_prefix_zero)return result;
+  const auto &frame=captured_remote_off;
+  const uint16_t captured_crc=static_cast<uint16_t>((frame[11]<<8U)|frame[12]);
+  if(halo_crc(frame[0],frame.data()+1,10)!=captured_crc)return result;
+  return send_packet_engine(frame.data()+1,10);
 }
 
 } // namespace bm5602_halo2

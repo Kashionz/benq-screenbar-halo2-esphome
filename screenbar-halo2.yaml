@@ -3,6 +3,7 @@ esphome:
   friendly_name: BenQ ScreenBar HALO 2
   includes:
     - bm5602_halo2.h
+    - halo2_address_learning.h
   on_boot:
     priority: -100
     then:
@@ -71,18 +72,40 @@ switch:
     restore_mode: RESTORE_DEFAULT_OFF
     turn_on_action:
       - lambda: |-
+          if(!bm5602_halo2::crc_seed_ready){
+            id(screenbar_power).publish_state(id(halo_power));
+            id(radio_status).publish_state("WAIT FOR CRC SEED"); return;
+          }
           id(halo_power)=true;
           const bool ok=bm5602_halo2::send_halo_state(0x02,true,id(halo_pir),id(halo_front),id(halo_back),
             id(halo_front_brightness),id(halo_back_brightness),id(halo_temperature));
-          char t[96]; snprintf(t,sizeof(t),"ON PCF=%02X CRC=%04X %s",bm5602_halo2::halo_last_pcf,
-            bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK"); id(radio_status).publish_state(t);
+          char t[96];
+          if(bm5602_halo2::halo_last_tx_packet_engine)
+            snprintf(t,sizeof(t),"ON PACKET IRQ=%02X FIFO=%02X %s",
+              bm5602_halo2::halo_last_tx_irq,bm5602_halo2::halo_last_tx_fifo_status,
+              ok?"TX_DS":"TX FAILED");
+          else
+            snprintf(t,sizeof(t),"ON PCF=%02X CRC=%04X %s",bm5602_halo2::halo_last_pcf,
+              bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK");
+          id(radio_status).publish_state(t);
     turn_off_action:
       - lambda: |-
+          if(!bm5602_halo2::crc_seed_ready){
+            id(screenbar_power).publish_state(id(halo_power));
+            id(radio_status).publish_state("WAIT FOR CRC SEED"); return;
+          }
           id(halo_power)=false;
           const bool ok=bm5602_halo2::send_halo_state(0x02,false,id(halo_pir),id(halo_front),id(halo_back),
             id(halo_front_brightness),id(halo_back_brightness),id(halo_temperature));
-          char t[96]; snprintf(t,sizeof(t),"OFF PCF=%02X CRC=%04X %s",bm5602_halo2::halo_last_pcf,
-            bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK"); id(radio_status).publish_state(t);
+          char t[96];
+          if(bm5602_halo2::halo_last_tx_packet_engine)
+            snprintf(t,sizeof(t),"OFF PACKET IRQ=%02X FIFO=%02X %s",
+              bm5602_halo2::halo_last_tx_irq,bm5602_halo2::halo_last_tx_fifo_status,
+              ok?"TX_DS":"TX FAILED");
+          else
+            snprintf(t,sizeof(t),"OFF PCF=%02X CRC=%04X %s",bm5602_halo2::halo_last_pcf,
+              bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK");
+          id(radio_status).publish_state(t);
   - platform: template
     id: front_lamp_switch
     name: "Front lamp"
@@ -197,15 +220,220 @@ select:
           bm5602_halo2::send_halo_state(0x03,id(halo_power),id(halo_pir),id(halo_front),id(halo_back),
             id(halo_front_brightness),id(halo_back_brightness),id(halo_temperature));
 
+script:
+  - id: probe_replay_off
+    mode: queued
+    parameters:
+      phase: int
+      invert_data: bool
+      fresh_pcf: bool
+      channel: int
+    then:
+      - lambda: |-
+          if(!bm5602_halo2::captured_remote_off_valid){
+            id(radio_status).publish_state("NO CAPTURED REMOTE OFF"); return;
+          }
+          const auto &frame=bm5602_halo2::captured_remote_off;
+          const bool ok=bm5602_halo2::replay_captured_remote_off(
+            phase,invert_data,fresh_pcf,static_cast<uint8_t>(channel));
+          ESP_LOGI("halo2", "HALO2 REPLAY REMOTE OFF channel=%d phase=%d invert=%u fresh=%u captured_pcf=%02X PCF=%02X CMD=%02X CONTROL=%02X CRC=%04X %s",
+            channel,phase,static_cast<unsigned>(invert_data),static_cast<unsigned>(fresh_pcf),
+            frame[0],bm5602_halo2::halo_last_pcf,frame[1],frame[2],bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK");
+          char status[96]; snprintf(status,sizeof(status),"REPLAY OFF CH%d P%d I%d F%d PCF=%02X CRC=%04X %s",
+            channel,phase,invert_data,fresh_pcf,bm5602_halo2::halo_last_pcf,
+            bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK");
+          id(radio_status).publish_state(status);
+  - id: probe_power_sync
+    mode: single
+    then:
+      - lambda: |-
+          if(!bm5602_halo2::crc_seed_ready){
+            id(radio_status).publish_state("WAIT FOR CRC SEED"); return;
+          }
+          const bool ok=bm5602_halo2::send_halo_state(0x02,id(halo_power),id(halo_pir),id(halo_front),id(halo_back),
+            id(halo_front_brightness),id(halo_back_brightness),id(halo_temperature));
+          if(bm5602_halo2::halo_last_tx_packet_engine)
+            ESP_LOGI("halo2", "HALO2 TX PROBE cmd=02 PACKET IRQ=%02X FIFO=%02X %s",
+              bm5602_halo2::halo_last_tx_irq,bm5602_halo2::halo_last_tx_fifo_status,
+              ok?"TX_DS":"TX FAILED");
+          else
+            ESP_LOGI("halo2", "HALO2 TX PROBE cmd=02 PCF=%02X CRC=%04X %s",
+              bm5602_halo2::halo_last_pcf,bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK");
+      - repeat:
+          count: 6
+          then:
+            - delay: 250ms
+            - lambda: |-
+                if(!bm5602_halo2::crc_seed_ready)return;
+                const bool ok=bm5602_halo2::send_halo_state(0x04,id(halo_power),id(halo_pir),id(halo_front),id(halo_back),
+                  id(halo_front_brightness),id(halo_back_brightness),id(halo_temperature));
+                if(bm5602_halo2::halo_last_tx_packet_engine)
+                  ESP_LOGI("halo2", "HALO2 TX PROBE cmd=04 PACKET IRQ=%02X FIFO=%02X %s",
+                    bm5602_halo2::halo_last_tx_irq,bm5602_halo2::halo_last_tx_fifo_status,
+                    ok?"TX_DS":"TX FAILED");
+                else
+                  ESP_LOGI("halo2", "HALO2 TX PROBE cmd=04 PCF=%02X CRC=%04X %s",
+                    bm5602_halo2::halo_last_pcf,bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK");
+                if(ok){
+                  char status[64];
+                  if(bm5602_halo2::halo_last_tx_packet_engine)
+                    snprintf(status,sizeof(status),"TX PROBE PACKET IRQ=%02X FIFO=%02X",
+                      bm5602_halo2::halo_last_tx_irq,bm5602_halo2::halo_last_tx_fifo_status);
+                  else
+                    snprintf(status,sizeof(status),"TX PROBE PCF=%02X CRC=%04X sent",
+                      bm5602_halo2::halo_last_pcf,bm5602_halo2::halo_last_crc);
+                  id(radio_status).publish_state(status);
+                }
+
 button:
+  - platform: template
+    name: "Replay captured remote OFF"
+    on_press:
+      - script.execute:
+          id: probe_replay_off
+          phase: 0
+          invert_data: false
+          fresh_pcf: false
+          channel: 5
+  - platform: template
+    name: "Replay OFF new PCF"
+    on_press:
+      - script.execute:
+          id: probe_replay_off
+          phase: 0
+          invert_data: false
+          fresh_pcf: true
+          channel: 5
+  - platform: template
+    name: "Replay OFF opposite edge"
+    on_press:
+      - script.execute:
+          id: probe_replay_off
+          phase: 1
+          invert_data: false
+          fresh_pcf: true
+          channel: 5
+  - platform: template
+    name: "Replay OFF inverted data"
+    on_press:
+      - script.execute:
+          id: probe_replay_off
+          phase: 0
+          invert_data: true
+          fresh_pcf: true
+          channel: 5
+  - platform: template
+    name: "Replay OFF opposite edge inverted"
+    on_press:
+      - script.execute:
+          id: probe_replay_off
+          phase: 1
+          invert_data: true
+          fresh_pcf: true
+          channel: 5
+  - platform: template
+    name: "Replay OFF channel 46"
+    on_press:
+      - script.execute:
+          id: probe_replay_off
+          phase: 0
+          invert_data: false
+          fresh_pcf: true
+          channel: 46
+  - platform: template
+    name: "Replay OFF channel 75"
+    on_press:
+      - script.execute:
+          id: probe_replay_off
+          phase: 0
+          invert_data: false
+          fresh_pcf: true
+          channel: 75
+  - platform: template
+    name: "Test packet engine OFF"
+    on_press:
+      - lambda: |-
+          const auto result=bm5602_halo2::send_captured_off_packet_engine();
+          if(!result.attempted){
+            id(radio_status).publish_state("PACKET ENGINE NEEDS CAPTURED OFF / PCF9"); return;
+          }
+          ESP_LOGI("halo2", "HALO2 PACKET ENGINE OFF IRQ=%02X STATUS=%02X MODE=%u TX_DS=%u MAX_RT=%u",
+            result.irq,result.fifo_status,result.mode,
+            (result.irq&0x20U)?1U:0U,(result.irq&0x10U)?1U:0U);
+          char status[80]; snprintf(status,sizeof(status),"PACKET OFF IRQ=%02X FIFO=%02X TX_DS=%u MAX_RT=%u",
+            result.irq,result.fifo_status,(result.irq&0x20U)?1U:0U,
+            (result.irq&0x10U)?1U:0U);
+          id(radio_status).publish_state(status);
+  - platform: template
+    name: "Test power sync (02 + 04)"
+    on_press:
+      - script.execute: probe_power_sync
+  - platform: template
+    name: "Start address learning"
+    on_press:
+      - lambda: |-
+          bm5602_halo2::start_address_learning();
+          esp_rom_delay_us(10000);
+          const uint8_t channel=bm5602_halo2::read_reg(0x10);
+          const uint8_t dm1=bm5602_halo2::read_reg(0x11);
+          const uint8_t width=bm5602_halo2::read_reg(0x2C);
+          const uint8_t mode=bm5602_halo2::read_reg(0x26)&0x07U;
+          std::array<uint8_t,3> sync{};
+          bm5602_halo2::read_bytes(0x90,sync.data(),sync.size());
+          ESP_LOGI("halo2", "HALO2 ADDRESS RX CONFIG: RFCH=%u DM1=%02X RXPW0=%u STA1_MODE=%u SYNC=%02X %02X %02X (RX=5)",
+            channel,dm1,width,mode,sync[0],sync[1],sync[2]);
+          ESP_LOGI("halo2", "HALO2 ADDRESS LEARNING: set rear brightness to 10 and color temperature to 3925 K; operate the original remote");
+          id(radio_status).publish_state(channel==5 && dm1==0x42 && width==16 && mode==5 &&
+            sync==bm5602_halo2::LEARNING_SYNC
+            ? "ADDRESS LEARNING RX=ON" : "ADDRESS LEARNING RX CONFIG ERROR");
+  - platform: template
+    name: "Cancel address learning"
+    on_press:
+      - lambda: |-
+          bm5602_halo2::stop_address_learning();
+          id(radio_status).publish_state("READY ADDRESS LEARNING CANCELLED");
+  - platform: template
+    name: "Apply found address (RAM)"
+    on_press:
+      - lambda: |-
+          if(!bm5602_halo2::apply_found_address()){
+            id(radio_status).publish_state("NO VERIFIED ADDRESS"); return;
+          }
+          const auto &a=bm5602_halo2::active_radio_address;
+          esp_rom_delay_us(10000);
+          const uint8_t channel=bm5602_halo2::read_reg(0x10);
+          const uint8_t dm1=bm5602_halo2::read_reg(0x11);
+          const uint8_t width=bm5602_halo2::read_reg(0x2C);
+          const uint8_t mode=bm5602_halo2::read_reg(0x26)&0x07U;
+          std::array<uint8_t,4> rx_address{};
+          bm5602_halo2::read_bytes(0x90,rx_address.data(),rx_address.size());
+          ESP_LOGI("halo2", "HALO2 NORMAL RX CONFIG: RFCH=%u DM1=%02X RXPW0=%u STA1_MODE=%u ADDRESS=%02X %02X %02X %02X",
+            channel,dm1,width,mode,rx_address[0],rx_address[1],rx_address[2],rx_address[3]);
+          if(channel!=5 || dm1!=0x82 || width!=14 || mode!=5 || rx_address!=a){
+            id(radio_status).publish_state("ADDRESS APPLIED RX CONFIG ERROR");
+            return;
+          }
+          char status[80]; snprintf(status,sizeof(status),"ADDRESS APPLIED %02X %02X %02X %02X (RAM)",a[0],a[1],a[2],a[3]);
+          ESP_LOGI("halo2", "HALO2 ADDRESS APPLIED (register order, RAM): %02X %02X %02X %02X",a[0],a[1],a[2],a[3]);
+          id(radio_status).publish_state(bm5602_halo2::crc_seed_ready?status:"ADDRESS APPLIED; LEARNING CRC SEED");
   - platform: template
     name: "Resend current state"
     on_press:
       - lambda: |-
+          if(!bm5602_halo2::crc_seed_ready){
+            id(radio_status).publish_state("WAIT FOR CRC SEED"); return;
+          }
           const bool ok=bm5602_halo2::send_halo_state(0x03,id(halo_power),id(halo_pir),id(halo_front),id(halo_back),
             id(halo_front_brightness),id(halo_back_brightness),id(halo_temperature));
-          char t[96]; snprintf(t,sizeof(t),"APPLY PCF=%02X CRC=%04X %s",bm5602_halo2::halo_last_pcf,
-            bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK"); id(radio_status).publish_state(t);
+          char t[96];
+          if(bm5602_halo2::halo_last_tx_packet_engine)
+            snprintf(t,sizeof(t),"APPLY PACKET IRQ=%02X FIFO=%02X %s",
+              bm5602_halo2::halo_last_tx_irq,bm5602_halo2::halo_last_tx_fifo_status,
+              ok?"TX_DS":"TX FAILED");
+          else
+            snprintf(t,sizeof(t),"APPLY PCF=%02X CRC=%04X %s",bm5602_halo2::halo_last_pcf,
+              bm5602_halo2::halo_last_crc,ok?"sent":"NO CLOCK");
+          id(radio_status).publish_state(t);
   - platform: restart
     name: "Restart"
 
@@ -213,9 +441,104 @@ interval:
   - interval: 50ms
     then:
       - lambda: |-
+          if(bm5602_halo2::address_learning){
+            static uint32_t last_learning_log=0;
+            static uint32_t logged_session=0;
+            if(logged_session!=bm5602_halo2::learning_session){
+              logged_session=bm5602_halo2::learning_session;
+              last_learning_log=millis();
+            }
+            const auto result=bm5602_halo2::poll_address_learning();
+            static uint32_t last_sample=0;
+            static uint32_t sample_session=0;
+            if(sample_session!=bm5602_halo2::learning_session){
+              sample_session=bm5602_halo2::learning_session;
+              last_sample=0;
+            }
+            if(bm5602_halo2::learning_captures>0 && bm5602_halo2::learning_captures<=5){
+              if(last_sample!=bm5602_halo2::learning_captures){
+                last_sample=bm5602_halo2::learning_captures;
+                char sample[97]{}; size_t used=0;
+                const size_t n=bm5602_halo2::learning_last_length<32
+                  ?bm5602_halo2::learning_last_length:32;
+                for(size_t i=0;i<n;++i){
+                  used+=snprintf(sample+used,sizeof(sample)-used,"%02X%s",
+                    bm5602_halo2::learning_last_raw[i],i+1<n?" ":"");
+                }
+                ESP_LOGI("halo2", "HALO2 ADDRESS SAMPLE len=%u raw=%s",
+                  bm5602_halo2::learning_last_length,sample);
+              }
+            }
+            if(result.accepted){
+              const auto &a=result.address;
+              ESP_LOGI("halo2", "HALO2 ADDRESS CANDIDATE: %02X %02X %02X %02X (%u/5) [register order]",
+                a[0],a[1],a[2],a[3],result.votes);
+              if(result.found){
+                char status[80]; snprintf(status,sizeof(status),"ADDRESS FOUND %02X %02X %02X %02X",a[0],a[1],a[2],a[3]);
+                ESP_LOGI("halo2", "HALO2 ADDRESS FOUND: %02X %02X %02X %02X [register order]",a[0],a[1],a[2],a[3]);
+                id(radio_status).publish_state(status);
+              }
+            }
+            const uint32_t learning_now=millis();
+            if(learning_now-last_learning_log>=10000U){
+              last_learning_log=learning_now;
+              ESP_LOGI("halo2", "HALO2 ADDRESS LEARNING RX captures=%u rejected=%u",
+                static_cast<unsigned>(bm5602_halo2::learning_captures),
+                static_cast<unsigned>(bm5602_halo2::learning_rejected));
+            }
+            return;
+          }
           static uint32_t last_publish=0;
           bm5602_halo2::HaloRxState s;
           const bool received=bm5602_halo2::poll_halo_receive(s)&&s.valid;
+          if(bm5602_halo2::normal_rx_last_seed_votes){
+            ESP_LOGI("halo2", "HALO2 CRC SEED CANDIDATE: %04X (%u/5)",
+              bm5602_halo2::normal_rx_last_seed,bm5602_halo2::normal_rx_last_seed_votes);
+          }
+          if(bm5602_halo2::normal_rx_seed_found_event){
+            char status[48]; snprintf(status,sizeof(status),"CRC SEED FOUND %04X",
+              bm5602_halo2::active_crc_seed);
+            ESP_LOGI("halo2", "HALO2 CRC SEED FOUND: %04X",bm5602_halo2::active_crc_seed);
+            ESP_LOGI("halo2", "HALO2 TX FRAMING: PCF_PREFIX_ZERO=%u",
+              bm5602_halo2::tx_pcf_prefix_zero?1U:0U);
+            id(radio_status).publish_state(status);
+          }
+          if(bm5602_halo2::captured_remote_off_event){
+            const auto &frame=bm5602_halo2::captured_remote_off;
+            ESP_LOGI("halo2", "HALO2 REMOTE OFF CAPTURED PCF=%02X CMD=%02X CONTROL=%02X CRC=%02X%02X",
+              frame[0],frame[1],frame[2],frame[11],frame[12]);
+            id(radio_status).publish_state("REMOTE OFF CAPTURED");
+          }
+          if(bm5602_halo2::normal_rx_session){
+            static uint32_t logged_rx_session=0;
+            static uint32_t last_rx_sample=0;
+            static uint32_t last_rx_log=0;
+            if(logged_rx_session!=bm5602_halo2::normal_rx_session){
+              logged_rx_session=bm5602_halo2::normal_rx_session;
+              last_rx_sample=0;
+              last_rx_log=millis();
+            }
+            const uint32_t captures=bm5602_halo2::normal_rx_captures;
+            if(captures>0 && captures<=5 && last_rx_sample!=captures){
+              last_rx_sample=captures;
+              char sample[97]{}; size_t used=0;
+              const uint8_t length=bm5602_halo2::normal_rx_last_length;
+              const size_t n=length<=24?length:0;
+              for(size_t i=0;i<n;++i){
+                used+=snprintf(sample+used,sizeof(sample)-used,"%02X%s",
+                  bm5602_halo2::normal_rx_last_raw[i],i+1<n?" ":"");
+              }
+              ESP_LOGI("halo2", "HALO2 NORMAL RX SAMPLE len=%u raw=%s valid=%u",
+                length,n?sample:"<unread>",received?1U:0U);
+            }
+            const uint32_t rx_now=millis();
+            if(rx_now-last_rx_log>=10000U){
+              last_rx_log=rx_now;
+              ESP_LOGI("halo2", "HALO2 NORMAL RX captures=%u rejected=%u",
+                static_cast<unsigned>(bm5602_halo2::normal_rx_captures),
+                static_cast<unsigned>(bm5602_halo2::normal_rx_rejected));
+            }
+          }
           if(received){
             id(halo_power)=s.power; id(halo_pir)=s.pir; id(halo_front)=s.front; id(halo_back)=s.back;
             id(halo_front_brightness)=s.front_brightness; id(halo_back_brightness)=s.back_brightness;
