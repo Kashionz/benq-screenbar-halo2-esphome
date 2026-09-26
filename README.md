@@ -1,10 +1,12 @@
 # BenQ ScreenBar HALO 2 · ESPHome radio bridge
 
-[![Validate](https://github.com/Termina1/benq-screenbar-halo2-esphome/actions/workflows/validate.yml/badge.svg)](https://github.com/Termina1/benq-screenbar-halo2-esphome/actions/workflows/validate.yml)
+[![Validate](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/workflows/validate.yml/badge.svg)](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/workflows/validate.yml)
 
 Control a **BenQ ScreenBar HALO 2** from Home Assistant using a **BM5602** radio module and an **M5Stack ATOM Lite**. The bridge supports power, front/back light, both brightness channels, color temperature, lamp mode, ultrasonic presence mode, and state updates from the original wireless controller.
 
-This is working firmware, not a packet-engine mock: transmission is synchronized to the BM5602 `TBCLK` output and uses the stock on-air framing and CRC.
+This firmware supports two validated transmit paths: the original tested pair uses BM5602 `TBCLK`-synchronized direct transmission, and a learned nine-bit-PCF pair uses the BM5602 packet engine. The original controller's state changes are received passively.
+
+See [current project status](docs/PROJECT_STATUS.md) for the tested hardware, observations, and known limits.
 
 ## What works
 
@@ -31,12 +33,15 @@ See **[Wiring and soldering](docs/WIRING.md)** before powering the boards.
 | Path | Purpose |
 |---|---|
 | `screenbar-halo2.yaml` | Production ESPHome configuration |
-| `bm5602_halo2.h` | Minimal BM5602 SPI, direct TX, CRC and passive RX driver |
+| `bm5602_halo2.h` | BM5602 SPI, packet-engine/direct TX, CRC and passive RX driver |
+| `halo2_address_learning.h` | Address candidate extraction and five-capture voting |
 | `secrets.example.yaml` | Safe configuration template |
 | `home-assistant/package.yaml` | Optional authenticated REST integration with guarded controller-state synchronization |
 | `home-assistant/dashboard.yaml` | Compact stock-card dashboard |
 | `home-assistant/secrets.example.yaml` | Matching Home Assistant web credentials |
-| [`docs/IMPLEMENTATION_NOTES.md`](docs/IMPLEMENTATION_NOTES.md) | Differences from the packet-engine approach and why it failed on our tested lamp |
+| [`docs/IMPLEMENTATION_NOTES.md`](docs/IMPLEMENTATION_NOTES.md) | Radio framing, transmit paths, and physical validation |
+| [`docs/ADDRESS_LEARNING.md`](docs/ADDRESS_LEARNING.md) | Original-controller address discovery and RAM-only application |
+| [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Tested behavior, limitations, and next checks |
 
 ## Install
 
@@ -47,6 +52,7 @@ Copy these files into the same ESPHome configuration directory:
 ```text
 screenbar-halo2.yaml
 bm5602_halo2.h
+halo2_address_learning.h
 ```
 
 Copy `secrets.example.yaml` to `secrets.yaml` and replace all placeholders. Generate the API key with `openssl rand -base64 32`. Use a unique web password; it protects the control/state endpoints used by the optional HA package. Never commit `secrets.yaml`.
@@ -136,7 +142,19 @@ CRC:                  CRC-CCITT, polynomial 0x1021
 CRC initial state:    0xEFDF before the four-byte on-air address
 ```
 
-The tested lamp uses address `9C EA BB 86`. Other controller/lamp pairs may use a different address. If yours does, update `RADIO_ADDRESS` in `bm5602_halo2.h` only after capturing your own stock traffic; the direct on-air order and post-address CRC state are derived automatically.
+The original tested lamp uses address `9C EA BB 86` and the eight-bit-model CRC
+initial state `EFDF`. A second tested pair uses address `B0 1E E8 E6` and a
+leading zero bit before the canonical PCF. Its effective eight-bit-model CRC
+initial state is `CC88`; the complete nine-bit frame uses `FFFF`. Address
+learning derives the address and frame format from original-controller traffic;
+these values remain in RAM until reboot.
+
+For an unknown address, use the [address learning procedure](docs/ADDRESS_LEARNING.md)
+to capture the original controller and apply a five-capture candidate in RAM.
+After applying the address, operate the original controller until five frames
+agree on a CRC initial state, then test physical ON/OFF. The second pair's web
+Power ON and OFF were both confirmed on the lamp; other pairs still require
+hardware validation.
 
 ### RX state rule
 
@@ -146,15 +164,19 @@ Only even-PID request frames are treated as authoritative controller state. Odd-
 
 - RX polling is deliberately limited to 50 ms. Aggressive synchronous 10 ms FIFO draining can starve ESPHome API, HTTP and OTA while ICMP still appears alive.
 - Transmission always returns the BM5602 to passive RX mode.
-- Passive RX accepts only exact 13-byte stock requests with a valid CRC and in-range brightness/temperature values.
+- Passive RX captures 14 FIFO bytes, aligns the complete 13-byte frame, and accepts only even-PID stock requests with a valid CRC and in-range brightness/temperature values.
+- Learned RX frames can identify a leading zero bit before the canonical PCF; direct TX includes that bit when the received CRC confirms the format.
+- Learned nine-bit PCF pairs use the BM5602 packet engine for normal web commands. A captured controller OFF payload and subsequent web Power ON/OFF physically changed the second tested lamp. Web OFF/ON still worked after about ten minutes idle; both reported `IRQ=2E`, `FIFO=11`, and `TX_DS=1`. Longer-term operation has not yet been measured.
 - The native ESPHome API uses encryption. HTTP control uses unique basic-auth credentials, and web OTA is disabled.
-- Local transmission success is not described as a lamp acknowledgement. The implementation was validated using the transmitted frame, an independently received lamp response, and visible lamp reaction.
+- Local transmission success is not described as a lamp acknowledgement. The original pair was validated using the transmitted frame, an independently received lamp response, and visible lamp reaction; the second pair was validated by physical web Power ON/OFF and exact original-controller OFF replay.
+- A diagnostic **Test power sync (02 + 04)** button can compare a single Power command with an update followed by repeated status requests on a newly learned pair.
+- **Replay captured remote OFF** can transmit a CRC-valid original-controller power-off request unchanged after the lamp has been turned back on, isolating TX from payload generation.
 
 ## Prior art and research
 
-The interoperability work was informed by the public BM5602 examples and by [kuzmin-no/BenQ_ScreenBar_HALO_2_HA_integration](https://github.com/kuzmin-no/BenQ_ScreenBar_HALO_2_HA_integration). This repository provides an independently implemented ESP-IDF/ESPHome C++ direct-mode driver, the recovered framing/CRC behavior, and the Home Assistant integration used by this project.
+The interoperability work was informed by the public BM5602 examples and by [kuzmin-no/BenQ_ScreenBar_HALO_2_HA_integration](https://github.com/kuzmin-no/BenQ_ScreenBar_HALO_2_HA_integration). This repository provides an independently implemented ESP-IDF/ESPHome C++ driver with direct and packet-engine TX, the recovered framing/CRC behavior, and the Home Assistant integration used by this project.
 
-See **[Why this implementation uses synchronized direct mode](docs/IMPLEMENTATION_NOTES.md)** for the exact architectural differences, failed hypotheses, recovered frame format, and end-to-end validation criteria.
+See **[Radio transmission modes and validation](docs/IMPLEMENTATION_NOTES.md)** for the architectural differences, failed hypotheses, recovered frame format, and end-to-end validation criteria.
 
 ## Disclaimer
 
