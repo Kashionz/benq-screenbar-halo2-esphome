@@ -28,7 +28,7 @@ jobs:
           wifi_password: "compile-only-password"
           fallback_password: "compile-only-password"
           ota_password: "compile-only-password"
-          api_encryption_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          api_encryption_key: "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
           web_username: "screenbar"
           web_password: "compile-only-password"
           EOF
