@@ -21,7 +21,7 @@
 
 ## 平台與驗收
 
-- Windows：實作並驗證本機 DNS-SD 瀏覽、候選填入及手動 fallback。
+- Windows：優先完成本機 DNS-SD 瀏覽、候選填入及手動 fallback；測試服務與真實橋接器分別驗收。
 - macOS／iOS：需驗證 Bonjour 與 OS LAN 權限。iOS 使用原生 Bonjour 瀏覽，宣告固定服務的 `NSBonjourServices`，不依賴需要額外 multicast entitlement 的任意 UDP 掃描。平台限制依 [Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)。
 - 實機驗收：至少找到真實橋接器、選取不送出、登入後控制成功；無候選、拒絕權限／斷線有可理解回應；多候選不自動選擇或發送帳密。
 
@@ -42,3 +42,17 @@ Windows 共用搜尋核心實測 5004 ms 返回空候選；沒有向任何候選
 後續使用者回覆「已允許」，原生 App 重新搜尋仍為空。按「使用已保存帳密連線」成功，UI 顯示橋接器已連線、無線模組就緒、配對已保存；單播 DNS-SD 查詢再次取得正確服務記錄。可確認空結果沒有阻止既有 IP 連線，尚無證據將剩餘問題歸因於防火牆、App 或 AP。已請使用者在同網路 Mac 用 `dns-sd -B _halo2-bridge._tcp local.` 做對照，結果待回報。
 
 可在 `app` 目錄執行 `cargo run --locked -p halo2-app-support --example discover`，唯讀輸出耗時與候選，無需帳密。候選只接受符合契約的 `.local` 主機；名稱與位址格式、連接埠、TXT 版本都會檢查。Windows 與 Apple 都處理移除事件，Apple callback 的 TXT 長度與解析數量亦有界限。
+
+## Windows 優先：系統 DNS-SD 後端
+
+使用者選擇先以 Windows 為主，Mac 對照及 Apple 實機驗證延後。
+
+修正測試服務的宣告位址為實際 Wi-Fi 位址後，同一個 `TEST ONLY` 服務能被 Windows `DnsServiceBrowse` 與既有 Bonjour 找到，原 mdns-sd App 仍無候選。因此 Windows 後端改用系統 `DnsServiceBrowse`，不需額外安裝 Bonjour。前述使用 loopback 位址的測試不能作為網路 multicast 判斷依據。
+
+- 固定查詢類型、五秒總期限、最多 20 筆候選；只接受 PTR、SRV、相容 TXT 的完整組合，處理 goodbye／刪除及重複 TXT。
+- 取消搜尋後依 [Microsoft API 契約](https://learn.microsoft.com/en-us/windows/win32/api/windns/nf-windns-dnsservicebrowsecancel) 等待最終 `ERROR_CANCELLED` callback；若作業延遲完成，保留其資源與單一作業限制，避免懸空指標或反覆累積查詢。
+- 共用搜尋工具在 4851 ms 找到 `halo2-discovery-test.local:18080`。這是 DNS-SD 測試服務，不是燈具；沒有 HTTP 登入或 RF 命令。
+- 測試服務停止後，同一工具在 4851 ms 返回空候選。真實 ESP32 的 multicast 搜尋仍未通過，不把此次 App 後端修正等同整個區網搜尋完成。
+- Rust support 14 項測試與 clippy 通過，包含 Windows 原生記錄結構、亂序組合、刪除、不相容版本與重複 TXT。
+- Windows release 建置與安裝成功，前端 20 項測試通過。原生 App 搜尋列出 `test only`；選取後正確填入 `.local` 主機與 18080，密碼空白、維持未連線且燈光按鈕停用。隨後按已保存帳密連線，使用原保存位址 8080 成功連回真實橋接器，顯示無線模組就緒、配對已保存；沒有對測試服務登入，也未操作燈光。
+- 本次 NSIS 安裝包 SHA-256：`8E8EC5A8780778D0EF9B92EF9DF0CE6000C9E5ED8AAB75DF9F6A8865424318B1`。測試服務只暫存於本機並在測試後移除，未加入 App 的保存設定。
