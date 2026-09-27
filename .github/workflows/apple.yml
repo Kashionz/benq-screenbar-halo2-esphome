@@ -48,6 +48,7 @@ jobs:
           for path in plists:
               data = plistlib.loads(path.read_bytes())
               assert data.get('NSLocalNetworkUsageDescription')
+              assert data.get('NSBonjourServices') == ['_halo2-bridge._tcp']
               assert data.get('UIFileSharingEnabled') is True
               assert data.get('LSSupportsOpeningDocumentsInPlace') is True
           print('Generated iOS LAN and document-sharing declarations verified')

@@ -11,6 +11,13 @@ use tokio::sync::Mutex;
 mod tray;
 
 #[tauri::command]
+async fn discover_bridges() -> Result<Vec<halo2_app_support::discovery::Candidate>, Fault> {
+    tauri::async_runtime::spawn_blocking(halo2_app_support::discovery::discover)
+        .await
+        .map_err(|_| Fault::new("DISCOVERY_UNAVAILABLE", "搜尋無法完成，請手動輸入 IP。"))?
+}
+
+#[tauri::command]
 async fn set_tray_available(app: tauri::AppHandle, enabled: bool) -> Result<bool, Fault> {
     #[cfg(desktop)]
     {
@@ -391,6 +398,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            discover_bridges,
             connect_bridge,
             disconnect_bridge,
             bridge_state,

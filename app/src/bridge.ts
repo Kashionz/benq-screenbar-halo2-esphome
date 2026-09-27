@@ -58,6 +58,11 @@ export interface SavedConnection {
   username: string;
   device_id: string;
 }
+export interface DiscoveredBridge {
+  name: string;
+  host: string;
+  port: number;
+}
 export interface DiagnosticReport {
   events: Array<{
     unix_ms: number;
@@ -75,6 +80,7 @@ export const failure = (e: unknown): Fault =>
     ? (e as Fault)
     : { code: "APP_ERROR", message: "操作無法完成，請重新連線。" };
 export const bridge = {
+  discover: () => invoke<DiscoveredBridge[]>("discover_bridges"),
   trayAvailable: (enabled: boolean) => invoke<boolean>("set_tray_available", { enabled }),
   onTrayPower: (handler: (power: boolean) => void) => listen<boolean>("halo-tray-power", (event) => {
     if (typeof event.payload === "boolean") handler(event.payload);

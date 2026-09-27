@@ -1,4 +1,5 @@
 pub mod diagnostics;
+pub mod discovery;
 pub mod presets;
 pub mod profiles;
 

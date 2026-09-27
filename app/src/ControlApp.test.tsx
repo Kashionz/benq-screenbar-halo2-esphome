@@ -18,6 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("./bridge", async (original) => ({
   ...(await original<typeof import("./bridge")>()),
   bridge: {
+    discover: vi.fn(),
     trayAvailable: vi.fn().mockResolvedValue(true),
     onTrayPower: vi.fn().mockResolvedValue(() => {}),
     presets: vi.fn().mockResolvedValue([]),
@@ -53,6 +54,20 @@ async function login() {
   return user;
 }
 describe("control safety", () => {
+  it("selects discovered addresses without login or RF and clears the entered password", async () => {
+    vi.mocked(bridge.discover).mockResolvedValue([{ name: "Desk", host: "desk.local", port: 8080 }]);
+    render(<App />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("密碼"), "previous-secret");
+    expect(bridge.discover).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "搜尋區域網路橋接器" }));
+    await user.click(await screen.findByRole("button", { name: /Desk desk.local:8080/ }));
+    expect(screen.getByLabelText("IP 或主機名稱")).toHaveValue("desk.local");
+    expect(screen.getByLabelText("密碼")).toHaveValue("");
+    expect(bridge.connect).not.toHaveBeenCalled();
+    expect(bridge.connectSaved).not.toHaveBeenCalled();
+    expect(bridge.power).not.toHaveBeenCalled();
+  });
   it("waits for an in-flight state read before sending one explicit command", async () => {
     let finishRead!: (value: Snapshot) => void;
     vi.mocked(bridge.state).mockImplementationOnce(

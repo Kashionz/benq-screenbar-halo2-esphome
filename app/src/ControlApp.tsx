@@ -13,6 +13,7 @@ import "./halo.css";
 import { LightControls, type LightPatch } from "./LightControls";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
 import { useTray } from "./useTray";
+import { DiscoveryPanel } from "./DiscoveryPanel";
 
 export default function App() {
   const [host, setHost] = useState("screenbar-halo2.local");
@@ -264,6 +265,12 @@ export default function App() {
           )}
           {!connected ? (
             <form onSubmit={connect}>
+              <DiscoveryPanel disabled={busy || !native} select={(candidate) => {
+                connectionEdited.current = true;
+                setHost(candidate.host);
+                setPort(candidate.port);
+                setPassword("");
+              }} />
               {saved && (
                 <div className="saved-connection">
                   <p>
