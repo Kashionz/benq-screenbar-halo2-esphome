@@ -30,7 +30,8 @@ export default function App() {
   const [result, setResult] = useState<CommandRecord | null>(null);
   const [updated, setUpdated] = useState("");
   const generation = useRef(0);
-  const refreshing = useRef(false);
+  const refreshing = useRef<Promise<Snapshot | null> | null>(null);
+  const commanding = useRef(false);
   const connectionEdited = useRef(false);
   const native = isTauri();
   useEffect(() => {
@@ -66,21 +67,27 @@ export default function App() {
     setNetworkFault(null);
     setUpdated(new Date().toLocaleTimeString("zh-TW"));
   }, []);
-  const refresh = useCallback(async () => {
-    if (refreshing.current) return;
+  const refresh = useCallback(() => {
+    if (commanding.current) return Promise.resolve(null);
+    if (refreshing.current) return refreshing.current;
     const token = generation.current;
-    refreshing.current = true;
-    try {
-      const next = await bridge.state();
-      if (token === generation.current) accept(next);
-    } catch (e) {
-      if (token === generation.current && failure(e).code !== "BUSY") {
-        setOnline(false);
-        setNetworkFault(failure(e));
+    const pending = (async () => {
+      try {
+        const next = await bridge.state();
+        if (token === generation.current) accept(next);
+        return next;
+      } catch (e) {
+        if (token === generation.current && failure(e).code !== "BUSY") {
+          setOnline(false);
+          setNetworkFault(failure(e));
+        }
+        return null;
+      } finally {
+        refreshing.current = null;
       }
-    } finally {
-      refreshing.current = false;
-    }
+    })();
+    refreshing.current = pending;
+    return pending;
   }, [accept]);
   useEffect(() => {
     if (!connected) return;
@@ -173,12 +180,17 @@ export default function App() {
     );
   }
   async function command(send: () => Promise<CommandRecord>) {
-    if (!snapshot) return false;
+    if (!snapshot || commanding.current) return false;
     const token = generation.current;
+    commanding.current = true;
     setBusy(true);
     setFault(null);
     setResult(null);
     try {
+      // Finish an already-started read before acquiring the native session for
+      // this explicit command. Never retry a POST or poll during transmission.
+      if (refreshing.current && !(await refreshing.current)) return false;
+      if (token !== generation.current) return false;
       const next = await send();
       if (token === generation.current) setResult(next);
       return token === generation.current && next.status === "transmitted";
@@ -186,6 +198,7 @@ export default function App() {
       if (token === generation.current) setFault(failure(e));
       return false;
     } finally {
+      commanding.current = false;
       if (token === generation.current) {
         setBusy(false);
         void refresh();

@@ -50,6 +50,34 @@ async function login() {
   return user;
 }
 describe("control safety", () => {
+  it("waits for an in-flight state read before sending one explicit command", async () => {
+    let finishRead!: (value: Snapshot) => void;
+    vi.mocked(bridge.state).mockImplementationOnce(
+      () => new Promise((resolve) => { finishRead = resolve; }),
+    );
+    vi.mocked(bridge.power).mockResolvedValue({ status: "transmitted" } as CommandRecord);
+    render(<App />);
+    const user = await login();
+    await user.click(screen.getByRole("button", { name: "重新整理" }));
+    await user.click(screen.getByRole("button", { name: "關燈" }));
+    expect(bridge.power).not.toHaveBeenCalled();
+    finishRead(snapshot);
+    await waitFor(() => expect(bridge.power).toHaveBeenCalledTimes(1));
+    expect(bridge.power).toHaveBeenCalledWith(snapshot.device_id, false);
+  });
+  it("does not transmit when the state read ahead of a command fails", async () => {
+    let failRead!: (error: unknown) => void;
+    vi.mocked(bridge.state).mockImplementationOnce(
+      () => new Promise((_, reject) => { failRead = reject; }),
+    );
+    render(<App />);
+    const user = await login();
+    await user.click(screen.getByRole("button", { name: "重新整理" }));
+    await user.click(screen.getByRole("button", { name: "關燈" }));
+    failRead({ code: "NETWORK", message: "連線失敗" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "中斷連線／更換裝置" })).toBeEnabled());
+    expect(bridge.power).not.toHaveBeenCalled();
+  });
   it("loads only saved metadata until the user explicitly connects", async () => {
     vi.mocked(bridge.saved).mockResolvedValue({
       host: "192.168.0.99",
