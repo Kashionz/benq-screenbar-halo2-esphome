@@ -1,5 +1,5 @@
 [workspace]
-members = ["bridge-core", "src-tauri"]
+members = ["bridge-core", "app-support", "src-tauri"]
 resolver = "2"
 
 [profile.release]

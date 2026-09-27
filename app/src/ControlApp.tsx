@@ -7,15 +7,20 @@ import {
   type Snapshot,
   type CommandRecord,
   type Fault,
+  type SavedConnection,
 } from "./bridge";
 import "./halo.css";
 import { LightControls, type LightPatch } from "./LightControls";
+import { DiagnosticsPanel } from "./DiagnosticsPanel";
 
 export default function App() {
   const [host, setHost] = useState("screenbar-halo2.local");
   const [port, setPort] = useState(8080);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [saved, setSaved] = useState<SavedConnection | null>(null);
+  const [remember, setRemember] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState("");
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [connected, setConnected] = useState(false);
   const [online, setOnline] = useState(false);
@@ -26,7 +31,29 @@ export default function App() {
   const [updated, setUpdated] = useState("");
   const generation = useRef(0);
   const refreshing = useRef(false);
+  const connectionEdited = useRef(false);
   const native = isTauri();
+  useEffect(() => {
+    if (!native) return;
+    let cancelled = false;
+    bridge
+      .saved()
+      .then((profile) => {
+        if (cancelled) return;
+        setSaved(profile);
+        if (profile && !connectionEdited.current) {
+          setHost(profile.host);
+          setPort(profile.port);
+          setUsername(profile.username);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setSettingsMessage(failure(e).message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [native]);
   const accept = useCallback((next: Snapshot) => {
     setSnapshot((current) =>
       current &&
@@ -71,21 +98,55 @@ export default function App() {
   }, [connected, refresh]);
   async function connect(event: React.FormEvent) {
     event.preventDefault();
+    await establish(
+      () => bridge.connect(host.trim(), port, username, password),
+      remember,
+    );
+  }
+  async function establish(load: () => Promise<Snapshot>, save: boolean) {
     const token = ++generation.current;
     setBusy(true);
     setFault(null);
     setNetworkFault(null);
     setResult(null);
     try {
-      const next = await bridge.connect(host.trim(), port, username, password);
+      const next = await load();
       if (token !== generation.current) return;
       accept(next);
       setConnected(true);
       setPassword("");
+      if (save) {
+        try {
+          setSaved(await bridge.remember());
+          setSettingsMessage("連線已保存，密碼存放於系統憑證庫。");
+        } catch (e) {
+          setSettingsMessage(`本次已連線，但保存失敗：${failure(e).message}`);
+        }
+      }
     } catch (e) {
       if (token === generation.current) setFault(failure(e));
     } finally {
       if (token === generation.current) setBusy(false);
+    }
+  }
+  async function useSaved() {
+    if (!saved) return;
+    setHost(saved.host);
+    setPort(saved.port);
+    setUsername(saved.username);
+    await establish(bridge.connectSaved, false);
+  }
+  async function forget() {
+    setBusy(true);
+    try {
+      await bridge.forget();
+      setSaved(null);
+      setRemember(false);
+      setSettingsMessage("已移除保存的連線與帳密。");
+    } catch (e) {
+      setSettingsMessage(failure(e).message);
+    } finally {
+      setBusy(false);
     }
   }
   async function disconnect() {
@@ -188,11 +249,48 @@ export default function App() {
           )}
           {!connected ? (
             <form onSubmit={connect}>
+              {saved && (
+                <div className="saved-connection">
+                  <p>
+                    已保存：{saved.host}:{saved.port}
+                  </p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy || !native}
+                    onClick={() => void useSaved()}
+                  >
+                    使用已保存帳密連線
+                  </button>
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => void forget()}
+                  >
+                    忘記已保存連線
+                  </button>
+                </div>
+              )}
+              {!saved && settingsMessage && (
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={busy}
+                  onClick={() => void forget()}
+                >
+                  重試移除保存資料
+                </button>
+              )}
               <label>
                 IP 或主機名稱
                 <input
                   value={host}
-                  onChange={(e) => setHost(e.target.value)}
+                  disabled={busy}
+                  onChange={(e) => {
+                    connectionEdited.current = true;
+                    setHost(e.target.value);
+                  }}
                   placeholder="192.168.1.10"
                   required
                   autoCapitalize="none"
@@ -207,7 +305,11 @@ export default function App() {
                   min={1}
                   max={65535}
                   value={port}
-                  onChange={(e) => setPort(Number(e.target.value))}
+                  disabled={busy}
+                  onChange={(e) => {
+                    connectionEdited.current = true;
+                    setPort(Number(e.target.value));
+                  }}
                   required
                 />
               </label>
@@ -215,7 +317,11 @@ export default function App() {
                 帳號
                 <input
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={busy}
+                  onChange={(e) => {
+                    connectionEdited.current = true;
+                    setUsername(e.target.value);
+                  }}
                   autoComplete="username"
                   required
                 />
@@ -225,7 +331,11 @@ export default function App() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={busy}
+                  onChange={(e) => {
+                    connectionEdited.current = true;
+                    setPassword(e.target.value);
+                  }}
                   autoComplete="current-password"
                   required
                 />
@@ -236,8 +346,17 @@ export default function App() {
               >
                 {busy ? "正在連線…" : "連線橋接器 →"}
               </button>
+              <label className="remember-toggle">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  disabled={busy}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                記住此連線與帳密
+              </label>
               <p className="hint">
-                使用橋接器網頁的帳號密碼。密碼只保留於本次 App 執行期間。
+                使用橋接器網頁的帳號密碼。勾選記住時存入系統憑證庫；否則只留於本次連線。
               </p>
             </form>
           ) : (
@@ -273,7 +392,21 @@ export default function App() {
               >
                 中斷連線／更換裝置
               </button>
+              {saved && (
+                <button
+                  className="text-button"
+                  disabled={busy}
+                  onClick={() => void forget()}
+                >
+                  忘記已保存連線
+                </button>
+              )}
             </div>
+          )}
+          {settingsMessage && (
+            <p role="status" className="hint">
+              {settingsMessage}
+            </p>
           )}
         </aside>
         <section className="panel control-panel">
@@ -353,10 +486,17 @@ export default function App() {
                 {snapshot.observed_remote.values.power ? "開燈" : "關燈"}
               </strong>
               <span>
-                {({front:"前燈",back:"後燈",both:"前後燈"} as Record<string,string>)[snapshot.observed_remote.values.mode] ?? snapshot.observed_remote.values.mode}
-                {" · 前 "}{snapshot.observed_remote.values.front_brightness}%
-                {" · 後 "}{snapshot.observed_remote.values.back_brightness}%
-                {" · "}{snapshot.observed_remote.values.temperature_k} K
+                {(
+                  { front: "前燈", back: "後燈", both: "前後燈" } as Record<
+                    string,
+                    string
+                  >
+                )[snapshot.observed_remote.values.mode] ??
+                  snapshot.observed_remote.values.mode}
+                {" · 前 "}
+                {snapshot.observed_remote.values.front_brightness}%{" · 後 "}
+                {snapshot.observed_remote.values.back_brightness}%{" · "}
+                {snapshot.observed_remote.values.temperature_k} K
               </span>
               <small>
                 約{" "}
@@ -411,6 +551,7 @@ export default function App() {
           </pre>
         </details>
       )}
+      {native && <DiagnosticsPanel />}
       <footer>
         <span>LOCAL CONNECTION · NO CLOUD</span>
         <span>非 BenQ 官方軟體 · 開發版 0.1.0</span>

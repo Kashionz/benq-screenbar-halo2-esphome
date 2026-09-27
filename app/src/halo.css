@@ -525,3 +525,33 @@ footer {
 .light-settings input[type="checkbox"] {
   width: auto;
 }
+.remember-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.remember-toggle input {
+  width: auto;
+}
+.saved-connection {
+  grid-column: 1/-1;
+  border-bottom: 1px solid #d7ded7;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.diagnostic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+.diagnostic-events {
+  max-height: 340px;
+  overflow: auto;
+  padding-left: 24px;
+  font-size: 13px;
+}
+.export-path {
+  overflow-wrap: anywhere;
+}

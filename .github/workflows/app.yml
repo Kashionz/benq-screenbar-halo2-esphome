@@ -26,5 +26,7 @@ jobs:
       - run: npm test
       - run: cargo fmt --all -- --check
       - run: cargo test --locked -p halo2-bridge-core
+      - run: cargo test --locked -p halo2-app-support
       - run: cargo clippy --locked -p halo2-bridge-core --all-targets -- -D warnings
+      - run: cargo clippy --locked -p halo2-app-support --all-targets -- -D warnings
       - run: npm run tauri build -- --debug --no-bundle

@@ -45,11 +45,36 @@ export interface Fault {
   command_id?: string;
   boot_id?: string;
 }
+export interface SavedConnection {
+  host: string;
+  port: number;
+  username: string;
+  device_id: string;
+}
+export interface DiagnosticReport {
+  events: Array<{
+    unix_ms: number;
+    kind: string;
+    device_id: string | null;
+    command_id: string | null;
+    status: string;
+    error_code: string | null;
+    tx: CommandRecord["tx"] | null;
+  }>;
+  warning: Fault | null;
+}
 export const failure = (e: unknown): Fault =>
   e && typeof e === "object" && "code" in e
     ? (e as Fault)
     : { code: "APP_ERROR", message: "操作無法完成，請重新連線。" };
 export const bridge = {
+  saved: () => invoke<SavedConnection | null>("saved_connection"),
+  remember: () => invoke<SavedConnection>("remember_connection"),
+  forget: () => invoke<void>("forget_connection"),
+  connectSaved: () => invoke<Snapshot>("connect_saved"),
+  diagnostics: () => invoke<DiagnosticReport>("diagnostic_history"),
+  exportDiagnostics: () => invoke<string>("export_diagnostics"),
+  clearDiagnostics: () => invoke<void>("clear_diagnostics"),
   setState: (
     deviceId: string,
     patch: Partial<Omit<LightState, "ultrasonic_enabled">>,

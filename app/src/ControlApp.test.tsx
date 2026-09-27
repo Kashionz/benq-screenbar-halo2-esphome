@@ -23,6 +23,13 @@ vi.mock("./bridge", async (original) => ({
     state: vi.fn(),
     power: vi.fn(),
     lookup: vi.fn(),
+    saved: vi.fn(),
+    remember: vi.fn(),
+    forget: vi.fn(),
+    connectSaved: vi.fn(),
+    diagnostics: vi.fn(),
+    exportDiagnostics: vi.fn(),
+    clearDiagnostics: vi.fn(),
   },
 }));
 const snapshot = examples.find((e) => e.schema === "Snapshot")!
@@ -30,6 +37,7 @@ const snapshot = examples.find((e) => e.schema === "Snapshot")!
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(bridge.saved).mockResolvedValue(null);
   vi.mocked(bridge.connect).mockResolvedValue(snapshot);
   vi.mocked(bridge.state).mockResolvedValue(snapshot);
 });
@@ -42,6 +50,36 @@ async function login() {
   return user;
 }
 describe("control safety", () => {
+  it("loads only saved metadata until the user explicitly connects", async () => {
+    vi.mocked(bridge.saved).mockResolvedValue({
+      host: "192.168.0.99",
+      port: 8080,
+      username: "saved",
+      device_id: snapshot.device_id,
+    });
+    vi.mocked(bridge.connectSaved).mockResolvedValue(snapshot);
+    render(<App />);
+    const button = await screen.findByRole("button", {
+      name: "使用已保存帳密連線",
+    });
+    expect(bridge.connectSaved).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("密碼")).toHaveValue("");
+    await userEvent.click(button);
+    await screen.findByText("橋接器已連線");
+    expect(bridge.connectSaved).toHaveBeenCalledTimes(1);
+    expect(bridge.power).not.toHaveBeenCalled();
+  });
+  it("keeps a successful session usable when secure saving fails", async () => {
+    vi.mocked(bridge.remember).mockRejectedValue({
+      code: "CREDENTIAL_STORE",
+      message: "憑證庫不可用",
+    });
+    render(<App />);
+    await userEvent.click(screen.getByLabelText("記住此連線與帳密"));
+    await login();
+    await screen.findByText(/本次已連線，但保存失敗/);
+    expect(screen.getByRole("button", { name: "關燈" })).toBeEnabled();
+  });
   it("disables power before connection", () => {
     render(<App />);
     expect(screen.getByRole("button", { name: /開燈/ })).toBeDisabled();

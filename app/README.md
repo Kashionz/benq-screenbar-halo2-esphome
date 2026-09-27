@@ -13,7 +13,19 @@ Tauri 2 + React/TypeScript + Rust，共用 `bridge-core` 直接連線 ESP32 prot
 3. 按開燈／關燈。`指令已送出` 是 RF 完成發送，不是燈具獨立確認。
 4. 結果不明時按「查詢命令結果」。App 不會自動重送 POST。
 
-帳密只留在記憶體，關閉或中斷連線即移除本次 session；尚未提供「記住密碼」或多裝置保存。使用者需於下次開啟重新登入。不可使用瀏覽器預覽直接控制，原生通訊一律在 Rust 執行。
+未勾選「記住此連線與帳密」時，帳密只留在本次 session。勾選後，位址、帳號與預期裝置識別保存在 App 資料目錄，密碼存於 Windows Credential Manager／macOS、iOS Keychain；不寫入 JSON、診斷檔或前端儲存。
+
+下次開啟可按「使用已保存帳密連線」，密碼不回傳前端。連線後會核對裝置識別，位址若變成另一台橋接器，會拒絕建立控制 session。按「忘記已保存連線」會刪除設定與系統憑證；本次已登入 session 可繼續使用，按中斷連線可清除記憶體中的帳密。
+
+若憑證庫拒絕存取，本次成功連線仍可使用，畫面會顯示保存失敗。資料寫入使用原子替換與憑證 ID 清理紀錄，重開時重試未完成清理。只有 Windows 的原生憑證庫已實測，Apple 端仍需驗收。
+
+不可使用瀏覽器預覽直接控制，原生通訊一律在 Rust 執行。前景斷線期間繼續唯讀輪詢，恢復後同步狀態；不自動重送任何燈光命令。
+
+## 診斷紀錄
+
+「歷史診斷紀錄」可讀取、清除及匯出最近 200 筆命令／連線事件。相同狀態或連續相同網路錯誤不重複寫入；失敗命令保留錯誤碼、發送計數、IRQ 與 FIFO。輪詢也會收錄橋接器回報的最新命令，方便追查其他介面發起的操作。
+
+匯出位置為系統文件目錄下 `Halo2Control/halo2-diagnostics-<UUID>.json`（文件目錄不可取得時使用 App 資料目錄）。畫面顯示完整路徑。檔案含裝置／開機／命令識別及時間，沒有帳號、IP、密碼、HTTP 請求與自由文字錯誤訊息。未儲存成功時顯示警告，RF 操作結果不會因診斷檔寫入失敗而被改寫。
 
 ## 開發與檢查
 
@@ -25,7 +37,9 @@ npm run tauri dev
 npm run build
 npm test
 cargo test -p halo2-bridge-core
+cargo test -p halo2-app-support
 cargo clippy -p halo2-bridge-core --all-targets -- -D warnings
+cargo clippy -p halo2-app-support --all-targets -- -D warnings
 npm run tauri build -- --debug --no-bundle
 ```
 
@@ -35,7 +49,7 @@ npm run tauri build -- --debug --no-bundle
 
 ## 架構與錯誤語意
 
-- 前端僅使用受限的 Tauri commands：connect、disconnect、state、power、lookup；沒有任意 URL 或 shell 代理。
+- 前端使用受限的 Tauri commands：連線、燈光控制、查詢、設定保存與診斷；沒有任意 URL、檔案路徑或 shell 代理。
 - Rust 序列化 session 存取，校驗 device_id；每筆 POST 前讀取新 boot/revision。
 - 不跟隨 HTTP redirect、不使用環境 proxy；回應上限 8192 bytes。
 - POST 回應遺失時保留 command_id/boot_id、禁止新寫入，只以 GET 查詢原結果。
@@ -45,8 +59,8 @@ npm run tauri build -- --debug --no-bundle
 
 ## 平臺與驗收範圍
 
-Windows 已完成本機建置、前端互動測試、Rust 模擬網路測試，以及 Rust 核心對實體 ESP32 的 OFF/ON（均 transmitted）。瀏覽器做過版面檢查；Windows 原生 UI 的人工登入點擊驗收仍待進行。
+Windows 已完成本機建置、前端互動測試、Rust 模擬網路測試，以及 Rust 核心對實體 ESP32 的電源、燈光模式、亮度與色溫測試。原生 UI 已驗證登入、保存帳密、重開連線、診斷匯出與前燈亮度套用；使用者確認實際變亮。ESP32 斷電重新上線後，App 恢復同步且未重送命令。
 
 macOS／iOS 共用程式與 LAN 用途描述已準備，**尚未在 Apple 平臺建置或實測**。需 Mac、Xcode、簽章與 iPhone；在 Mac 執行 `npm run tauri ios init` 後再 `npm run tauri ios dev`。`Info.plist` 提供本地網路用途與 local networking 宣告，macOS entitlement 允許網路 client；這些設定不能替代實機權限驗證。
 
-亮度／色溫、SSE、自動探索、OS 安全憑證保存與背景控制未包含在本最小版本。測試結果見 [驗收紀錄](../docs/VALIDATION_2026-09-27.md)。
+SSE、自動探索、情境預設與桌面系統匣控制尚未提供。最新功能與實機結果見 [開發驗收紀錄](../docs/DEVELOPMENT_ACCEPTANCE.md)，初期協定驗證見 [協定驗收紀錄](../docs/VALIDATION_2026-09-27.md)。
