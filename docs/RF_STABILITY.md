@@ -92,3 +92,13 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 另以相同用戶端與 3 秒逾時，執行 61 次、間隔 5 秒的唯讀狀態查詢，歷時約五分鐘；全部成功，延遲 27–127 ms，裝置未重啟、控制 revision 未變，radio 均 ready。本輪沒有發送 RF，原始紀錄保留於 ignored `.esphome/readonly-connection-probe.jsonl`。
 
 此次未重現先前查詢故障，不能回溯判定舊錯誤種類或認定已修復。查詢頻率與有 RF 發送的原測試不同，結果不取代 30 分鐘 RF 驗收；後續應使用新增診斷重新執行原條件的測試。未改動韌體、網路參數或逾時設定。
+
+### 帶錯誤分類重測：第二筆重現 MAX_RT
+
+再次安排 61 筆、間隔 30 秒，沿用移位後的擺放、電腦 USB 與原韌體。第一筆 1/1 TX_DS；第二筆回報 `TX_MAX_RETRIES`，約 30.7 秒即停止，`successful=1`、`stopped_at=tx_result`、`reason=TX_NOT_TRANSMITTED`、`complete=false`。此次 HTTP 正常回傳終端失敗結果，並非先前的唯讀查詢錯誤。
+
+失敗追蹤為 IRQ `0E→1E`、RT2 `00→10`、12,124 μs、FIFO `11/11/01/01`，設定讀回 `cfg=00 rc1=30 mask=00 pkt=20 rfch=05 dm1=82 rt1=72 ce=00`，失敗後清除仍為 FIFO `01`。發送前 FIFO 原本為空；這些資料仍不足以區分傳送端、ACK 接收、供電或其他硬體因素。
+
+後續唯讀確認沒有重啟、配對仍保存、radio/pairing 為 ready，最後命令仍為該筆 failed；沒有重送或恢復命令。原始紀錄保留在 ignored `.esphome/off-metal-30min-diagnostics.jsonl`。
+
+移開機殼未消除故障，先前六筆短測成功不能視為修復。下一個待執行對照為保持電腦 USB 插孔、模組位置及訊號接線，只替換較短 USB 線；尚未換線或量測供電，不能先判定線材有問題。換線會造成重新上電，後續解讀必須納入此差異，不能只以換線後短暫成功推論線材是根因。
