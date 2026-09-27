@@ -36,7 +36,12 @@ export interface Snapshot {
   uptime_ms: number;
   state_version: number;
   control_revision: number;
-  desired: { values: LightState; source: string };
+  desired: {
+    values: LightState;
+    source: string;
+    updated_at_uptime_ms: number;
+    command_id: string | null;
+  };
   observed_remote: { values: LightState; received_at_uptime_ms: number } | null;
   radio_status: string;
   radio_error_code: string | null;
@@ -98,9 +103,7 @@ export const bridge = {
   setState: (
     deviceId: string,
     patch: Partial<Omit<LightState, "ultrasonic_enabled">>,
-    experimental: boolean,
-  ) =>
-    invoke<CommandRecord>("set_light_state", { deviceId, patch, experimental }),
+  ) => invoke<CommandRecord>("set_light_state", { deviceId, patch }),
   connect: (host: string, port: number, username: string, password: string) =>
     invoke<Snapshot>("connect_bridge", { host, port, username, password }),
   disconnect: () => invoke<void>("disconnect_bridge"),

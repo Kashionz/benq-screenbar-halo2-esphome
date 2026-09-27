@@ -22,7 +22,7 @@ async fn main() {
                 let patch: StatePatch =
                     serde_json::from_str(&std::env::args().nth(2).expect("JSON patch"))
                         .expect("valid patch");
-                bridge.set_state(patch, true).await
+                bridge.set_state(patch).await
             }
             _ => panic!("unknown argument"),
         }

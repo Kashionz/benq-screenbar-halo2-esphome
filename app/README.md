@@ -2,7 +2,7 @@
 
 Tauri 2 + React/TypeScript + Rust，共用 `bridge-core` 直接連線 ESP32 protocol v1。
 本版提供一台橋接器的登入、每 2 秒前景輪詢、電源 ON/OFF、原廠控制器觀察與命令診斷。
-另提供前／後／雙燈模式、兩路亮度及色溫調整；橋接器標記為 experimental 的項目需先勾選啟用。滑桿僅預覽，按「套用燈光設定」才提交修改的欄位。
+另提供前／後／雙燈模式、兩路亮度及色溫調整。橋接器仍會回報各欄位的 verified／experimental 標記，但 App 不再要求另外勾選啟用，只停用 unsupported 欄位。拖曳滑桿、點模式或情境只修改草稿，燈具示意圖顯示「預覽 · 尚未套用」；按「套用燈光設定」才提交修改的欄位。電源是單一按鈕，依目前目標送出明確的開燈或關燈，不送切換指令。
 
 ## Windows 使用
 
@@ -12,7 +12,7 @@ Windows 安裝設定為目前使用者，支援繁體中文／英文；缺少 We
 
 1. 啟動 App，輸入橋接器 IP 或主機名稱，連接埠預設 `8080`。
 2. 輸入 ESPHome 網頁相同帳密，按「連線橋接器」。
-3. 按開燈／關燈。`指令已送出` 是 RF 完成發送，不是燈具獨立確認。
+3. 按電源按鈕（顯示「開燈」或「關燈」）。`指令已送出` 是 RF 完成發送，不是燈具獨立確認。
 4. 結果不明時按「查詢命令結果」。App 不會自動重送 POST。
 
 未勾選「記住此連線與帳密」時，帳密只留在本次 session。勾選後，位址、帳號與預期裝置識別保存在 App 資料目錄，密碼存於 Windows Credential Manager／macOS、iOS Keychain；不寫入 JSON、診斷檔或前端儲存。
@@ -49,7 +49,7 @@ Windows bundle 用 `npm run tauri build -- --bundles nsis`；平台設定由 `ta
 
 圖示來源為專案自行繪製的 `app-icon.svg`；以 `npm run tauri icon -- app-icon.svg --ios-color '#294a3e'` 重新產生各平台圖示。它代表本專案，並非 BenQ 官方標誌。
 
-`bridge-core/examples/live_probe.rs` 可使用 `HALO2_HOST`、`HALO2_USERNAME`、`HALO2_PASSWORD` 環境變數測試相同 Rust 核心；預設唯讀，只有明確指定 `--power-on`／`--power-off` 或 `--patch '{"mode":"front"}'` 才送 RF。patch 模式明確啟用 experimental，僅供人工監督的實機驗證。
+`bridge-core/examples/live_probe.rs` 可使用 `HALO2_HOST`、`HALO2_USERNAME`、`HALO2_PASSWORD` 環境變數測試相同 Rust 核心；預設唯讀，只有明確指定 `--power-on`／`--power-off` 或 `--patch '{"mode":"front"}'` 才送 RF。patch 模式可送出 experimental 欄位（與 App 相同，不需額外旗標），僅供人工監督的實機驗證。
 
 `cargo run --locked -p halo2-bridge-core --example soak -- 900 report.json` 使用相同環境變數進行約 30 分鐘唯讀 LAN 測試（每次回應後間隔 2 秒，逾時會延長總時間）。報告包含完成筆數、連線失敗、開機變化、模組未就緒及延遲統計，不包含帳密或主機位址。必須選擇尚不存在的報告路徑；中途停止的報告保留 `complete=false`。此程式不送 RF，不能證明 RF 控制長期穩定。
 
@@ -73,9 +73,9 @@ Apple Silicon Mac 的完整步驟與結果表見 [Apple 實機驗收](../docs/AP
 
 ## 情境預設
 
-「前後燈與色溫」內可展開情境預設，輸入名稱，保存畫面上的模式、兩路亮度及色溫（含尚未套用的草稿），最多 20 組。資料存在本機 App 目錄，沒有帳密或配對資料；不會自動跨裝置同步。
+燈光群組的「情境」列按「編輯」，輸入名稱即可保存畫面上的模式、兩路亮度及色溫（含尚未套用的草稿），最多 20 組。資料存在本機 App 目錄，沒有帳密或配對資料；不會自動跨裝置同步。
 
-「帶入草稿」只更新畫面；確認設定並按「套用燈光設定」才會發送，電源維持原設定。實驗性控制仍需先啟用，離線或命令結果不明時不能套用。載入、保存、刪除情境均不發送 RF，重新開啟也不會自動套用。儲存檔損壞時顯示錯誤並保留原檔。
+點選情境膠囊只把與目前目標不同的欄位帶入草稿；確認設定並按「套用燈光設定」才會發送，電源維持原設定。離線、無線模組未就緒、處理中或命令結果不明時不能套用。載入、保存、刪除情境均不發送 RF，重新開啟也不會自動套用。儲存檔損壞時顯示錯誤並保留原檔。
 
 ## 桌面快捷控制
 

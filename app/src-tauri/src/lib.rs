@@ -331,7 +331,6 @@ async fn set_power(
 async fn set_light_state(
     device_id: String,
     patch: StatePatch,
-    experimental: bool,
     session: State<'_, Session>,
     support: State<'_, SupportState>,
 ) -> Result<Record, Fault> {
@@ -346,7 +345,7 @@ async fn set_light_state(
     if bridge.device_id != device_id {
         return Err(Fault::new("DEVICE_CHANGED", "裝置已變更，請重新連線。"));
     }
-    let result = bridge.set_state(patch, experimental).await;
+    let result = bridge.set_state(patch).await;
     log_command(&support, &device_id, &result);
     result
 }

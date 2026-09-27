@@ -46,26 +46,29 @@ fn decode_contract_snapshot_and_unknown_fields() {
 
 #[test]
 fn light_patch_validates_ranges_and_capabilities() {
-    let features = json!({"mode":"experimental", "temperature_k":"experimental", "front_brightness":"verified"});
+    let features = json!({"mode":"experimental", "temperature_k":"experimental", "front_brightness":"verified", "back_brightness":"unsupported"});
     let mode = StatePatch {
         mode: Some("both".into()),
         ..Default::default()
     };
+    assert_eq!(mode.validate(&features).unwrap(), json!({"mode":"both"}));
     assert_eq!(
-        mode.validate(&features, false).unwrap_err().code,
-        "EXPERIMENTAL_DISABLED"
+        StatePatch {
+            front_brightness: Some(40),
+            temperature_k: Some(3925),
+            ..Default::default()
+        }
+        .validate(&features)
+        .unwrap(),
+        json!({"front_brightness":40,"temperature_k":3925})
     );
-    assert_eq!(
-        mode.validate(&features, true).unwrap(),
-        json!({"mode":"both"})
-    );
-    assert!(StatePatch::default().validate(&features, true).is_err());
+    assert!(StatePatch::default().validate(&features).is_err());
     for value in [2699, 3926, 6501] {
         assert!(StatePatch {
             temperature_k: Some(value),
             ..Default::default()
         }
-        .validate(&features, true)
+        .validate(&features)
         .is_err());
     }
     for value in [0, 101, 255] {
@@ -73,15 +76,31 @@ fn light_patch_validates_ranges_and_capabilities() {
             front_brightness: Some(value),
             ..Default::default()
         }
-        .validate(&features, true)
+        .validate(&features)
         .is_err());
     }
     assert!(StatePatch {
         back_brightness: Some(50),
         ..Default::default()
     }
-    .validate(&features, true)
+    .validate(&features)
     .is_err());
+    let missing = StatePatch {
+        power: Some(true),
+        ..Default::default()
+    };
+    assert_eq!(
+        missing.validate(&features).unwrap_err().code,
+        "UNSUPPORTED_FIELD"
+    );
+    assert_eq!(
+        missing
+            .validate(&json!({"power":"experimental"}))
+            .unwrap_err()
+            .code,
+        "UNSUPPORTED_FIELD"
+    );
+    assert!(missing.validate(&json!({"power":"verified"})).is_ok());
     assert!(serde_json::from_value::<StatePatch>(json!({"unknown":1})).is_err());
 }
 

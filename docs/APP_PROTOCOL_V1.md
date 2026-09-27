@@ -73,7 +73,7 @@ HTTP handler 只驗證及登錄命令，RF 工作由主迴圈執行，不在網�
 - 關燈保留模式、亮度及色溫。修改它們不隱含開燈；要開燈須明確指定 `power:true`。
 - Patch 至少一個欄位，缺少代表保留、null 不允許。不得默默 clamp 或捨入。
 
-Snapshot 的 `features` 逐欄標示 `verified | experimental | unsupported`；verified 必須根據該裝置／配對的實測，不得因 App 有 UI 就宣稱支援。第一版 App 預設隱藏或停用 experimental，開發者可明確啟用。設定 unsupported 欄位整筆拒絕。配對改變時，features 與 control_revision/state_version 在同一次修改中更新，避免新配對沿用舊配對的驗證標記；App 依最新快照呈現能力。
+Snapshot 的 `features` 逐欄標示 `verified | experimental | unsupported`；verified 必須根據該裝置／配對的實測，不得因 App 有 UI 就宣稱支援。App 自 2026-09-28 起不再要求使用者另外啟用 experimental 欄位，但這不改變橋接器回報的驗證標記，App 也不得把 experimental 顯示成已驗證。設定 unsupported 欄位整筆拒絕。配對改變時，features 與 control_revision/state_version 在同一次修改中更新，避免新配對沿用舊配對的驗證標記；App 依最新快照呈現能力。
 
 Snapshot 有兩組狀態：
 
