@@ -1,0 +1,39 @@
+name: Apple build validation
+on:
+  push:
+    paths: ['app/**', 'protocol/**', '.github/workflows/apple.yml']
+  pull_request:
+    paths: ['app/**', 'protocol/**', '.github/workflows/apple.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - run: npm ci
+      - run: npm test
+      - run: cargo test --locked -p halo2-bridge-core -p halo2-app-support
+      - run: npm run tauri build -- --debug --bundles app
+      # Checks the Rust iOS integration; this does not build/sign an Xcode app.
+      - run: cargo check --locked -p halo2-control --lib --target aarch64-apple-ios-sim
+      - run: cargo check --locked -p halo2-control --lib --target aarch64-apple-ios
+      - name: Archive local-test application
+        run: ditto -c -k --keepParent "target/debug/bundle/macos/Halo 2 Control.app" halo2-macos-arm64-debug.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halo2-macos-arm64-debug
+          path: app/halo2-macos-arm64-debug.zip
+          retention-days: 7
