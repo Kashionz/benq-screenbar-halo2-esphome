@@ -1,9 +1,99 @@
 # Project status (2026-09-27)
 
+Latest bounded hardware acceptance: [2026-09-27 validation](VALIDATION_2026-09-27.md).
+The polling API's 23 live checks now pass with Wi-Fi power saving disabled;
+historical failures below are retained as diagnostic context. Long-term and
+Apple-platform validation remain pending.
+
 This document records what was observed on hardware during development of the
 Halo 2 ESPHome bridge. It distinguishes a transmitted packet from a visible
 lamp response. The project is a personal fork of
 [Termina1/benq-screenbar-halo2-esphome](https://github.com/Termina1/benq-screenbar-halo2-esphome).
+
+## App protocol development checkpoint (2026-09-27)
+
+The polling implementation and shared dispatcher are now in
+`components/halo2_api/`; usage and scope are described in
+[APP_PROTOCOL_IMPLEMENTATION.md](APP_PROTOCOL_IMPLEMENTATION.md).
+This is a development checkpoint, not a completed physical-control release.
+
+- Firmware compiled successfully with ESPHome 2026.9.0 and was uploaded over
+  COM3 at 115200 baud. The API starts on port 8080, separately from the existing
+  port-80 web UI, using the same configured credentials.
+- Hardware HTTP checks passed for info/state schemas, authentication on all
+  route families, unknown paths, wrong methods/media types, oversized bodies,
+  invalid/null/duplicate fields, old boot IDs, and missing command records
+  (17 checks). These checks intentionally do not transmit RF.
+- Reboot checks confirmed that device_id remains unchanged, boot_id changes,
+  lookup using the old boot returns BOOT_CHANGED, the pairing remains saved,
+  and active/last command and remote observation are empty after boot.
+- Host checks passed: 15 Python tests, the C++ dispatcher/JSON codec/address
+  learning programs, 6 contract-validation groups, and 5 actual C++ encoder
+  response fixtures checked against the JSON Schema. CI has been updated;
+  these are local results, not a claim about a GitHub Actions run.
+- The first power exercise was accepted, executed once, and reported
+  `failed / unconfirmed / TX_TIMEOUT`, IRQ `0E`, FIFO `01`, mode `5`.
+  The driver previously sampled after a fixed 10 ms; it now polls for TX_DS
+  or MAX_RT for at most 250 ms, without triggering another transmission.
+- A subsequent power exercise reported `failed / not_attempted /
+  TX_FIFO_STUCK`, FIFO `01`. No TX trigger was issued for that command.
+  The final adapter change latches this known fault so periodic pairing
+  metadata updates cannot immediately label it ready again. This final
+  fault-state change was uploaded over COM3 at 115200 baud with flash hash
+  verification after the user confirmed a physical bridge USB power cycle.
+- After that cold power cycle and upload, the reboot checks passed again:
+  stable device ID, new boot ID, old-boot rejection, saved pairing restored,
+  and no active/last command on boot. The next OFF command passed FIFO
+  preparation and triggered TX once, but returned `failed / unconfirmed /
+  TX_MAX_RETRIES`, IRQ `1E`, FIFO `01`, mode `2` (27 ms execution).
+  The exercise stopped at that failure without sending a reverse command.
+  All 17 non-transmitting HTTP contract checks passed again afterward.
+  This clears the previous pre-TX FIFO obstruction for that attempt; it
+  does not establish restored lamp control or a durable radio fix.
+  The user confirmed the lamp was already off during that OFF attempt, so
+  its physical effect cannot be determined. Original-controller operations
+  still updated the web state; the API also showed valid remote observations.
+  A subsequent explicit ON command returned `failed / not_attempted /
+  TX_FIFO_STUCK` (FIFO `01`, zero frames attempted), reproducing the TX FIFO
+  obstruction after the MAX_RT failure despite working remote RX.
+  The user confirmed the lamp did not turn on. A recovery candidate now
+  enables/waits for XCLK, bounds FIFO-clear polling, and pulses RC1.RSTLL
+  once if the pre-TX flush still fails, then reapplies packet configuration.
+  It does not replay a failed transmission. After compilation and COM3
+  upload with flash hash verification, the hardware log showed
+  `LOGIC RECOVERY rc1=30 fifo=01 mode=2`, followed by
+  `LOGIC RECOVERY FIFO=11 RC1=30`. The subsequent explicit ON request
+  completed as `transmitted / unconfirmed`, IRQ `2E`, FIFO `11`, mode `2`,
+  one frame attempted/transmitted, in 29 ms. No additional USB power cycle
+  was needed for that recovery. The user confirmed that ON physically lit
+  the lamp. A following OFF/ON API exercise returned TX_DS for both commands
+  (`IRQ=2E`, `FIFO=11`). The OFF result, identical duplicate, reordered-key
+  duplicate and changed-body rejection passed. The ON result and identical
+  duplicate passed, but its reordered-key duplicate hit an HTTP connection
+  timeout, stopping the full exercise before its final checks. Three later
+  state reads showed the same boot ID, radio ready and the completed ON
+  record. This is partial live contract evidence, not a 23-check pass or
+  long-term network-stability validation.
+  RC1 clock/reset
+  and FIFO semantics are documented in the
+  [BC5602 v1.20 datasheet](https://www.holtek.com/webapi/116711/BC5602v120.pdf),
+  pages 8, 10 and 29.
+  Do not relearn or overwrite the verified pair
+  in response to this failure. Physical OFF and legacy-web arbitration on
+  hardware remain unverified for this development version. Successful
+  command deduplication has the partial live evidence described above;
+  the host dispatcher tests are separate evidence.
+- Network connections were intermittently unavailable during testing, including
+  on port 80 and 6053, while the main loop still logged RX counters. One reset
+  was followed by an unreachable API before any test requests, so causation
+  by request load has not been established. The API now uses the same
+  shutdown-before-close protection as ESPHome's web server. Later authenticated
+  state reads and reboot checks succeeded; this does not establish long-term
+  network stability.
+
+SSE, the Tauri/Rust client, Windows/macOS/iOS integration, original-controller
+interleaving, and the 24-hour stability gate remain pending. The Python command
+client is a development test tool, not the cross-platform product.
 
 ## Hardware and verified wiring
 

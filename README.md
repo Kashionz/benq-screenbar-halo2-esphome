@@ -43,6 +43,12 @@ See **[Wiring and soldering](docs/WIRING.md)** before powering the boards.
 | [`docs/IMPLEMENTATION_NOTES.md`](docs/IMPLEMENTATION_NOTES.md) | Radio framing, transmit paths, and physical validation |
 | [`docs/ADDRESS_LEARNING.md`](docs/ADDRESS_LEARNING.md) | Original-controller address discovery and persistent pairing |
 | [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Tested behavior, limitations, and next checks |
+| [`docs/APP_PROTOCOL_V1.md`](docs/APP_PROTOCOL_V1.md) | ESP32/App v1 contract; polling development implementation available |
+| [`docs/APP_PROTOCOL_IMPLEMENTATION.md`](docs/APP_PROTOCOL_IMPLEMENTATION.md) | Authenticated port-8080 API, shared dispatcher and reference client |
+| `components/halo2_api/` | Local ESPHome component required by the production YAML |
+| `tools/halo2_client.py` | Minimal polling client; does not automatically replay timed-out commands |
+| [`protocol/v1/schema.json`](protocol/v1/schema.json) | App protocol schemas, with examples and behavioral acceptance cases alongside |
+| [`docs/CROSS_PLATFORM_APP_PLAN.md`](docs/CROSS_PLATFORM_APP_PLAN.md) | Tauri 2 plan for Windows, macOS and iOS |
 
 ## Install
 
@@ -55,6 +61,7 @@ screenbar-halo2.yaml
 bm5602_halo2.h
 halo2_address_learning.h
 halo2_pairing_storage.h
+components/halo2_api/   # copy this entire directory
 ```
 
 Copy `secrets.example.yaml` to `secrets.yaml` and replace all placeholders. Generate the API key with `openssl rand -base64 32`. Use a unique web password; it protects the control/state endpoints used by the optional HA package. Never commit `secrets.yaml`.
@@ -79,6 +86,11 @@ http://screenbar-halo2/
 ```
 
 Use `web_username` and `web_password` from ESPHome `secrets.yaml`. Web-based firmware upload is disabled; OTA updates use the separately protected native ESPHome OTA service.
+
+The development App protocol is available at `http://screenbar-halo2:8080/api/v1`
+with the same credentials. It currently supports polling, commands and result
+lookup; SSE and the Tauri app are not implemented yet. See the
+[implementation guide](docs/APP_PROTOCOL_IMPLEMENTATION.md) for usage and tests.
 
 Future updates:
 
