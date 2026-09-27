@@ -31,4 +31,12 @@ ESPHome 2026.9.0 編譯成功，OTA 更新成功。重開後 API 與配對皆 re
 
 對實體橋接器的 UDP 5353 單播 DNS-SD 查詢得到正確 PTR、SRV（8080）、TXT（上述兩個欄位）及主機 A record，確認服務已註冊。一般 Zeroconf 五秒搜尋、指定實際 Wi-Fi 介面的搜尋及 multicast 查詢則沒有結果；不能把單播查詢成功視為自動搜尋已驗收。尚未區分 OS、AP／路由器 multicast 或韌體介面行為，未修改防火牆或路由設定。
 
-目前只有韌體宣告與契約，App 搜尋程式與三平台驗收尚未完成。需保留此真實網路環境的空結果案例及手動輸入 fallback。
+App 已加入明確的「搜尋區域網路橋接器」按鈕。Windows 使用 mdns-sd 0.21.4；macOS／iOS 使用系統 DNSServiceBrowse／DNSServiceResolve，並宣告 NSBonjourServices。Apple 介面依據 [Bonjour 公開標頭](https://github.com/apple-oss-distributions/mDNSResponder/blob/main/mDNSShared/dns_sd.h)。搜尋使用獨立工作執行緒，不接觸控制 session 或憑證。
+
+Windows 共用搜尋核心實測 5004 ms 返回空候選；沒有向任何候選登入、發送 HTTP 或 RF。這確認逾時路徑可用，仍不代表真實 multicast 搜尋已通過。原生畫面與三平台完整搜尋驗收仍待完成。
+
+另以同一台 Windows 的 Zeroconf 暫時宣告 `TEST ONLY` 測試服務，Rust 搜尋 5006 ms 仍為空；測試服務於 25 秒後移除，沒有 HTTP 服務或認證。此結果也未能驗證候選成功路徑，不能據此將問題歸因於燈具或 ESP32。
+
+原生安裝版實際按搜尋後，Windows 防火牆提示封鎖 Halo 2 Control 部分功能；背景已顯示未找到橋接器與手動連線表單。此為實際觀察到的權限阻擋線索，仍需使用者處理提示後重試，不能直接宣稱所有空結果均由防火牆造成。
+
+可在 `app` 目錄執行 `cargo run --locked -p halo2-app-support --example discover`，唯讀輸出耗時與候選，無需帳密。候選只接受符合契約的 `.local` 主機；名稱與位址格式、連接埠、TXT 版本都會檢查。Windows 與 Apple 都處理移除事件，Apple callback 的 TXT 長度與解析數量亦有界限。

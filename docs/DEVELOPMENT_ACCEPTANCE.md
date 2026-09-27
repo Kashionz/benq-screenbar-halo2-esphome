@@ -31,7 +31,7 @@
 - 前端 14 項與儲存模組 8 項測試通過，clippy 無警告，Windows release／NSIS 建置成功。
 - 安裝更新 exit code 0；原生 UI 使用既有保存帳密連線，建立「目前桌面」（前燈模式、前 35%、後 50%、5500 K）。退出整個 App 程序後再開啟、連線、展開情境，確認資料仍在。此流程未按套用，沒有拿保存測試宣稱 RF 控制成功。
 - 本批安裝包 SHA-256：`CCECD844A6A12CCFA2EBBFD663157C618E23B25101110DDD7757B172FA6A026E`。
-- 待驗收：情境的原生實際套用與燈光觀察、Apple 情境保存。Windows 系統匣已通過、macOS 選單列待驗收；LAN 搜尋 App 尚未實作。
+- 待驗收：情境的原生實際套用與燈光觀察、Apple 情境保存。Windows 系統匣已通過、macOS 選單列待驗收；LAN 搜尋進度見下節。
 - 900 次唯讀 LAN 測試已完成，結果見下節；不代表 RF 長時間穩定已驗收。
 
 ## 2026-09-27 約半小時唯讀 LAN 測試
@@ -48,7 +48,12 @@
 
 - 已加入 `_halo2-bridge._tcp.local.`，編譯與 OTA 成功；重開後 API ready、pairing_persisted=true、desired.source=restored、last_command=null。
 - 實機單播 DNS-SD 確認 PTR／SRV／TXT／A 宣告正確，8080 連接埠與 API 一致。一般與指定 Wi-Fi 的 multicast 搜尋未找到，原因仍待定位；不將其標為搜尋完成。
-- App 搜尋尚未實作，契約及實測範圍見 [LAN 搜尋](LAN_DISCOVERY.md)。
+- App 已加入 Windows DNS-SD、Apple Bonjour 與明確搜尋／選取介面；Windows 唯讀核心在 5004 ms 返回空候選，真實 multicast 搜尋仍未通過。契約及實測範圍見 [LAN 搜尋](LAN_DISCOVERY.md)。
+- 新增搜尋版本檢查、候選上限／去重／移除、並行搜尋拒絕與選取不登入／不發送／清除密碼的測試。Windows support 11 項、前端 19 項及 Tauri clippy 通過；Apple 新版建置與原生搜尋驗收待完成。
+- 原生檢查另發現橋接器重開後仍顯示前一次 boot 的成功結果；已修正 snapshot 更新時清除舊命令結果。增加不重播命令的回歸測試後，前端共 20 項通過，歷史診斷不刪除。
+- Apple CI 首次因找不到獨立 dns_sd 庫失敗，改以 libSystem 連結後，macOS Rust 測試與 App bundle 已成功。TXT 解析移至跨平台測試，Windows support 現為 12 項通過；完整 iOS App 建置仍在驗證。
+- Windows 更新安裝 exit code 0，安裝包 SHA-256：`4901E3161636DCBB3044E43DADA6785A5E4B9AA27854BF7AADECD3E34695C2B2`。原生啟動可見搜尋按鈕與保存連線，未自動登入。
+- 原生按搜尋後出現 Windows 安全性／防火牆提示，要求允許 Halo 2 Control 的網路存取；背景可見空結果提示與手動 IP 表單。權限提示交由使用者操作，目前尚未確認允許後的搜尋與登入，不自動調整防火牆。
 
 ## 2026-09-27 安裝包與 Apple 建置
 

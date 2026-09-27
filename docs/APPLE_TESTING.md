@@ -55,6 +55,8 @@ npm run tauri ios dev -- --open
 | 項目 | macOS | iPhone |
 | --- | --- | --- |
 | 首次 LAN 權限、登入成功，拒絕權限時有錯誤提示 | 待驗收 | 待驗收 |
+| 明確搜尋找到真實橋接器，選取只填位址且清除輸入密碼 | 待驗收 | 待驗收 |
+| 無候選時仍可手動輸入 IP；搜尋不自動登入或送 RF | 待驗收 | 待驗收 |
 | ON／OFF 各一次，實際燈光跟隨 | 待驗收 | 待驗收 |
 | 前燈 30%／2700 K、前燈 80%／6500 K | 待驗收 | 待驗收 |
 | 後燈 20%、後燈 80%、前後同開 | 待驗收 | 待驗收 |
@@ -77,3 +79,9 @@ iOS 匯出寫入 App 文件目錄；已透過 iOS 專用 Info.plist 啟用文件
 2026-09-27：[Apple CI 36313722538](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36313722538) 在 macos-14 成功執行前端測試、Rust 核心／儲存測試、macOS debug App bundle，以及 `aarch64-apple-ios-sim`、`aarch64-apple-ios` 的 App library 檢查。沒有執行 iPhone App，也沒有驗證真實 Keychain／區域網路權限。
 
 官方參考：[Tauri 行動裝置開發](https://v2.tauri.app/develop/)、[iOS 簽章](https://v2.tauri.app/distribute/sign/ios/)、[macOS App bundle](https://v2.tauri.app/distribute/macos-application-bundle/)。
+
+## 區域網路搜尋診斷
+
+在未連線畫面按「搜尋區域網路橋接器」，約 5 秒後應顯示候選或空結果提示。候選未經認證，選取不會套用保存帳密；請明確登入。Mac／iPhone 均使用系統 Bonjour，權限提示需由使用者操作。
+
+若 App 找不到，可在 Mac Terminal 執行 `dns-sd -B _halo2-bridge._tcp local.`，觀察約 10 秒後按 Control-C 結束。這只瀏覽服務，不傳帳密或控制燈具。記錄是否出現 `screenbar-halo2`，以協助區分 App 與網路 multicast 問題；Windows 目前的 multicast 搜尋尚無結果，不能推定 Mac／iPhone 也相同。
