@@ -30,6 +30,23 @@ jobs:
       # Checks the Rust iOS integration; this does not build/sign an Xcode app.
       - run: cargo check --locked -p halo2-control --lib --target aarch64-apple-ios-sim
       - run: cargo check --locked -p halo2-control --lib --target aarch64-apple-ios
+      - run: npm run tauri ios init -- --ci
+      - run: npm run tauri icon -- app-icon.svg --ios-color '#294a3e'
+      - run: npm run tauri ios build -- --debug --target aarch64-sim --ci --no-sign
+      - name: Verify generated iOS permissions
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          plists = list(Path('src-tauri/gen/apple').glob('*/Info.plist'))
+          assert plists, 'No generated iOS Info.plist'
+          for path in plists:
+              data = plistlib.loads(path.read_bytes())
+              assert data.get('NSLocalNetworkUsageDescription')
+              assert data.get('UIFileSharingEnabled') is True
+              assert data.get('LSSupportsOpeningDocumentsInPlace') is True
+          print('Generated iOS LAN and document-sharing declarations verified')
+          PY
       - name: Archive local-test application
         run: ditto -c -k --keepParent "target/debug/bundle/macos/Halo 2 Control.app" halo2-macos-arm64-debug.zip
       - uses: actions/upload-artifact@v4
