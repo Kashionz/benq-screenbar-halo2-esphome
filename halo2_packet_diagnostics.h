@@ -21,6 +21,8 @@ struct PacketTrace {
   bool logic_recovery=false, config_valid=false, cleanup_valid=false;
   std::array<uint8_t,8> config{}; // CFG, RC1, MASK, PKT, RFCH, DM1, RT1, CE
   uint8_t cleanup_fifo=0, cleanup_rc1=0;
+  bool ack_config_valid=false, address_match=false;
+  std::array<uint8_t,3> ack_config{}; // DPL1, DPL2, ENAA; post-terminal readback
 };
 
 struct PacketSnapshot {
@@ -40,13 +42,15 @@ struct PacketSnapshot {
       "\"irq\":%u,\"fifo\":%u,\"mode\":%u,\"fifo_steps\":[%u,%u,%u],"
       "\"irq_before\":%u,\"rt2\":[%u,%u],\"elapsed_us\":%u,\"logic_recovery\":%s,"
       "\"config_valid\":%s,\"config\":[%u,%u,%u,%u,%u,%u,%u,%u],"
-      "\"cleanup_valid\":%s,\"cleanup_fifo\":%u,\"cleanup_rc1\":%u}",
+      "\"cleanup_valid\":%s,\"cleanup_fifo\":%u,\"cleanup_rc1\":%u,"
+      "\"ack_config_valid\":%s,\"ack_config\":[%u,%u,%u],\"address_match\":%s}",
       static_cast<unsigned>(sequence),static_cast<unsigned long long>(uptime_ms),stage,
       t.command,t.control,r.attempted?"true":"false",r.sent()?"true":"false",
       r.irq,r.fifo_status,r.mode,r.fifo_before_flush,r.fifo_after_flush,r.fifo_after_write,
       t.irq_before,t.rt2_before,t.rt2_after,static_cast<unsigned>(t.elapsed_us),t.logic_recovery?"true":"false",
       t.config_valid?"true":"false",t.config[0],t.config[1],t.config[2],t.config[3],
-      t.config[4],t.config[5],t.config[6],t.config[7],t.cleanup_valid?"true":"false",t.cleanup_fifo,t.cleanup_rc1);
+      t.config[4],t.config[5],t.config[6],t.config[7],t.cleanup_valid?"true":"false",t.cleanup_fifo,t.cleanup_rc1,
+      t.ack_config_valid?"true":"false",t.ack_config[0],t.ack_config[1],t.ack_config[2],t.address_match?"true":"false");
     return text;
   }
 };

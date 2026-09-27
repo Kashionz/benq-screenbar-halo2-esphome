@@ -478,6 +478,13 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
   trace.elapsed_us=static_cast<uint32_t>(esp_timer_get_time()-tx_started);
   trace.rt2_after=read_reg(0x14);
   trace.stage=PacketTrace::Stage::Terminal;
+  // Read only after the completion wait, before cleanup/passive RX changes DPL/ENAA.
+  // Retain only address equality, not the pairing address itself.
+  trace.ack_config={read_reg(0x2A),read_reg(0x2B),read_reg(0x32)};
+  std::array<uint8_t,4> tx_address{};
+  read_bytes(0x90,tx_address.data(),tx_address.size());
+  trace.address_match=tx_address==active_radio_address;
+  trace.ack_config_valid=true;
   ESP_LOGI("halo2","HALO2 PACKET TRACE irq_before=%02X irq_after=%02X rt2_before=%02X rt2_after=%02X elapsed_us=%u fifo=%02X/%02X/%02X/%02X",
            trace.irq_before,result.irq,trace.rt2_before,trace.rt2_after,static_cast<unsigned>(trace.elapsed_us),
            result.fifo_before_flush,result.fifo_after_flush,result.fifo_after_write,result.fifo_status);

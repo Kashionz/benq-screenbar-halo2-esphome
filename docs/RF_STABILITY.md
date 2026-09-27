@@ -264,3 +264,15 @@ last packet 與 last failure 都成功讀出相同 seq=29（本次開機先前�
 此觀察與上一輪第 13 筆 MAX_RT 後燈仍熄滅的結果不同，兩者都保留：MAX_RT 可能伴隨燈具動作，也可能伴隨未動作，不能一律改判成功或自動重送。協定的 `effect=unconfirmed` 仍適用，`frames_transmitted=0` 是依橋接器終態計數，不是空中未曾發送的證明。後續排查優先比對 ACK 接收／辨識與完成判定，並繼續分開記錄 TX 結果與實際燈光反應。
 
 已驗證無持續日誌時可在實機失敗後取回兩份 RAM 快照；成功發送後保留歷史失敗的實機情境尚未測試。30 分鐘長測仍未通過，未開始閒置驗收。
+
+### ACK 設定核對與讀回診斷
+
+對照 [BC5602 v1.20 手冊](https://www.holtek.com/webapi/116711/BC5602v120.pdf) 第 13–14、17–18、22 頁及 [上游 prepare_to_transfer](https://raw.githubusercontent.com/kuzmin-no/BenQ_ScreenBar_HALO_2_HA_integration/main/src/benq_halo/__init__.py)：目前 DPL1=`01`、DPL2=`04`、ENAA=`3F`、PKT1=`20`、RT1=`72` 的寫入設定與上游相同。RT1 表示 2 ms 間隔、最多兩次硬體重傳；RT2 高半位元組是封包遺失計數、低半位元組是重傳計數，因此原始 `RT2=10` 不能解讀為 16 次重傳，也不能以此單一採樣推算所有空中封包。
+
+原本快照沒有讀回 DPL／ENAA，無法檢查晶片實際設定。新增 `ack_config_valid`、`ack_config`（DPL1／DPL2／ENAA）及 `address_match`：只在既有完成等待結束後、清理及切回被動 RX 前讀取，成功與失敗均採樣；讀取 `0x90` 位址後僅保存是否與目前配對一致，不輸出配對位址。有效時預期 `ack_config=[1,4,63]`、`address_match=true`。
+
+這次增加三個暫存器及一次位址 SPI 讀取，不插入 ACK 等待期間，也不改動發送參數、重送政策或成功判定；仍可能增加完成後切回 RX 的短暫延遲。讀回一致只能排除採樣當下的明顯設定差異，不能證明 ACK 已接收，亦無法回補先前失敗缺少的讀值。
+
+2026-09-28 驗證：28 項 Python 測試與擴充後的 C++ 快照測試通過，ESPHome 2026.9.0 編譯及 OTA 成功。刷入前另存上一筆 seq=29 的故障快照；新版開機配對恢復且兩份快照為空。一筆 OFF 回報 TX_DS，seq=1 的讀回為 `ack_config_valid=true`、`ack_config=[1,4,63]`、`address_match=true`，IRQ=`2E`、FIFO=`11`、RT2=`00/00`、耗時 4601 us；本筆走過既有邏輯復原流程。關燈實際反應待使用者確認。新欄位在成功發送時已驗證，失敗時的設定讀回仍待捕捉，MAX_RT 與長測問題尚未解決。
+
+此版本只有 header 變更，ESPHome config hash 仍為 `0x15703ddb`，不能僅靠該值區分版本；本次 OTA 映像 SHA-256 為 `49c0993895f151d846fc8c0b22b99b71ed93039808e83a3a28170828dec8990d`。實機回應含新增 ACK 欄位，確認執行到新版診斷程式。
