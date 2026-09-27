@@ -1,7 +1,10 @@
 import copy
+import http.client
+import json
 import unittest
 from unittest.mock import patch
 from tools.check_rf_stability import main, run
+from tools.halo2_client import ApiError, ProtocolError
 
 
 class FakeClient:
@@ -79,6 +82,7 @@ class RfStabilityTests(unittest.TestCase):
         result = self.execute(client)
         self.assertFalse(result["complete"])
         self.assertEqual(result["stopped_at"], "command")
+        self.assertEqual(result["failure"], {"category": "timeout"})
         self.assertEqual(len(client.posts), 1)
         self.assertEqual([e["kind"] for e in self.events], ["attempt", "summary"])
 
@@ -89,6 +93,30 @@ class RfStabilityTests(unittest.TestCase):
             self.assertEqual(self.execute(client)["reason"], "TX_NOT_TRANSMITTED")
             self.assertEqual(len(client.posts), 1)
 
+    def test_query_failures_are_classified_without_leaking_details_or_sending(self):
+        for error, expected in [
+            (TimeoutError("private-host password"), {"category": "timeout"}),
+            (ConnectionResetError("private-host password"), {"category": "connection"}),
+            (OSError("private-host password"), {"category": "os_error"}),
+            (http.client.BadStatusLine("private-host password"), {"category": "http_transport"}),
+            (ApiError(503, "private-host password"), {"category": "http_status", "http_status": 503}),
+            (ProtocolError("private-host password"), {"category": "protocol"}),
+            (ValueError("private-host password"), {"category": "invalid_data"}),
+        ]:
+            with self.subTest(expected=expected):
+                client = FakeClient()
+                def fail(c):
+                    if c.reads == 2:
+                        raise error
+                client.after_read = fail
+                result = self.execute(client)
+                self.assertEqual(result["failure"], expected)
+                self.assertEqual(result["stopped_at"], "before_command_state")
+                self.assertFalse(result["complete"])
+                self.assertEqual(client.posts, [])
+                self.assertNotIn("private-host", json.dumps(self.events))
+                self.assertNotIn("password", json.dumps(self.events))
+
     def test_state_timeout_after_success_preserves_known_tx_result(self):
         client = FakeClient()
         def timeout(c):
@@ -98,6 +126,7 @@ class RfStabilityTests(unittest.TestCase):
         result = self.execute(client)
         self.assertFalse(result["complete"])
         self.assertEqual(result["stopped_at"], "after_command_state")
+        self.assertEqual(result["failure"], {"category": "timeout"})
         self.assertEqual(result["successful"], 1)
         self.assertEqual(len(client.posts), 1)
         self.assertEqual(self.events[1]["status"], "transmitted")

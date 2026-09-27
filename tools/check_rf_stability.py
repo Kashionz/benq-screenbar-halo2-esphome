@@ -14,13 +14,33 @@ import time
 import uuid
 
 if __package__:
-    from .halo2_client import Client, ProtocolError
+    from .halo2_client import ApiError, Client, ProtocolError
 else:
-    from halo2_client import Client, ProtocolError
+    from halo2_client import ApiError, Client, ProtocolError
 
 
 class StopTest(Exception):
     pass
+
+
+def failure_details(exc):
+    """Allowlisted diagnostics only: never serialize exception text or response bodies."""
+    if isinstance(exc, ApiError):
+        detail = {"category": "http_status"}
+        if type(exc.status) is int and 100 <= exc.status <= 599:
+            detail["http_status"] = exc.status
+        return detail
+    if isinstance(exc, TimeoutError):
+        return {"category": "timeout"}
+    if isinstance(exc, ConnectionError):
+        return {"category": "connection"}
+    if isinstance(exc, OSError):
+        return {"category": "os_error"}
+    if isinstance(exc, http.client.HTTPException):
+        return {"category": "http_transport"}
+    if isinstance(exc, ProtocolError):
+        return {"category": "protocol"}
+    return {"category": "invalid_data"}
 
 
 def check_state(state, baseline, revision, previous_command):
@@ -75,6 +95,7 @@ def run(client, count, interval, emit, sleep=time.sleep, now=time.monotonic):
     started = now()
     reason = "COMPLETE"
     stage = "info"
+    failure = None
     try:
         info = client.info()
         stage = "initial_state"
@@ -117,14 +138,17 @@ def run(client, count, interval, emit, sleep=time.sleep, now=time.monotonic):
         reason = str(exc)
     except KeyboardInterrupt:
         reason = "INTERRUPTED"
-    except (OSError, http.client.HTTPException, ProtocolError, ValueError, KeyError, TypeError, AttributeError):
+    except (OSError, http.client.HTTPException, ProtocolError, ValueError, KeyError, TypeError, AttributeError) as exc:
         # A transport error after POST may mean it was accepted. Never retry it.
         reason = "REQUEST_FAILED_OR_UNKNOWN"
+        failure = failure_details(exc)
     summary = {"kind": "summary", "format": "halo2-rf-soak-v1", "reason": reason,
                "stopped_at": stage,
                "complete": reason == "COMPLETE", "samples_planned": count,
                "successful": successful, "elapsed_ms": round((now() - started) * 1000),
                "lamp_confirmation": "unavailable", "native_ui_test": False}
+    if failure is not None:
+        summary["failure"] = failure
     emit(summary)
     return summary
 

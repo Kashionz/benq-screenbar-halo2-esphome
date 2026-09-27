@@ -13,6 +13,7 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 - 每筆命令只 POST 一次，accepted／executing 透過唯讀查詢追蹤。送出前先寫入命令 ID，便於結果不明時查核。
 - 任一失敗、未知結果、裝置重啟、外部控制、非 ready 狀態均停止；不自動恢復或重送。
 - 摘要 `stopped_at` 指出停止階段；例如 `command` 表示送出／追蹤命令期間，`after_command_state` 表示已取得成功發送結果後的狀態查詢／驗證。後者失敗不會抹除先前已確認的 TX 結果，但仍使整組測試未完成。
+- 查詢或傳輸例外另附 `failure.category`：`timeout`、`connection`、`os_error`、`http_transport`、`http_status`、`protocol` 或 `invalid_data`。結構化 HTTP 拒絕另記數字 `http_status`；不保存例外文字、回應內容或帳密。分類是當下失敗的種類，不直接判定網路或韌體根因，也不改變停止／不重送規則。
 - `complete=true` 代表本次橋接器發送測試完成；燈具沒有獨立確認，不能代替實體觀察或原生 App UI 驗收。
 
 ## 2026-09-27 首次執行
@@ -83,3 +84,11 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 六筆的 TX 追蹤時間為 3,744–6,883 μs；前五筆 RT2 從 `00` 到 `00`，第六筆從 `00` 到 `01`，最終均成功。此輪沒有觀察到 MAX_RT，但未完成 30 分鐘驗收；目前的報告未保留例外種類，不能將停止原因直接判為 Wi-Fi 中斷或特定 HTTP 錯誤。
 
 停止後另做唯讀查核，API 已可回應、裝置未重啟、radio/pairing 均 ready、配對仍保存，最後命令仍是第六筆 transmitted，目標保持關閉。沒有因查詢恢復自動重開測試。原始串列與 API 報告位於本機 ignored `.esphome/off-metal-30min-soak.jsonl`；本輪沒有新增燈具實際反應的觀察。
+
+### 查詢錯誤分類與唯讀對照
+
+測試工具新增允許清單式錯誤分類，保留既有停止階段與未知結果語意，不增加 POST／RF 重送。回歸測試涵蓋逾時、連線中斷、OS 錯誤、HTTP 傳輸／狀態錯誤、協定及資料錯誤，確認錯誤文字不進入報告、送出前失敗沒有 POST，以及送出後逾時不重送。Python 共 26 項測試通過。
+
+另以相同用戶端與 3 秒逾時，執行 61 次、間隔 5 秒的唯讀狀態查詢，歷時約五分鐘；全部成功，延遲 27–127 ms，裝置未重啟、控制 revision 未變，radio 均 ready。本輪沒有發送 RF，原始紀錄保留於 ignored `.esphome/readonly-connection-probe.jsonl`。
+
+此次未重現先前查詢故障，不能回溯判定舊錯誤種類或認定已修復。查詢頻率與有 RF 發送的原測試不同，結果不取代 30 分鐘 RF 驗收；後續應使用新增診斷重新執行原條件的測試。未改動韌體、網路參數或逾時設定。
