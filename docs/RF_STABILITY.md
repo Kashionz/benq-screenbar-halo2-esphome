@@ -217,3 +217,24 @@ Python 參考客戶端及 RF 測試工具新增安全的傳輸失敗欄位：`tr
 停止後一次唯讀查核確認開機識別未變、radio/pairing ready、配對仍保存，最後命令仍是同一筆失敗的 ON。使用者確認「前 12 次都有實際動作，目前保持熄滅」：前六次開燈及六次關燈有實際觀察，第 13 次開燈沒有生效。`desired.power=true` 只表示已接受的目標，不代表燈已亮起。沒有補送或補償關燈。
 
 此結果確認在目前交替開關條件下仍會出現 MAX_RT，不能將先前短測通過視為故障已排除。30 分鐘驗收未通過，未進入閒置驗收；後續應保留這次失敗樣本及實際燈光觀察，針對 RF／ACK 路徑取得進一步證據，HTTP 逾時則保留為另一項尚未定位的問題。
+
+## RF 診斷快照（RAM）
+
+橋接器既有網頁新增 `RF last packet` 與 `RF last failure` 文字感測器，每秒由 RAM 更新。ESPHome 2026.9.0 以實體名稱匹配路徑，可透過既有網頁認證讀取 port 80 的 `GET /text_sensor/RF%20last%20packet` 與 `GET /text_sensor/RF%20last%20failure`，回應的 `value` 是 JSON 字串；這不是 port 8080 App protocol v1 的新端點。查詢只讀快照，不讀取晶片、不觸發 RF，也不需要持續訂閱 ESPHome 日誌。
+
+- `seq`：本次開機的 packet-engine 呼叫序號；`uptime_ms`：快照保存時間。搭配命令完成時間、CMD 與 CONTROL 比對，並非 App command UUID。
+- `stage`：guard／flush／queue／terminal，代表退出階段；terminal 也包含等待終態逾時，不保證收到 ACK。
+- `attempted`／`sent`、`irq`／`fifo`／`mode`：沿用原判定；`sent` 不等於獨立燈具狀態確認。
+- `fifo_steps`：初始／清理後／寫入 payload 後的 FIFO；`irq_before`、`rt2`（前／後）、`elapsed_us` 僅在 terminal 階段有效。
+- `logic_recovery`：本次是否走過既有 FIFO 卡住復原流程。
+- `config_valid` 為 true 時，`config` 依序是 CFG、RC1、MASK、PKT、RFCH、DM1、RT1、CE；`cleanup_valid` 為 true 時才解讀 `cleanup_fifo`／`cleanup_rc1`。數值均為十進位，未採樣欄位的零不能解讀成真實暫存器零值。
+
+後續成功發送會更新 last packet，但不抹除 last failure；新的失敗才覆蓋 last failure。重啟後兩者都是 `available=false`，不寫入 NVS，因此故障後應先匯出再重啟。原廠控制器的被動 RX 不會更新這兩份 TX 快照。資料沿用原本 SPI 讀值，未增加發送重試或改變 RF 設定；診斷能保留已採樣證據，仍無法直接觀察空中封包與 ACK。
+
+### 2026-09-28 編譯、刷入與快照讀取驗證
+
+ESPHome 2026.9.0 編譯及 OTA 成功（config hash `0x15703ddb`），開機後 radio/pairing ready、配對保存，兩份快照初始 `available=false`。28 項 Python 測試、C++ dispatcher、codec 與新增快照保留測試通過；CI 已加入快照測試。測試涵蓋成功不覆蓋失敗、失敗未採樣欄位不沿用舊值、重啟初始空值及輸出長度上限。
+
+僅送出 ON／OFF 各一筆，兩者 1/1 TX_DS、IRQ=`2E`、FIFO=`11`，使用者分別確認「燈有亮起來」與「燈熄滅了」。port 80 快照讀取成功，seq 依序為 1／2，CMD=2、CONTROL=1／0，RT2 前後皆零，耗時分別 4430／4054 us。第一筆 FIFO steps=`01/11/01`、logic recovery=true；第二筆=`11/11/01`、logic recovery=false。這是既有復原流程的觀察，不足以判定故障根因。
+
+兩筆成功後 last failure 仍為 `available=false`；「成功後仍保留先前失敗」已在 C++ 測試驗證，實機本輪未觸發失敗，尚未驗證該情境。控制測試已結束，燈已熄滅，不以這兩筆宣稱長測通過或 MAX_RT 已修復。原始讀取報告保存於 ignored `.esphome/rf-snapshots-*.jsonl`。

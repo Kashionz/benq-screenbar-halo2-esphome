@@ -36,6 +36,7 @@ See **[Wiring and soldering](docs/WIRING.md)** before powering the boards.
 | `bm5602_halo2.h` | BM5602 SPI, packet-engine/direct TX, CRC and passive RX driver |
 | `halo2_address_learning.h` | Address candidate extraction and five-capture voting |
 | `halo2_pairing_storage.h` | Versioned pairing record and this fork's verified first-boot pairing |
+| `halo2_packet_diagnostics.h` | RAM snapshots of the last packet and last failure, readable without live logs |
 | `secrets.example.yaml` | Safe configuration template |
 | `home-assistant/package.yaml` | Optional authenticated REST integration with guarded controller-state synchronization |
 | `home-assistant/dashboard.yaml` | Compact stock-card dashboard |
@@ -61,6 +62,7 @@ screenbar-halo2.yaml
 bm5602_halo2.h
 halo2_address_learning.h
 halo2_pairing_storage.h
+halo2_packet_diagnostics.h
 components/halo2_api/   # copy this entire directory
 ```
 

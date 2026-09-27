@@ -5,6 +5,7 @@ esphome:
     - bm5602_halo2.h
     - halo2_address_learning.h
     - halo2_pairing_storage.h
+    - halo2_packet_diagnostics.h
   on_boot:
     priority: -100
     then:
@@ -122,6 +123,18 @@ globals:
   - { id: halo_temperature, type: uint16_t, restore_value: yes, initial_value: "3925" }
 
 text_sensor:
+  - platform: template
+    id: rf_last_packet
+    name: "RF last packet"
+    entity_category: diagnostic
+    update_interval: 1s
+    lambda: return bm5602_halo2::packet_diagnostics.last.json();
+  - platform: template
+    id: rf_last_failure
+    name: "RF last failure"
+    entity_category: diagnostic
+    update_interval: 1s
+    lambda: return bm5602_halo2::packet_diagnostics.failure.json();
   - platform: template
     id: radio_status
     name: "Radio status"

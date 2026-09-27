@@ -27,6 +27,10 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -pedantic tests/test_dispatcher.cpp -o /tmp/test_dispatcher
           /tmp/test_dispatcher
+      - name: Packet diagnostic retention
+        run: |
+          g++ -std=c++17 -Wall -Wextra -pedantic tests/test_packet_diagnostics.cpp -o /tmp/test_packet_diagnostics
+          /tmp/test_packet_diagnostics
       - name: Create compile-only secrets
         run: |
           cat > secrets.yaml <<'EOF'

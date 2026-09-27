@@ -9,6 +9,7 @@
 #include <cstdint>
 #include "halo2_address_learning.h"
 #include "halo2_pairing_storage.h"
+#include "halo2_packet_diagnostics.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
 #include "driver/gpio.h"
@@ -373,17 +374,8 @@ inline bool halo_last_tx_packet_engine=false;
 inline uint8_t halo_last_tx_irq=0;
 inline uint8_t halo_last_tx_fifo_status=0;
 
-struct PacketEngineResult {
-  uint8_t irq=0;
-  uint8_t fifo_status=0;
-  uint8_t mode=0;
-  uint8_t fifo_before_flush=0;
-  uint8_t fifo_after_flush=0;
-  uint8_t fifo_after_write=0;
-  bool attempted=false;
-  bool sent() const { return attempted && (irq&0x20U) && !(irq&0x10U) && (fifo_status&0x10U); }
-};
 inline PacketEngineResult halo_last_packet_result;
+inline PacketDiagnostics packet_diagnostics;
 
 // BC5602 v1.20 RC1: FIFO access requires XCLK_EN; RSTLL resets the
 // low-voltage logic without issuing a full chip/software reset.
@@ -416,9 +408,16 @@ inline uint8_t flush_packet_tx(){
 }
 
 inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t length){
-  PacketEngineResult result;
+  PacketTrace trace;
+  auto &result=trace.result;
+  if(payload && length>=2){trace.command=payload[0];trace.control=payload[1];}
+  const auto finish=[&](){
+    packet_diagnostics.record(trace,static_cast<uint64_t>(esp_timer_get_time()/1000));
+    return result;
+  };
   if(address_learning||!crc_seed_ready||!tx_pcf_prefix_zero||
-     !payload||length==0||length>32)return result;
+     !payload||length==0||length>32)return finish();
+  trace.stage=PacketTrace::Stage::Flush;
   setup_exact_pico(active_radio_address,RADIO_CHANNEL);
   // Keep PTX in single-strobe mode while changing the FIFO so an old
   // unacknowledged packet cannot transmit again.
@@ -426,6 +425,7 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
   result.fifo_before_flush=read_reg(0x05);
   result.fifo_after_flush=flush_packet_tx();
   if(!(result.fifo_after_flush&0x10U)){
+    trace.logic_recovery=true;
     const uint8_t rc1=read_reg(0x01);
     ESP_LOGW("halo2","HALO2 PACKET LOGIC RECOVERY rc1=%02X fifo=%02X mode=%u",
              rc1,result.fifo_after_flush,read_reg(0x26)&0x07U);
@@ -443,8 +443,9 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
     ESP_LOGW("halo2","HALO2 PACKET TX FIFO STUCK before=%02X after=%02X",
              result.fifo_before_flush,result.fifo_after_flush);
     prepare_halo_receive();
-    return result;
+    return finish();
   }
+  trace.stage=PacketTrace::Stage::Queue;
   write_bytes(0x11,payload,length); // Hardware 9-bit PCF and CRC, with ACK.
   result.fifo_after_write=read_reg(0x05);
   if(result.fifo_after_write&0x20U){
@@ -453,12 +454,12 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
              result.fifo_after_write);
     command(0x09);
     prepare_halo_receive();
-    return result;
+    return finish();
   }
   // Capture completion flags before strobing TX, then log only after the
   // transaction finishes so serial output does not delay ACK handling.
-  const uint8_t irq_before=read_reg(0x04);
-  const uint8_t retries_before=read_reg(0x14);
+  trace.irq_before=read_reg(0x04);
+  trace.rt2_before=read_reg(0x14);
   const int64_t tx_started=esp_timer_get_time();
   result.attempted=true;
   command(0x0E); // Trigger TX, including configured hardware retries.
@@ -474,24 +475,30 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
   } while(true);
   result.fifo_status=read_reg(0x05);
   result.mode=read_reg(0x26)&0x07U;
-  const uint32_t elapsed_us=static_cast<uint32_t>(esp_timer_get_time()-tx_started);
-  const uint8_t retries_after=read_reg(0x14);
+  trace.elapsed_us=static_cast<uint32_t>(esp_timer_get_time()-tx_started);
+  trace.rt2_after=read_reg(0x14);
+  trace.stage=PacketTrace::Stage::Terminal;
   ESP_LOGI("halo2","HALO2 PACKET TRACE irq_before=%02X irq_after=%02X rt2_before=%02X rt2_after=%02X elapsed_us=%u fifo=%02X/%02X/%02X/%02X",
-           irq_before,result.irq,retries_before,retries_after,static_cast<unsigned>(elapsed_us),
+           trace.irq_before,result.irq,trace.rt2_before,trace.rt2_after,static_cast<unsigned>(trace.elapsed_us),
            result.fifo_before_flush,result.fifo_after_flush,result.fifo_after_write,result.fifo_status);
   if(!result.sent()){
+    trace.config={read_reg(0x00),read_reg(0x01),read_reg(0x03),read_reg(0x09),
+                  read_reg(0x10),read_reg(0x11),read_reg(0x13),read_reg(0x15)};
+    trace.config_valid=true;
     ESP_LOGW("halo2","HALO2 PACKET CONFIG cfg=%02X rc1=%02X mask=%02X pkt=%02X rfch=%02X dm1=%02X rt1=%02X ce=%02X",
-             read_reg(0x00),read_reg(0x01),read_reg(0x03),read_reg(0x09),
-             read_reg(0x10),read_reg(0x11),read_reg(0x13),read_reg(0x15));
+             trace.config[0],trace.config[1],trace.config[2],trace.config[3],
+             trace.config[4],trace.config[5],trace.config[6],trace.config[7]);
     ESP_LOGW("halo2","HALO2 PACKET TX FAILED irq=%02X fifo=%02X mode=%u before=%02X flushed=%02X queued=%02X",
              result.irq,result.fifo_status,result.mode,result.fifo_before_flush,
              result.fifo_after_flush,result.fifo_after_write);
-    const uint8_t cleaned=flush_packet_tx();
+    trace.cleanup_fifo=flush_packet_tx();
+    trace.cleanup_rc1=read_reg(0x01);
+    trace.cleanup_valid=true;
     ESP_LOGW("halo2","HALO2 PACKET TX CLEANUP FIFO=%02X RC1=%02X",
-             cleaned,read_reg(0x01));
+             trace.cleanup_fifo,trace.cleanup_rc1);
   }
   prepare_halo_receive();
-  return result;
+  return finish();
 }
 
 inline bool send_halo_state(uint8_t command,bool power,bool pir,bool front,bool back,
