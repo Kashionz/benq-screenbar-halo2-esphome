@@ -12,6 +12,7 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 - 最短間隔 30 秒，最多 2881 次，排程間隔總和最多 24 小時；網路與發送執行時間另計。
 - 每筆命令只 POST 一次，accepted／executing 透過唯讀查詢追蹤。送出前先寫入命令 ID，便於結果不明時查核。
 - 任一失敗、未知結果、裝置重啟、外部控制、非 ready 狀態均停止；不自動恢復或重送。
+- 摘要 `stopped_at` 指出停止階段；例如 `command` 表示送出／追蹤命令期間，`after_command_state` 表示已取得成功發送結果後的狀態查詢／驗證。後者失敗不會抹除先前已確認的 TX 結果，但仍使整組測試未完成。
 - `complete=true` 代表本次橋接器發送測試完成；燈具沒有獨立確認，不能代替實體觀察或原生 App UI 驗收。
 
 ## 2026-09-27 首次執行
@@ -46,3 +47,15 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 兩組之間的對照命令：開燈 `b1b4907f-512c-43e0-824d-747f75bf0057` 經既有 FIFO 邏輯復原後成功；關燈 `ea024abc-47d3-4bb2-9b34-4ac0289769d7` 與再次相同關燈 `549c3bf8-a6d7-432d-851a-7fbe65b07bfb` 皆為 1/1 TX_DS。故尚無證據認定相同 payload 必然失敗，這三筆沒有另取得使用者逐筆觀察。
 
 原始串列與 API 對照位於本機 ignored `.esphome/packet-trace-soak.jsonl`、`.esphome/packet-trace-soak-2.jsonl`。兩組均 `complete=false`，不列為穩定性通過；測試已停止，燈的目標保持關閉。
+
+## 每筆發送前重置邏輯的對照實驗
+
+將既有 RSTLL 復原從「FIFO 清除失敗時」改為「每筆新命令寫入 payload 前」，保留原頻道、硬體重試與單次 TX strobe，沒有重送失敗命令。實驗 OTA 映像 SHA-256：`7E3997639D18AA485AFD2367B062FD4BF4165FB8E98A3D81F22AEF4A411B038E`。
+
+- 第一組預定六筆，前三筆均 1/1 TX_DS；第三筆 `f4aca206-500c-4411-b551-74c309766311` 後的狀態讀取出錯，整組停止。之後唯讀查核確認裝置未重啟、該命令仍為 transmitted、配對保存且 radio=ready。沒有重送該筆。
+- 另開第二組，前三筆成功，第四筆 `8e10d7a5-ad26-4cf5-b08a-101c01128186` 失敗。重置後 FIFO=`11`、RC1=`30`，IRQ `0E→1E`、RT2 `00→10`、TX 追蹤 11,975 μs，FIFO `11/11/01/01`；失敗後清除仍為 `01`。
+- 這項實驗未消除 MAX_RT，因此撤回每筆強制重置改動。不能將前三筆成功或六筆累計成功解讀為修復通過。
+- 原始紀錄與實驗補丁保留在本機 ignored `.esphome/logic-init-*`。後續調查需要納入接線、供電與擺放資訊；目前沒有足夠證據確定是傳送、ACK 接收或硬體狀態哪一環節造成失敗。
+- 撤回改動後重新編譯／OTA 成功，唯讀 API 確認 radio=ready、pairing=ready、pairing_persisted=true、desired.source=restored，電源目標關閉，last_command=null。未因回復自動重送燈具命令。
+
+本輪另補上測試工具的停止階段紀錄，避免把成功發送後的唯讀錯誤與命令送出結果不明混淆；新增回歸測試後 Python 共 25 項通過。協定契約六項與 MSVC 命令派送器測試通過。這些軟體檢查不代表 RF 穩定性驗收完成。
