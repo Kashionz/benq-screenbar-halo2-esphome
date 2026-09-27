@@ -24,6 +24,8 @@
     }
   },
   "bundle": {
+    "publisher": "Kashionz",
+    "shortDescription": "Local network control for ScreenBar Halo 2 bridges",
     "macOS": { "infoPlist": "Info.plist", "entitlements": "Entitlements.plist" },
     "iOS": { "infoPlist": "Info.plist" },
     "active": true,
