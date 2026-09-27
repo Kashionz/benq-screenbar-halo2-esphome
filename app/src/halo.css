@@ -965,113 +965,207 @@ p {
   overflow-wrap: anywhere;
 }
 
-/* Interim: connection form until it is redesigned. */
+/* First connection */
 .setup {
   max-width: 520px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
-.legacy-form {
-  border-radius: 16px;
-  background: var(--glass);
-  border: 1px solid var(--glass-edge);
-  box-shadow: var(--glass-shadow);
-  padding: 14px;
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
-.legacy-form label {
-  display: block;
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+}
+.page-subtitle {
+  margin-top: 2px;
   font-size: 13px;
   color: var(--ink-2);
-  margin-bottom: 12px;
 }
-.legacy-form input:not([type="checkbox"]) {
-  display: block;
-  width: 100%;
-  margin-top: 4px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 0.5px solid var(--separator);
-  background: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
-}
-.remember-toggle {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-}
-.primary,
-.secondary {
-  min-height: 40px;
-  padding: 6px 14px;
-  border-radius: 10px;
-  border: 0;
-  font-size: 14px;
-}
-.primary {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-}
-.secondary {
-  background: var(--fill);
-}
-.primary:disabled,
-.secondary:disabled,
-.text-button:disabled {
+.group.dimmed {
   opacity: 0.4;
 }
-.connect-button {
+.saved-address {
+  min-height: 48px;
+}
+.saved-address > span:first-child {
+  color: var(--ink);
+}
+.search-row,
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+}
+.search-row > span:first-child,
+.switch-row > span:first-child {
+  flex: 1;
+}
+.switch-row {
+  color: var(--ink);
+}
+.spinner {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(60, 60, 67, 0.18);
+  border-top-color: var(--accent);
+  animation: hb-spin 0.8s linear infinite;
+}
+.spinner.light {
+  border-color: #ffffff44;
+  border-top-color: #fff;
+}
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  margin-bottom: 12px;
+  min-height: 52px;
+  padding: 6px 14px;
+  border: 0;
+  border-top: 0.5px solid var(--separator);
+  background: none;
+  text-align: left;
+}
+.result-row:disabled {
+  opacity: 0.4;
+}
+.result-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.result-name {
+  display: block;
+  font-size: 14px;
+}
+.result-address {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.result-check {
+  flex: none;
+  width: 16px;
+  font-size: 15px;
+  color: var(--accent);
+}
+.field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-bottom: 0.5px solid var(--separator);
+  font-size: 14px;
+}
+.field-label {
+  flex: none;
+  width: 96px;
+}
+.field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  text-align: right;
+  font-size: 14px;
+  outline: none;
+}
+.field:has(input:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.field input:disabled {
+  color: var(--ink-3);
+}
+.field input::placeholder {
+  color: var(--ink-disabled);
+}
+.field input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.field input::-webkit-outer-spin-button,
+.field input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.switch {
+  flex: none;
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: 99px;
+  background: rgba(60, 60, 67, 0.18);
+  transition: background 0.15s;
+}
+.switch.on {
+  background: var(--accent);
+}
+.knob-small {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px #0003;
+  transition: left 0.15s;
+}
+.switch.on .knob-small {
+  left: 18px;
+}
+.connect-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  border-radius: 14px;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+.connect-button:disabled {
+  opacity: 0.4;
 }
 .text-button {
+  align-self: flex-start;
   border: 0;
   background: none;
   color: var(--accent);
   font-size: 13px;
-  padding: 8px 4px;
+  padding: 4px 14px;
 }
-.hint {
-  font-size: 12px;
-  color: var(--ink-3);
-  margin-top: 8px;
+.text-button:disabled {
+  opacity: 0.4;
 }
-.notice {
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--warn-bg);
-  color: var(--warn-ink);
-  font-size: 13px;
-}
+.notice,
 .form-error {
   padding: 10px 14px;
   border-radius: 10px;
-  background: var(--err-bg);
-  color: var(--err-ink);
   font-size: 13px;
 }
-.saved-connection {
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-  border-bottom: 0.5px solid var(--separator);
-  font-size: 14px;
+.notice {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
 }
-.discovery-panel {
-  margin-bottom: 12px;
+.form-error {
+  background: var(--err-bg);
+  color: var(--err-ink);
 }
-.discovery-results {
-  list-style: none;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-.discovery-results button {
-  width: 100%;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

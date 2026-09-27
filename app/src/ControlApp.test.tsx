@@ -61,7 +61,7 @@ async function login() {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("帳號"), "test");
   await user.type(screen.getByLabelText("密碼"), "secret");
-  await user.click(screen.getByRole("button", { name: "連線橋接器 →" }));
+  await user.click(screen.getByRole("button", { name: "連線" }));
   await screen.findByText("已連線");
   return user;
 }
@@ -90,9 +90,9 @@ describe("control safety", () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("密碼"), "previous-secret");
     expect(bridge.discover).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "搜尋區域網路橋接器" }));
+    await user.click(screen.getByRole("button", { name: "搜尋區域網路" }));
     await user.click(await screen.findByRole("button", { name: /Desk desk.local:8080/ }));
-    expect(screen.getByLabelText("IP 或主機名稱")).toHaveValue("desk.local");
+    expect(screen.getByLabelText("主機")).toHaveValue("desk.local");
     expect(screen.getByLabelText("密碼")).toHaveValue("");
     expect(bridge.connect).not.toHaveBeenCalled();
     expect(bridge.connectSaved).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe("control safety", () => {
       message: "憑證庫不可用",
     });
     render(<App />);
-    await userEvent.click(screen.getByLabelText("記住此連線與帳密"));
+    await userEvent.click(screen.getByRole("switch", { name: "記住此連線與帳密" }));
     const user = await login();
     await openDevice(user);
     await screen.findByText(/本次已連線，但保存失敗/);
@@ -201,7 +201,7 @@ describe("control safety", () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("帳號"), "test");
     await user.type(screen.getByLabelText("密碼"), "bad");
-    await user.click(screen.getByRole("button", { name: "連線橋接器 →" }));
+    await user.click(screen.getByRole("button", { name: "連線" }));
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("帳號或密碼不正確"),
     );

@@ -24,7 +24,8 @@ import {
 } from "./controlState";
 import { DevicePage } from "./DevicePage";
 import { useTray } from "./useTray";
-import { DiscoveryPanel } from "./DiscoveryPanel";
+import { ConnectPage } from "./ConnectPage";
+import { detectPlatform } from "./platform";
 import { useCompact } from "./useCompact";
 
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [action, setAction] = useState("");
   const [rebooted, setRebooted] = useState(false);
+  const [storeError, setStoreError] = useState(false);
   const generation = useRef(0);
   const refreshing = useRef<Promise<Snapshot | null> | null>(null);
   const commanding = useRef(false);
@@ -56,6 +58,7 @@ export default function App() {
   const ownCommands = useRef(new Set<string>());
   const native = isTauri();
   const compact = useCompact();
+  const platform = detectPlatform();
   useEffect(() => {
     if (!native) return;
     let cancelled = false;
@@ -71,7 +74,10 @@ export default function App() {
         }
       })
       .catch((e) => {
-        if (!cancelled) setSettingsMessage(failure(e).message);
+        if (!cancelled) {
+          setSettingsMessage(failure(e).message);
+          setStoreError(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -182,9 +188,11 @@ export default function App() {
       await bridge.forget();
       setSaved(null);
       setRemember(false);
+      setStoreError(false);
       setSettingsMessage("已移除保存的連線與帳密。");
     } catch (e) {
       setSettingsMessage(failure(e).message);
+      setStoreError(true);
     } finally {
       setBusy(false);
     }
@@ -327,140 +335,34 @@ export default function App() {
   let body: React.ReactNode;
   if (!connected) {
     body = (
-      <div className="setup">
-        {!native && (
-          <p role="alert" className="notice">
-            請在 Tauri 桌面或手機 App 中開啟；瀏覽器預覽不會連接燈具。
-          </p>
-        )}
-        <form onSubmit={connect} className="legacy-form">
-          <DiscoveryPanel disabled={busy || !native} select={(candidate) => {
-            connectionEdited.current = true;
-            setHost(candidate.host);
-            setPort(candidate.port);
-            setPassword("");
-          }} />
-          {saved && (
-            <div className="saved-connection">
-              <p>
-                已保存：{saved.host}:{saved.port}
-              </p>
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy || !native}
-                onClick={() => void useSaved()}
-              >
-                使用已保存帳密連線
-              </button>
-              <button
-                type="button"
-                className="text-button"
-                disabled={busy}
-                onClick={() => void forget()}
-              >
-                忘記已保存連線
-              </button>
-            </div>
-          )}
-          {!saved && settingsMessage && (
-            <button
-              type="button"
-              className="text-button"
-              disabled={busy}
-              onClick={() => void forget()}
-            >
-              重試移除保存資料
-            </button>
-          )}
-          <label>
-            IP 或主機名稱
-            <input
-              value={host}
-              disabled={busy}
-              onChange={(e) => {
-                connectionEdited.current = true;
-                setHost(e.target.value);
-              }}
-              placeholder="192.168.1.10"
-              required
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-            />
-          </label>
-          <label>
-            連接埠
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              value={port}
-              disabled={busy}
-              onChange={(e) => {
-                connectionEdited.current = true;
-                setPort(Number(e.target.value));
-              }}
-              required
-            />
-          </label>
-          <label>
-            帳號
-            <input
-              value={username}
-              disabled={busy}
-              onChange={(e) => {
-                connectionEdited.current = true;
-                setUsername(e.target.value);
-              }}
-              autoComplete="username"
-              required
-            />
-          </label>
-          <label>
-            密碼
-            <input
-              type="password"
-              value={password}
-              disabled={busy}
-              onChange={(e) => {
-                connectionEdited.current = true;
-                setPassword(e.target.value);
-              }}
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          <button
-            className="primary connect-button"
-            disabled={busy || !native}
-          >
-            {busy ? "正在連線…" : "連線橋接器 →"}
-          </button>
-          <label className="remember-toggle">
-            <input
-              type="checkbox"
-              checked={remember}
-              disabled={busy}
-              onChange={(e) => setRemember(e.target.checked)}
-            />
-            記住此連線與帳密
-          </label>
-          <p className="hint">
-            使用橋接器網頁的帳號密碼。勾選記住時存入系統憑證庫；否則只留於本次連線。
-          </p>
-        </form>
-        {fault && (
-          <p role="alert" className="form-error">
-            {fault.message}
-          </p>
-        )}
-        {settingsMessage && (
-          <p role="status" className="hint">
-            {settingsMessage}
-          </p>
-        )}
-      </div>
+      <ConnectPage
+        native={native}
+        platform={platform}
+        busy={busy}
+        fields={{ host, port, username, password }}
+        edit={(patch) => {
+          connectionEdited.current = true;
+          if (patch.host !== undefined) setHost(patch.host);
+          if (patch.port !== undefined) setPort(patch.port);
+          if (patch.username !== undefined) setUsername(patch.username);
+          if (patch.password !== undefined) setPassword(patch.password);
+        }}
+        remember={remember}
+        setRemember={setRemember}
+        saved={saved}
+        fault={fault}
+        settingsMessage={settingsMessage}
+        retryForget={!saved && storeError}
+        submit={(event) => void connect(event)}
+        useSaved={() => void useSaved()}
+        forget={() => void forget()}
+        pick={(candidate) => {
+          connectionEdited.current = true;
+          setHost(candidate.host);
+          setPort(candidate.port);
+          setPassword("");
+        }}
+      />
     );
   } else if (panel === "device") {
     body = (
