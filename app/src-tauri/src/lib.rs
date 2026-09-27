@@ -7,6 +7,24 @@ use halo2_bridge_core::{Bridge, Fault, Record, Snapshot, StatePatch};
 use std::{path::PathBuf, sync::Mutex as StdMutex};
 use tauri::{Manager, State};
 use tokio::sync::Mutex;
+#[cfg(desktop)]
+mod tray;
+
+#[tauri::command]
+async fn set_tray_available(app: tauri::AppHandle, enabled: bool) -> Result<bool, Fault> {
+    #[cfg(desktop)]
+    {
+        app.state::<tray::Controls>()
+            .set_enabled(enabled)
+            .map_err(|_| Fault::new("TRAY_ERROR", "桌面快捷選單無法更新，請使用 App 控制。"))?;
+        Ok(true)
+    }
+    #[cfg(mobile)]
+    {
+        let _ = (app, enabled);
+        Ok(false)
+    }
+}
 
 #[derive(Default)]
 struct Session(Mutex<Option<Connection>>);
@@ -354,6 +372,8 @@ pub fn run() {
     tauri::Builder::default()
         .manage(Session::default())
         .setup(|app| {
+            #[cfg(desktop)]
+            tray::setup(app)?;
             let root = app.path().app_data_dir()?;
             let export_dir = app
                 .path()
@@ -386,7 +406,8 @@ pub fn run() {
             clear_diagnostics,
             list_presets,
             save_preset,
-            delete_preset
+            delete_preset,
+            set_tray_available
         ])
         .run(tauri::generate_context!())
         .expect("Unable to start Halo 2 Control");

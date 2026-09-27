@@ -12,6 +12,7 @@ import {
 import "./halo.css";
 import { LightControls, type LightPatch } from "./LightControls";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
+import { useTray } from "./useTray";
 
 export default function App() {
   const [host, setHost] = useState("screenbar-halo2.local");
@@ -228,6 +229,7 @@ export default function App() {
     !snapshot?.active_command &&
     fault?.code !== "UNKNOWN_OUTCOME";
   const desired = snapshot?.desired.values;
+  useTray(native, !!ready && !busy, power);
   const mode =
     ({ front: "前燈", back: "後燈", both: "前後燈" } as Record<string, string>)[
       desired?.mode ?? ""

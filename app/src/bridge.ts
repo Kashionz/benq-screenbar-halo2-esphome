@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 export interface LightState {
   power: boolean;
@@ -74,6 +75,10 @@ export const failure = (e: unknown): Fault =>
     ? (e as Fault)
     : { code: "APP_ERROR", message: "操作無法完成，請重新連線。" };
 export const bridge = {
+  trayAvailable: (enabled: boolean) => invoke<boolean>("set_tray_available", { enabled }),
+  onTrayPower: (handler: (power: boolean) => void) => listen<boolean>("halo-tray-power", (event) => {
+    if (typeof event.payload === "boolean") handler(event.payload);
+  }),
   presets: () => invoke<Preset[]>("list_presets"),
   savePreset: (name: string, values: PresetValues) => invoke<Preset[]>("save_preset", { name, values }),
   deletePreset: (id: string) => invoke<Preset[]>("delete_preset", { id }),
