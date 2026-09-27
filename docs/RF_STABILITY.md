@@ -110,3 +110,11 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 沿用 61 筆、間隔 30 秒的排程，前八筆均 1/1 TX_DS，第九筆 `TX_MAX_RETRIES`；約 243 秒停止，`successful=8`、`complete=false`。失敗前後 IRQ `0E→1E`、RT2 `00→10`，追蹤 12,201 μs，FIFO `11/11/01/01`，失敗後清除仍為 `01`。設定讀回與前次一致，HTTP 正常回傳該筆 failed；沒有自動重送。停止後唯讀確認測試期間未重啟、配對保存且最後命令仍為該筆 failed。
 
 Hub 路徑仍重現 RF 故障，不能以成功筆數增加推定供電改善，也不能排除供電因素；重新上電與隨機性皆可能影響比較。原始紀錄位於 ignored `.esphome/hub-30min-diagnostics.jsonl`，未完成 30 分鐘穩定性驗收。
+
+### 獨立 USB 充電器對照
+
+使用者改接獨立 USB 充電器。換插後 API 確認重新開機、radio/pairing ready、配對保存、關燈目標自動恢復。此輪透過網路 API 測試，沒有電腦 USB 串列追蹤；充電器規格與實際電壓未量測。
+
+同樣安排 61 筆、間隔 30 秒，第一筆 1/1 TX_DS；第二筆 `TX_MAX_RETRIES`，planned=1、attempted=1、transmitted=0、IRQ=`1E`、FIFO=`01`、MODE=2。約 30.7 秒後停止，`successful=1`、`stopped_at=tx_result`、`complete=false`，沒有自動重送。API 正常回傳 failed，沒有觀察到查詢錯誤；沒有串列資料可判定本次發送前 FIFO 或 RT2。
+
+更換電源來源未消除故障，不能單憑此測試排除供電品質、USB 線材或模組接線，也不能確定是協定或 ACK 問題。原始報告位於 ignored `.esphome/charger-30min-diagnostics.jsonl`，30 分鐘穩定性仍未通過；此輪未取得新的燈具實際反應確認。
