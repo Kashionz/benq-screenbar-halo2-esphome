@@ -28,4 +28,21 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 
 實驗補丁與編譯／上傳日誌保留於本機 ignored `.esphome/vco-*`。正式程式不納入這項未通過的校準改動。
 
-已重新編譯並 OTA 刷回原韌體（config_hash `0xcc6f4828`）。API 恢復 radio=ready、pairing=ready、pairing_persisted=true；載入前燈 35%、後燈設定 50%、5500 K，desired.source=restored，last_command=null。回復後新關燈命令 `dd229778-9ec3-4b8f-a2a8-13f3ea8a0c9d` 回報 1/1 TX_DS、IRQ `2E`／FIFO `11`；燈具是否實際熄滅另待使用者觀察，尚不列為新的實體驗收通過。
+已重新編譯並 OTA 刷回原韌體（config_hash `0xcc6f4828`）。API 恢復 radio=ready、pairing=ready、pairing_persisted=true；載入前燈 35%、後燈設定 50%、5500 K，desired.source=restored，last_command=null。回復後新關燈命令 `dd229778-9ec3-4b8f-a2a8-13f3ea8a0c9d` 回報 1/1 TX_DS、IRQ `2E`／FIFO `11`；使用者回覆「燈確認已熄滅」，確認這筆命令的實際燈具反應。
+
+## 發送前後追蹤
+
+新增 `HALO2 PACKET TRACE`，記錄 TX strobe 前後 IRQ、RT2、執行時間與四個 FIFO 採樣點（初始化後／清除後／寫入後／完成後）。失敗另讀回主要設定；日誌於硬體完成或逾時後才輸出。未修改頻道、重試次數或封包內容，但新增 SPI 讀取會略微影響測試時序。
+
+韌體編譯、OTA 與 Python 24 項測試通過；開機 API ready，配對與關燈目標保存。兩組各預定 6 筆、間隔 30 秒，遇失敗停止：
+
+| 組別 | 成功筆數 | 失敗筆 | IRQ 前→後 | RT2 前→後 | 發送追蹤時間 | FIFO |
+| --- | --- | --- | --- | --- | --- | --- |
+| 第一組 | 1 | 2 | 0E→1E | 01→11 | 12,404 μs | 11/11/01/01 |
+| 第二組 | 3 | 4 | 0E→1E | 00→10 | 11,954 μs | 11/11/01/01 |
+
+失敗命令分別為 `fc5bf05c-9ae0-4425-a05d-6197770b9689` 與 `d5f2fcfe-50ac-40e6-8450-028784b14545`；兩次讀回 `cfg=00 rc1=30 mask=00 pkt=20 rfch=05 dm1=82 rt1=72 ce=00`，清除後 FIFO 仍為 `01`。可確認這兩次發送前沒有舊 MAX_RT／TX_DS、TX FIFO 原本為空，新的 MAX_RT 發生於 TX 後；不能因此判定 ACK 遺失的物理原因或推導空中封包內容。RT2 保留原值，不將其低半位元組誤當成所有歷史重試的累計。
+
+兩組之間的對照命令：開燈 `b1b4907f-512c-43e0-824d-747f75bf0057` 經既有 FIFO 邏輯復原後成功；關燈 `ea024abc-47d3-4bb2-9b34-4ac0289769d7` 與再次相同關燈 `549c3bf8-a6d7-432d-851a-7fbe65b07bfb` 皆為 1/1 TX_DS。故尚無證據認定相同 payload 必然失敗，這三筆沒有另取得使用者逐筆觀察。
+
+原始串列與 API 對照位於本機 ignored `.esphome/packet-trace-soak.jsonl`、`.esphome/packet-trace-soak-2.jsonl`。兩組均 `complete=false`，不列為穩定性通過；測試已停止，燈的目標保持關閉。

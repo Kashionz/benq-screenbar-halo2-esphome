@@ -454,6 +454,11 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
     prepare_halo_receive();
     return result;
   }
+  // Capture completion flags before strobing TX, then log only after the
+  // transaction finishes so serial output does not delay ACK handling.
+  const uint8_t irq_before=read_reg(0x04);
+  const uint8_t retries_before=read_reg(0x14);
+  const int64_t tx_started=esp_timer_get_time();
   result.attempted=true;
   command(0x0E); // Trigger TX, including configured hardware retries.
   // RX mode with a nonempty TX FIFO may mean the packet engine is still
@@ -468,7 +473,15 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
   } while(true);
   result.fifo_status=read_reg(0x05);
   result.mode=read_reg(0x26)&0x07U;
+  const uint32_t elapsed_us=static_cast<uint32_t>(esp_timer_get_time()-tx_started);
+  const uint8_t retries_after=read_reg(0x14);
+  ESP_LOGI("halo2","HALO2 PACKET TRACE irq_before=%02X irq_after=%02X rt2_before=%02X rt2_after=%02X elapsed_us=%u fifo=%02X/%02X/%02X/%02X",
+           irq_before,result.irq,retries_before,retries_after,static_cast<unsigned>(elapsed_us),
+           result.fifo_before_flush,result.fifo_after_flush,result.fifo_after_write,result.fifo_status);
   if(!result.sent()){
+    ESP_LOGW("halo2","HALO2 PACKET CONFIG cfg=%02X rc1=%02X mask=%02X pkt=%02X rfch=%02X dm1=%02X rt1=%02X ce=%02X",
+             read_reg(0x00),read_reg(0x01),read_reg(0x03),read_reg(0x09),
+             read_reg(0x10),read_reg(0x11),read_reg(0x13),read_reg(0x15));
     ESP_LOGW("halo2","HALO2 PACKET TX FAILED irq=%02X fifo=%02X mode=%u before=%02X flushed=%02X queued=%02X",
              result.irq,result.fifo_status,result.mode,result.fifo_before_flush,
              result.fifo_after_flush,result.fifo_after_write);
