@@ -8,6 +8,8 @@ Mac、iPhone 與橋接器需在同一個可互通的區域網路。先啟動 Xco
 
 安裝 Node.js 24 與 Rust stable 後，在 Terminal 執行：
 
+iOS 專案需使用能讀取 Xcode project format 77 的 Xcode 16 以上版本；CI 明確選用 Xcode 16.2。若 `xcodebuild -version` 仍為 15.x，先在 Xcode Settings → Locations 選擇新版 Command Line Tools，再繼續。
+
 ```sh
 git clone https://github.com/Kashionz/benq-screenbar-halo2-esphome.git
 cd benq-screenbar-halo2-esphome/app
@@ -69,6 +71,8 @@ iOS 匯出寫入 App 文件目錄；已透過 iOS 專用 Info.plist 啟用文件
 文件取用依據 [Apple 文件提供者設定](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/LaunchServicesKeys.html#//apple_ref/doc/uid/20001431-102364)。CI 僅驗證編譯與自動測試，Keychain 存取與 LAN 權限必須在實機驗收。
 
 ## 已取得的建置證據
+
+2026-09-27：[Apple CI 36314887598](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36314887598) 選用 Xcode 16.2 後，完整 ARM iOS 模擬器 App 建置成功，產生的 Info.plist 通過 LAN 用途、文件共享與原地開啟宣告檢查。macOS bundle 與 iOS 兩個 Rust 目標也成功。模擬器 App 未在此工作流程啟動，仍不能替代實機驗收。
 
 2026-09-27：[Apple CI 36313722538](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36313722538) 在 macos-14 成功執行前端測試、Rust 核心／儲存測試、macOS debug App bundle，以及 `aarch64-apple-ios-sim`、`aarch64-apple-ios` 的 App library 檢查。沒有執行 iPhone App，也沒有驗證真實 Keychain／區域網路權限。
 

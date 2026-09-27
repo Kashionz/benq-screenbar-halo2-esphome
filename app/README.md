@@ -67,8 +67,14 @@ Windows bundle 用 `npm run tauri build -- --bundles nsis`；平台設定由 `ta
 
 Windows 已完成本機建置、前端互動測試、Rust 模擬網路測試，以及 Rust 核心對實體 ESP32 的電源、燈光模式、亮度與色溫測試。原生 UI 已驗證登入、保存帳密、重開連線、診斷匯出與前燈亮度套用；使用者確認實際變亮。ESP32 斷電重新上線後，App 恢復同步且未重送命令。
 
-macOS App 已通過 CI 建置；iOS 真機與模擬器的 Rust library 通過編譯檢查，**尚未完成 Apple 實機操作驗收或 iOS Xcode App 建置**。需 Mac、Xcode、簽章與 iPhone；在 Mac 執行 `npm run tauri ios init` 後再 `npm run tauri ios dev`。`Info.plist` 提供本地網路用途與 local networking 宣告，macOS entitlement 允許網路 client；這些設定不能替代實機權限驗證。
+macOS App 與完整 iOS 模擬器 App 已通過 CI 建置；iOS 真機的 Rust library 通過編譯檢查，**尚未完成 Apple 實機操作驗收**。需 Mac、Xcode 16 以上、簽章與 iPhone；在 Mac 執行 `npm run tauri ios init` 後再 `npm run tauri ios dev`。平台 Info.plist 提供本地網路用途與 local networking 宣告，macOS entitlement 允許網路 client；這些設定不能替代實機權限驗證。
 
 Apple Silicon Mac 的完整步驟與結果表見 [Apple 實機驗收](../docs/APPLE_TESTING.md)。
 
-SSE、自動探索、情境預設與桌面系統匣控制尚未提供。最新功能與實機結果見 [開發驗收紀錄](../docs/DEVELOPMENT_ACCEPTANCE.md)，初期協定驗證見 [協定驗收紀錄](../docs/VALIDATION_2026-09-27.md)。
+## 情境預設
+
+「前後燈與色溫」內可展開情境預設，輸入名稱，保存畫面上的模式、兩路亮度及色溫（含尚未套用的草稿），最多 20 組。資料存在本機 App 目錄，沒有帳密或配對資料；不會自動跨裝置同步。
+
+「帶入草稿」只更新畫面；確認設定並按「套用燈光設定」才會發送，電源維持原設定。實驗性控制仍需先啟用，離線或命令結果不明時不能套用。載入、保存、刪除情境均不發送 RF，重新開啟也不會自動套用。儲存檔損壞時顯示錯誤並保留原檔。
+
+SSE、自動探索與桌面系統匣控制尚未提供。最新功能與實機結果見 [開發驗收紀錄](../docs/DEVELOPMENT_ACCEPTANCE.md)，初期協定驗證見 [協定驗收紀錄](../docs/VALIDATION_2026-09-27.md)。

@@ -14,6 +14,16 @@
 
 使用者已確認有 Mac 與 iPhone 可供測試；目前自動執行環境是 Windows。
 
+## 2026-09-27 情境預設初版
+
+- 加入最多 20 組本機情境，保存模式、兩路亮度與色溫；電源不存入情境。選取帶入草稿，需明確按套用，仍受 experimental／offline／未知命令結果限制。
+- 儲存採原子寫入，檔案上限 32 KiB，檢查格式版本、名稱、ID 與數值範圍；損壞檔案不自動覆寫。
+- 前端 14 項與儲存模組 8 項測試通過，clippy 無警告，Windows release／NSIS 建置成功。
+- 安裝更新 exit code 0；原生 UI 使用既有保存帳密連線，建立「目前桌面」（前燈模式、前 35%、後 50%、5500 K）。退出整個 App 程序後再開啟、連線、展開情境，確認資料仍在。此流程未按套用，沒有拿保存測試宣稱 RF 控制成功。
+- 本批安裝包 SHA-256：`CCECD844A6A12CCFA2EBBFD663157C618E23B25101110DDD7757B172FA6A026E`。
+- 待驗收：情境的原生實際套用與燈光觀察、Apple 情境保存。桌面系統匣與 LAN 搜尋尚未實作。
+- 900 次唯讀 LAN 測試正在執行，報告仍為 `complete=false`；期間已觀察到單次網路逾時後恢復，不能宣稱全程無斷線或 RF 長期穩定。
+
 ## 2026-09-27 安裝包與 Apple 建置
 
 - Windows x64 release 與 NSIS 安裝包建置成功，採 currentUser、繁體中文／英文、官方 WebView2 bootstrapper，未簽章。
@@ -24,6 +34,7 @@
 - 本次安裝包 SHA-256：`544FD06B5A7DBDF614CE96A1C8AD169D31FC218C419B78148C936D681C62D6F7`。產物為 `app/target/release/bundle/nsis/Halo 2 Control_0.1.0_x64-setup.exe`；後續重新建置需重新記錄雜湊。
 - [Apple CI 36313722538](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36313722538) 全部成功：macOS App bundle、iOS 真機／模擬器 Rust library 檢查與前端／Rust 測試。這不代表 iOS Xcode App 已建置，也不代表 Apple 實機驗收通過。
 - 使用者確認為 Apple Silicon Mac，已安裝 Xcode，可 USB 連接 iPhone；操作步驟見 [Apple 實機驗收](APPLE_TESTING.md)。
+- 後續 [Apple CI 36314887598](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36314887598) 已完成完整 iOS 模擬器 App 建置及產生後的 LAN／文件共享權限宣告檢查。先前 Xcode 15.4 無法開啟 project format 77，改用 Xcode 16.2 後通過；尚未啟動模擬器 App 或完成 Apple 實機驗收。
 
 ## 2026-09-27 燈光實測
 
