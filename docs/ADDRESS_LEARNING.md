@@ -40,14 +40,16 @@ before the correct 4-byte address is known. Normal RX also leaves hardware CRC
 off. It captures 14 FIFO bytes to recover the complete 13-byte frame from a
 one-bit-shifted stream, including the final CRC bit. Five structurally valid
 frames must agree on the CRC initial state before TX is enabled for a newly
-learned address. That state also remains in RAM.
+learned address. The complete pairing is then saved to ESP32 flash.
 
 For example, `86 BB EA 9C` **on air** becomes `9C EA BB 86` **register order**.
 Logs and the text sensor always show **register order**. Direct TX already
 reverses that address when building its on-air bitstream and includes it in
 the software CRC. A candidate needs five matching captures; noise candidates
-are counted separately. The candidate and any applied address live in RAM.
-Reboot restores the compiled `RADIO_ADDRESS` (`9C EA BB 86`).
+are counted separately. A candidate and a newly applied address stay in RAM
+until its CRC seed and PCF format are confirmed. Reboot loads the last saved
+pairing. If no valid record exists, this fork installs its verified
+`B0 1E E8 E6` / `CC88` / `PCF_PREFIX_ZERO=1` pairing and saves it.
 
 The prior art confirms this particular 3-byte/16-byte capture approach, but
 does not establish that every Halo 2 remote repeats frames with the same
@@ -58,12 +60,16 @@ explain the direct and packet-engine TX paths.
 
 ## Flash and operate
 
-1. Put `screenbar-halo2.yaml`, `bm5602_halo2.h`, and
-   `halo2_address_learning.h` in the same ESPHome configuration directory.
+1. Put `screenbar-halo2.yaml`, `bm5602_halo2.h`,
+   `halo2_address_learning.h`, and `halo2_pairing_storage.h` in the same
+   ESPHome configuration directory.
 2. Configure `secrets.yaml`, then run `esphome run screenbar-halo2.yaml` to
    compile, flash over USB, and watch the logs. OTA: `esphome run
    screenbar-halo2.yaml --device screenbar-halo2`.
-3. In the web UI, press **Start address learning**. The radio status becomes
+3. For the verified `B0 1E E8 E6` lamp, check the boot log for `HALO2 PAIRING
+   INITIALIZED` on first boot or `HALO2 PAIRING RESTORED` later. Address
+   learning is unnecessary for this pair. For a different lamp, press
+   **Start address learning**. The radio status becomes
    `ADDRESS LEARNING RX=ON`. The log must also show `RFCH=5 DM1=42
    RXPW0=16 STA1_MODE=5 SYNC=55 0F 0A`. A `RX CONFIG ERROR` status means the chip did not
    read back the expected configuration; save that log before further tests.
@@ -85,7 +91,10 @@ explain the direct and packet-engine TX paths.
    address. The register readback should include `DM1=82 RXPW0=14` and the
    learned address. Operate the original controller until the log reports
    `HALO2 CRC SEED FOUND: XXXX` and `HALO2 TX FRAMING:
-   PCF_PREFIX_ZERO=0/1`. Power control waits for this result.
+   PCF_PREFIX_ZERO=0/1`, followed by `HALO2 PAIRING SAVED TO FLASH`.
+   Power control waits for the CRC result. If saving fails, the log reports
+   `HALO2 PAIRING SAVE FAILED` and another learning run may be needed after
+   reboot.
    The first five received FIFO samples are logged as `HALO2 NORMAL RX SAMPLE`;
    ten-second `captures` and `rejected` counters distinguish no packets from
    packets that fail frame checks.
@@ -163,8 +172,9 @@ HALO2 ADDRESS FOUND: 9C EA BB 86 [register order]
 
 The `B0 1E E8 E6` pair has now been checked with the 14-byte normal FIFO
 capture, learned CRC and PCF framing, original-controller OFF replay, and
-visible web Power ON/OFF. Other pairs still require hardware validation. No
-address or CRC seed is saved to NVS or permanently written into the source.
+visible web Power ON/OFF. Other pairs still require hardware validation. The
+address, CRC seed and PCF format are saved together in ESP32 flash. The
+verified pair is also a first-boot fallback in `halo2_pairing_storage.h`.
 
 On one tested controller, five captures yielded register-order address
 `B0 1E E8 E6`. Subsequent captures showed that normal RX was receiving frames

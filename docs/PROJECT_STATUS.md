@@ -1,4 +1,4 @@
-# Project status (2026-09-26)
+# Project status (2026-09-27)
 
 This document records what was observed on hardware during development of the
 Halo 2 ESPHome bridge. It distinguishes a transmitted packet from a visible
@@ -33,10 +33,13 @@ was checked separately.
 
 ## Current limits
 
-- The learned address, CRC state, and PCF format are held in RAM. A reboot or
-  firmware flash restores the compiled default address. Run address learning,
-  apply the result, and let five original-controller frames establish the CRC
-  before using web control on a different pair.
+- The verified `B0 1E E8 E6` address, `CC88` CRC seed and nine-bit PCF format
+  are installed on first boot and saved together in ESP32 flash. Later boots
+  load the saved pair. Learning a different pair updates flash only after five
+  matching CRC-seed observations. A hardware reset produced `HALO2 PAIRING
+  RESTORED ADDRESS=B0 1E E8 E6 CRC_SEED=CC88 PCF_PREFIX_ZERO=1` without
+  using the original controller. Full power removal and physical lamp control
+  after the reset have not yet been checked.
 - The learned pair's web Power ON/OFF was tested immediately and after roughly
   ten minutes idle. Longer-term behavior and all other control entities on
   that pair have not been physically verified.
@@ -54,6 +57,9 @@ was checked separately.
 - The compiled ESPHome firmware was written to the attached ESP32 over COM3 at
   115200 baud; the flash hash was verified. The higher 460800 baud attempt
   failed its connection check before the successful fallback.
+- The pairing-persistence update was compiled and written over COM3 at 115200
+  baud with flash hash verification; the next hardware reset loaded the saved
+  pairing from ESP32 flash.
 
 For the operating sequence and diagnostic buttons, see
 [ADDRESS_LEARNING.md](ADDRESS_LEARNING.md).

@@ -35,12 +35,13 @@ See **[Wiring and soldering](docs/WIRING.md)** before powering the boards.
 | `screenbar-halo2.yaml` | Production ESPHome configuration |
 | `bm5602_halo2.h` | BM5602 SPI, packet-engine/direct TX, CRC and passive RX driver |
 | `halo2_address_learning.h` | Address candidate extraction and five-capture voting |
+| `halo2_pairing_storage.h` | Versioned pairing record and this fork's verified first-boot pairing |
 | `secrets.example.yaml` | Safe configuration template |
 | `home-assistant/package.yaml` | Optional authenticated REST integration with guarded controller-state synchronization |
 | `home-assistant/dashboard.yaml` | Compact stock-card dashboard |
 | `home-assistant/secrets.example.yaml` | Matching Home Assistant web credentials |
 | [`docs/IMPLEMENTATION_NOTES.md`](docs/IMPLEMENTATION_NOTES.md) | Radio framing, transmit paths, and physical validation |
-| [`docs/ADDRESS_LEARNING.md`](docs/ADDRESS_LEARNING.md) | Original-controller address discovery and RAM-only application |
+| [`docs/ADDRESS_LEARNING.md`](docs/ADDRESS_LEARNING.md) | Original-controller address discovery and persistent pairing |
 | [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Tested behavior, limitations, and next checks |
 
 ## Install
@@ -53,6 +54,7 @@ Copy these files into the same ESPHome configuration directory:
 screenbar-halo2.yaml
 bm5602_halo2.h
 halo2_address_learning.h
+halo2_pairing_storage.h
 ```
 
 Copy `secrets.example.yaml` to `secrets.yaml` and replace all placeholders. Generate the API key with `openssl rand -base64 32`. Use a unique web password; it protects the control/state endpoints used by the optional HA package. Never commit `secrets.yaml`.
@@ -143,18 +145,19 @@ CRC initial state:    0xEFDF before the four-byte on-air address
 ```
 
 The original tested lamp uses address `9C EA BB 86` and the eight-bit-model CRC
-initial state `EFDF`. A second tested pair uses address `B0 1E E8 E6` and a
+initial state `EFDF`. This fork's verified pair uses address `B0 1E E8 E6` and a
 leading zero bit before the canonical PCF. Its effective eight-bit-model CRC
-initial state is `CC88`; the complete nine-bit frame uses `FFFF`. Address
-learning derives the address and frame format from original-controller traffic;
-these values remain in RAM until reboot.
+initial state is `CC88`; the complete nine-bit frame uses `FFFF`. On first boot,
+the bridge installs this verified pair in ESP32 flash. On subsequent boots it
+loads the saved address, CRC seed and PCF format. A newly learned pair replaces
+the saved record only after five matching CRC-seed observations.
 
 For an unknown address, use the [address learning procedure](docs/ADDRESS_LEARNING.md)
 to capture the original controller and apply a five-capture candidate in RAM.
 After applying the address, operate the original controller until five frames
-agree on a CRC initial state, then test physical ON/OFF. The second pair's web
-Power ON and OFF were both confirmed on the lamp; other pairs still require
-hardware validation.
+agree on a CRC initial state; the full pair is then saved to flash. Test physical
+ON/OFF. This pair's web Power ON and OFF were both confirmed on the lamp; other
+pairs still require hardware validation.
 
 ### RX state rule
 
