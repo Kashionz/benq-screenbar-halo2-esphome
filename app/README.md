@@ -6,7 +6,9 @@ Tauri 2 + React/TypeScript + Rust，共用 `bridge-core` 直接連線 ESP32 prot
 
 ## Windows 使用
 
-已建置的本機測試版：`target/debug/halo2-control.exe`。它內嵌前端，不需要開啟 Vite。
+開發測試版：`target/debug/halo2-control.exe`。Release 安裝包：`target/release/bundle/nsis/Halo 2 Control_0.1.0_x64-setup.exe`。兩者都內嵌前端，不需要開啟 Vite。
+
+Windows 安裝設定為目前使用者，支援繁體中文／英文；缺少 WebView2 時由安裝程式下載官方 runtime。現階段安裝包尚未簽章，屬於開發驗收版本。安裝不會內建橋接器帳密或配對位址；同一使用者的既有 App 設定可繼續使用。
 
 1. 啟動 App，輸入橋接器 IP 或主機名稱，連接埠預設 `8080`。
 2. 輸入 ESPHome 網頁相同帳密，按「連線橋接器」。
@@ -43,7 +45,9 @@ cargo clippy -p halo2-app-support --all-targets -- -D warnings
 npm run tauri build -- --debug --no-bundle
 ```
 
-正式 bundle 用 `npm run tauri build`；簽章與發行安裝包另行處理。
+Windows bundle 用 `npm run tauri build -- --bundles nsis`；平台設定由 `tauri.windows.conf.json` 合併。簽章與公開發行另行處理。
+
+圖示來源為專案自行繪製的 `app-icon.svg`；以 `npm run tauri icon -- app-icon.svg --ios-color '#294a3e'` 重新產生各平台圖示。它代表本專案，並非 BenQ 官方標誌。
 
 `bridge-core/examples/live_probe.rs` 可使用 `HALO2_HOST`、`HALO2_USERNAME`、`HALO2_PASSWORD` 環境變數測試相同 Rust 核心；預設唯讀，只有明確指定 `--power-on`／`--power-off` 或 `--patch '{"mode":"front"}'` 才送 RF。patch 模式明確啟用 experimental，僅供人工監督的實機驗證。
 
@@ -61,6 +65,8 @@ npm run tauri build -- --debug --no-bundle
 
 Windows 已完成本機建置、前端互動測試、Rust 模擬網路測試，以及 Rust 核心對實體 ESP32 的電源、燈光模式、亮度與色溫測試。原生 UI 已驗證登入、保存帳密、重開連線、診斷匯出與前燈亮度套用；使用者確認實際變亮。ESP32 斷電重新上線後，App 恢復同步且未重送命令。
 
-macOS／iOS 共用程式與 LAN 用途描述已準備，**尚未在 Apple 平臺建置或實測**。需 Mac、Xcode、簽章與 iPhone；在 Mac 執行 `npm run tauri ios init` 後再 `npm run tauri ios dev`。`Info.plist` 提供本地網路用途與 local networking 宣告，macOS entitlement 允許網路 client；這些設定不能替代實機權限驗證。
+macOS App 已通過 CI 建置；iOS 真機與模擬器的 Rust library 通過編譯檢查，**尚未完成 Apple 實機操作驗收或 iOS Xcode App 建置**。需 Mac、Xcode、簽章與 iPhone；在 Mac 執行 `npm run tauri ios init` 後再 `npm run tauri ios dev`。`Info.plist` 提供本地網路用途與 local networking 宣告，macOS entitlement 允許網路 client；這些設定不能替代實機權限驗證。
+
+Apple Silicon Mac 的完整步驟與結果表見 [Apple 實機驗收](../docs/APPLE_TESTING.md)。
 
 SSE、自動探索、情境預設與桌面系統匣控制尚未提供。最新功能與實機結果見 [開發驗收紀錄](../docs/DEVELOPMENT_ACCEPTANCE.md)，初期協定驗證見 [協定驗收紀錄](../docs/VALIDATION_2026-09-27.md)。

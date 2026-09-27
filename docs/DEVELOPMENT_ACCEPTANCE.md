@@ -6,13 +6,24 @@
 
 - [ ] 前後燈、兩路亮度、色溫與原廠控制器同步：程式已新增，逐項驗收中。
 - [x] Windows 連線資料保存、系統憑證庫、橋接器斷電恢復、可匯出診斷：原生 UI 與實體橋接器驗收通過；Apple 端另列驗收。
-- [ ] Windows 安裝程式、正式圖示與原生 App 操作驗收。
+- [x] Windows 安裝程式、專案圖示、保存連線與原生開關燈驗收（開發版未簽章）。
 - [ ] macOS 建置、權限、系統憑證庫及實機操作。
 - [ ] iOS 建置、區域網路權限、前景恢復及實機操作。
 - [ ] 情境預設、桌面系統匣控制、區域網路搜尋。
 - [ ] 長時間穩定性及間歇 TX_MAX_RETRIES 調查。
 
 使用者已確認有 Mac 與 iPhone 可供測試；目前自動執行環境是 Windows。
+
+## 2026-09-27 安裝包與 Apple 建置
+
+- Windows x64 release 與 NSIS 安裝包建置成功，採 currentUser、繁體中文／英文、官方 WebView2 bootstrapper，未簽章。
+- 安裝程序 exit code 0，版本 0.1.0；已安裝 App 可啟動並使用開發版保存的帳密連線。執行檔與建置檔只差 Tauri 打包時的 `UNK` → `NSS` 三位元組 bundle 標記。
+- 安裝版關燈命令 `053172ca-9188-4849-a10e-4ca081706872` 回報 1/1 TX_DS，使用者確認熄滅。
+- 原生測試發現按鈕與背景讀取重疊時回報 BUSY，命令未送出。已修正前端先等待既有讀取、發送期間暫停輪詢；讀取失敗則不送命令，不自動重試 POST。新增兩項回歸測試，前端共 11 項通過。
+- 修正版 release 重新建置、覆蓋安裝 exit code 0、保存帳密仍可連線。開燈命令 `7ab06ce8-c299-4b33-b339-66076a107da8` 回報 1/1 TX_DS，IRQ 2E/FIFO 11；使用者確認燈亮起。
+- 本次安裝包 SHA-256：`544FD06B5A7DBDF614CE96A1C8AD169D31FC218C419B78148C936D681C62D6F7`。產物為 `app/target/release/bundle/nsis/Halo 2 Control_0.1.0_x64-setup.exe`；後續重新建置需重新記錄雜湊。
+- [Apple CI 36313722538](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36313722538) 全部成功：macOS App bundle、iOS 真機／模擬器 Rust library 檢查與前端／Rust 測試。這不代表 iOS Xcode App 已建置，也不代表 Apple 實機驗收通過。
+- 使用者確認為 Apple Silicon Mac，已安裝 Xcode，可 USB 連接 iPhone；操作步驟見 [Apple 實機驗收](APPLE_TESTING.md)。
 
 ## 2026-09-27 燈光實測
 
