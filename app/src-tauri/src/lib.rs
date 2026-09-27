@@ -1,5 +1,6 @@
 use halo2_app_support::{
     diagnostics::{Diagnostics, Event},
+    presets::{Lighting, Preset, Presets},
     profiles::{NativeCredentials, Profiles, SavedConnection},
 };
 use halo2_bridge_core::{Bridge, Fault, Record, Snapshot, StatePatch};
@@ -17,6 +18,7 @@ struct Connection {
     password: String,
 }
 struct Support {
+    presets: Presets,
     profiles: Profiles<NativeCredentials>,
     diagnostics: Result<Diagnostics, Fault>,
     export_dir: PathBuf,
@@ -24,6 +26,34 @@ struct Support {
     last_observed_command: Option<String>,
 }
 type SupportState = StdMutex<Support>;
+#[tauri::command]
+async fn list_presets(support: State<'_, SupportState>) -> Result<Vec<Preset>, Fault> {
+    support
+        .lock()
+        .map_err(|_| halo2_app_support::storage_error())?
+        .presets
+        .list()
+}
+#[tauri::command]
+async fn save_preset(
+    name: String,
+    values: Lighting,
+    support: State<'_, SupportState>,
+) -> Result<Vec<Preset>, Fault> {
+    support
+        .lock()
+        .map_err(|_| halo2_app_support::storage_error())?
+        .presets
+        .save(name, values)
+}
+#[tauri::command]
+async fn delete_preset(id: String, support: State<'_, SupportState>) -> Result<Vec<Preset>, Fault> {
+    support
+        .lock()
+        .map_err(|_| halo2_app_support::storage_error())?
+        .presets
+        .delete(&id)
+}
 fn log(support: &SupportState, event: Event) {
     if let Ok(mut data) = support.lock() {
         let outcome = match &mut data.diagnostics {
@@ -331,6 +361,7 @@ pub fn run() {
                 .unwrap_or_else(|_| root.clone())
                 .join("Halo2Control");
             app.manage(StdMutex::new(Support {
+                presets: Presets::new(root.join("presets.json")),
                 profiles: Profiles::new(root.join("connection.json"), NativeCredentials),
                 diagnostics: Diagnostics::new(root.join("diagnostics.json")),
                 export_dir,
@@ -352,7 +383,10 @@ pub fn run() {
             connect_saved,
             diagnostic_history,
             export_diagnostics,
-            clear_diagnostics
+            clear_diagnostics,
+            list_presets,
+            save_preset,
+            delete_preset
         ])
         .run(tauri::generate_context!())
         .expect("Unable to start Halo 2 Control");

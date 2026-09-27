@@ -8,6 +8,12 @@ export interface LightState {
   temperature_k: number;
   ultrasonic_enabled: boolean;
 }
+export type PresetValues = Pick<LightState, "mode" | "front_brightness" | "back_brightness" | "temperature_k">;
+export interface Preset {
+  id: string;
+  name: string;
+  values: PresetValues;
+}
 export interface CommandRecord {
   command_id: string;
   boot_id: string;
@@ -68,6 +74,9 @@ export const failure = (e: unknown): Fault =>
     ? (e as Fault)
     : { code: "APP_ERROR", message: "操作無法完成，請重新連線。" };
 export const bridge = {
+  presets: () => invoke<Preset[]>("list_presets"),
+  savePreset: (name: string, values: PresetValues) => invoke<Preset[]>("save_preset", { name, values }),
+  deletePreset: (id: string) => invoke<Preset[]>("delete_preset", { id }),
   saved: () => invoke<SavedConnection | null>("saved_connection"),
   remember: () => invoke<SavedConnection>("remember_connection"),
   forget: () => invoke<void>("forget_connection"),

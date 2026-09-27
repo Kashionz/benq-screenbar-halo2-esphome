@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { LightState, Snapshot } from "./bridge";
+import { PresetsPanel } from "./PresetsPanel";
 
 export type LightPatch = Partial<Omit<LightState, "ultrasonic_enabled">>;
 export function LightControls({
@@ -21,6 +22,7 @@ export function LightControls({
   return (
     <section className="light-settings">
       <h3>前後燈與色溫</h3>
+      <PresetsPanel values={values} disabled={disabled} select={setDraft} />
       <label className="experimental-toggle">
         <input
           type="checkbox"

@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { LightControls } from "./LightControls";
 import type { Snapshot } from "./bridge";
 import examples from "../../protocol/v1/examples.json";
+vi.mock("./PresetsPanel", () => ({ PresetsPanel: () => null }));
 const state = examples.find((e) => e.schema === "Snapshot")!
   .body as unknown as Snapshot;
 afterEach(cleanup);

@@ -18,6 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("./bridge", async (original) => ({
   ...(await original<typeof import("./bridge")>()),
   bridge: {
+    presets: vi.fn().mockResolvedValue([]),
     connect: vi.fn(),
     disconnect: vi.fn(),
     state: vi.fn(),

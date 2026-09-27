@@ -555,3 +555,9 @@ footer {
 .export-path {
   overflow-wrap: anywhere;
 }
+.presets { margin: 16px 0; }
+.presets summary { cursor: pointer; font-weight: 600; }
+.preset-list { list-style: none; padding: 0; }
+.preset-list li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid #d7ded7; }
+.preset-list li > span { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
+.preset-list small { display: block; margin-top: 5px; color: #526356; }

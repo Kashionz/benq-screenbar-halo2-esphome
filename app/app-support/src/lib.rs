@@ -1,4 +1,5 @@
 pub mod diagnostics;
+pub mod presets;
 pub mod profiles;
 
 use halo2_bridge_core::Fault;
