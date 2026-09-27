@@ -3,7 +3,7 @@
 `tools/check_rf_stability.py` 使用協定參考用戶端，重複發送目前的電源目標，不改模式、亮度或色溫。它會實際發送 RF；請在可以觀察燈具時執行。
 
 ```powershell
-python tools/check_rf_stability.py --host 192.168.0.99:8080 --send-rf --count 20 --interval 30 --report rf-report.jsonl
+python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --interval 30 --report rf-report.jsonl
 ```
 
 帳密由互動提示或 `HALO2_USERNAME`／`HALO2_PASSWORD` 環境變數取得。不要把帳密放入命令列或提交報告中的私人裝置識別資料。
@@ -19,3 +19,13 @@ python tools/check_rf_stability.py --host 192.168.0.99:8080 --send-rf --count 20
 預定 20 次、間隔 30 秒，第一筆即停止，成功 0 次。命令 `e800cf6d-0847-473e-8eee-30d3eb9cf511` 回報 `TX_MAX_RETRIES`：planned=1、attempted=1、transmitted=0、IRQ=`1E`、FIFO=`01`、MODE=2。命令追蹤耗時 271 ms，整個測試 383 ms，結束原因 `TX_NOT_TRANSMITTED`，`complete=false`。
 
 原始報告保留在本機 ignored `.esphome/rf-soak-20260927.jsonl`。測試沒有自動重送。這項結果重現間歇性 RF 發送故障，不能列為長時間穩定性通過；根因尚未確認。
+
+## 同日後續診斷
+
+另行發起一筆開燈命令 `580a822f-e635-4bd9-93d3-55c64236753b`，同步讀取 COM3。發送前出現 `LOGIC RECOVERY rc1=30 fifo=01 mode=2`，既有 RSTLL 復原將 FIFO 變成 `11`，該命令回報 1/1 TX_DS（IRQ `2E`、FIFO `11`）。這證明失敗後的 FIFO 殘留可被現有復原流程清除，尚未解釋首次 MAX_RT 的原因。
+
+依 [BC5602 v1.20 資料手冊](https://www.holtek.com/webapi/116711/BC5602v120.pdf) 第 24 頁的上電校準流程，曾實驗在設定頻道後以 OM.ACAL_EN 啟動校準，等待上限 20 ms。韌體編譯／OTA 成功，但實機開機與再次重啟均未進入 ready；串列日誌確認 `HALO2 VCO CALIBRATION TIMEOUT`，配對仍持久保存。實驗沒有通過，因此撤回正常流程中的校準改動。此結果只表示該實作在本機測試未完成校準，不能判定晶片不支援校準、20 ms 必然足夠，或已排除 VCO 因素。
+
+實驗補丁與編譯／上傳日誌保留於本機 ignored `.esphome/vco-*`。正式程式不納入這項未通過的校準改動。
+
+已重新編譯並 OTA 刷回原韌體（config_hash `0xcc6f4828`）。API 恢復 radio=ready、pairing=ready、pairing_persisted=true；載入前燈 35%、後燈設定 50%、5500 K，desired.source=restored，last_command=null。回復後新關燈命令 `dd229778-9ec3-4b8f-a2a8-13f3ea8a0c9d` 回報 1/1 TX_DS、IRQ `2E`／FIFO `11`；燈具是否實際熄滅另待使用者觀察，尚不列為新的實體驗收通過。
