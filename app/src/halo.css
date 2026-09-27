@@ -496,3 +496,32 @@ footer {
     transition: none !important;
   }
 }
+.light-settings {
+  margin: 24px 0;
+  padding-top: 20px;
+  border-top: 1px solid #d7ded7;
+}
+.light-settings label {
+  display: block;
+  margin: 16px 0;
+}
+.light-settings select {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border-radius: 8px;
+}
+.light-settings input[type="range"] {
+  width: 100%;
+  accent-color: #305c4e;
+}
+.light-settings .experimental-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.light-settings input[type="checkbox"] {
+  width: auto;
+}

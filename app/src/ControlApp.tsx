@@ -9,6 +9,7 @@ import {
   type Fault,
 } from "./bridge";
 import "./halo.css";
+import { LightControls, type LightPatch } from "./LightControls";
 
 export default function App() {
   const [host, setHost] = useState("screenbar-halo2.local");
@@ -103,16 +104,26 @@ export default function App() {
     }
   }
   async function power(value: boolean) {
-    if (!snapshot) return;
+    await command(() => bridge.power(snapshot!.device_id, value));
+  }
+  async function light(patch: LightPatch, experimental: boolean) {
+    return command(() =>
+      bridge.setState(snapshot!.device_id, patch, experimental),
+    );
+  }
+  async function command(send: () => Promise<CommandRecord>) {
+    if (!snapshot) return false;
     const token = generation.current;
     setBusy(true);
     setFault(null);
     setResult(null);
     try {
-      const next = await bridge.power(snapshot.device_id, value);
+      const next = await send();
       if (token === generation.current) setResult(next);
+      return token === generation.current && next.status === "transmitted";
     } catch (e) {
       if (token === generation.current) setFault(failure(e));
+      return false;
     } finally {
       if (token === generation.current) {
         setBusy(false);
@@ -307,6 +318,14 @@ export default function App() {
           <p className="hint center">
             目標狀態與示意圖不代表燈具已確認。請以實際燈光為準。
           </p>
+          {snapshot && (
+            <LightControls
+              key={`${snapshot.device_id}/${snapshot.boot_id}`}
+              snapshot={snapshot}
+              disabled={!ready || busy}
+              send={light}
+            />
+          )}
           <div className="feedback" aria-live="polite">
             {busy && connected ? (
               <p>正在處理命令…</p>
@@ -333,6 +352,12 @@ export default function App() {
               <strong>
                 {snapshot.observed_remote.values.power ? "開燈" : "關燈"}
               </strong>
+              <span>
+                {({front:"前燈",back:"後燈",both:"前後燈"} as Record<string,string>)[snapshot.observed_remote.values.mode] ?? snapshot.observed_remote.values.mode}
+                {" · 前 "}{snapshot.observed_remote.values.front_brightness}%
+                {" · 後 "}{snapshot.observed_remote.values.back_brightness}%
+                {" · "}{snapshot.observed_remote.values.temperature_k} K
+              </span>
               <small>
                 約{" "}
                 {Math.max(

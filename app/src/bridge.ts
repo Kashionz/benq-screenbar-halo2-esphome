@@ -50,6 +50,12 @@ export const failure = (e: unknown): Fault =>
     ? (e as Fault)
     : { code: "APP_ERROR", message: "操作無法完成，請重新連線。" };
 export const bridge = {
+  setState: (
+    deviceId: string,
+    patch: Partial<Omit<LightState, "ultrasonic_enabled">>,
+    experimental: boolean,
+  ) =>
+    invoke<CommandRecord>("set_light_state", { deviceId, patch, experimental }),
   connect: (host: string, port: number, username: string, password: string) =>
     invoke<Snapshot>("connect_bridge", { host, port, username, password }),
   disconnect: () => invoke<void>("disconnect_bridge"),

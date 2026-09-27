@@ -13,6 +13,51 @@ pub struct LightState {
     pub temperature_k: u16,
     pub ultrasonic_enabled: bool,
 }
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StatePatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub power: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub front_brightness: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub back_brightness: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature_k: Option<u16>,
+}
+impl StatePatch {
+    fn validate(&self, features: &Value, experimental: bool) -> Result<Value, Fault> {
+        let patch = serde_json::to_value(self).map_err(|_| protocol())?;
+        if patch.as_object().is_none_or(|p| p.is_empty())
+            || self
+                .mode
+                .as_deref()
+                .is_some_and(|m| !matches!(m, "front" | "back" | "both"))
+            || [self.front_brightness, self.back_brightness]
+                .into_iter()
+                .flatten()
+                .any(|v| !(1..=100).contains(&v))
+            || self
+                .temperature_k
+                .is_some_and(|v| !(2700..=6500).contains(&v) || v % 25 != 0)
+        {
+            return Err(Fault::new("INVALID_VALUE", "燈光設定超出支援範圍。"));
+        }
+        for key in patch.as_object().ok_or_else(protocol)?.keys() {
+            match features[key].as_str() {
+                Some("verified") => (),
+                Some("experimental") if experimental => (),
+                Some("experimental") => {
+                    return Err(Fault::new("EXPERIMENTAL_DISABLED", "請先啟用實驗性控制。"))
+                }
+                _ => return Err(Fault::new("UNSUPPORTED_FIELD", "此橋接器不支援該控制項。")),
+            }
+        }
+        Ok(patch)
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Desired {
     pub values: LightState,
@@ -249,6 +294,20 @@ impl Bridge {
         Ok(s)
     }
     pub async fn power(&mut self, power: bool) -> Result<Record, Fault> {
+        self.set_state(
+            StatePatch {
+                power: Some(power),
+                ..Default::default()
+            },
+            false,
+        )
+        .await
+    }
+    pub async fn set_state(
+        &mut self,
+        patch: StatePatch,
+        experimental: bool,
+    ) -> Result<Record, Fault> {
         if let Some((id, boot)) = &self.pending {
             return Err(Fault::unknown(id, boot));
         }
@@ -256,10 +315,8 @@ impl Bridge {
             return Err(Fault::new("RATE_LIMITED", "請稍候再操作。"));
         }
         let state = self.snapshot().await?;
-        if state.features["power"] != "verified"
-            || state.radio_status != "ready"
-            || state.pairing_status != "ready"
-        {
+        let patch = patch.validate(&state.features, experimental)?;
+        if state.radio_status != "ready" || state.pairing_status != "ready" {
             return Err(Fault::new(
                 "RADIO_UNAVAILABLE",
                 "橋接器尚未就緒，或此配對的電源控制尚未驗證。",
@@ -272,7 +329,7 @@ impl Bridge {
         let boot = state.boot_id;
         let request = json!({"command_id":id,"client_id":self.client_id,"boot_id":boot,
             "expected_revision":state.control_revision,"not_after_uptime_ms":state.uptime_ms+4000,
-            "type":"set_state","patch":{"power":power}});
+            "type":"set_state","patch":patch});
         self.pending = Some((id.clone(), boot.clone()));
         self.next_command = Instant::now() + Duration::from_millis(500);
         match self.request(Method::POST, "commands", Some(&request)).await {

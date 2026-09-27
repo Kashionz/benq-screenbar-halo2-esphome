@@ -44,6 +44,47 @@ fn decode_contract_snapshot_and_unknown_fields() {
     assert_eq!(state.lamp_confirmation, "unavailable");
 }
 
+#[test]
+fn light_patch_validates_ranges_and_capabilities() {
+    let features = json!({"mode":"experimental", "temperature_k":"experimental", "front_brightness":"verified"});
+    let mode = StatePatch {
+        mode: Some("both".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        mode.validate(&features, false).unwrap_err().code,
+        "EXPERIMENTAL_DISABLED"
+    );
+    assert_eq!(
+        mode.validate(&features, true).unwrap(),
+        json!({"mode":"both"})
+    );
+    assert!(StatePatch::default().validate(&features, true).is_err());
+    for value in [2699, 3926, 6501] {
+        assert!(StatePatch {
+            temperature_k: Some(value),
+            ..Default::default()
+        }
+        .validate(&features, true)
+        .is_err());
+    }
+    for value in [0, 101, 255] {
+        assert!(StatePatch {
+            front_brightness: Some(value),
+            ..Default::default()
+        }
+        .validate(&features, true)
+        .is_err());
+    }
+    assert!(StatePatch {
+        back_brightness: Some(50),
+        ..Default::default()
+    }
+    .validate(&features, true)
+    .is_err());
+    assert!(serde_json::from_value::<StatePatch>(json!({"unknown":1})).is_err());
+}
+
 fn record(id: &str, boot: &str, status: &str) -> Value {
     json!({"command_id":id,"boot_id":boot,"status":status,"effect":"unconfirmed",
         "target":fixture("Snapshot")["desired"]["values"],"error":null,

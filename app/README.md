@@ -2,6 +2,7 @@
 
 Tauri 2 + React/TypeScript + Rust，共用 `bridge-core` 直接連線 ESP32 protocol v1。
 本版提供一台橋接器的登入、每 2 秒前景輪詢、電源 ON/OFF、原廠控制器觀察與命令診斷。
+另提供前／後／雙燈模式、兩路亮度及色溫調整；橋接器標記為 experimental 的項目需先勾選啟用。滑桿僅預覽，按「套用燈光設定」才提交修改的欄位。
 
 ## Windows 使用
 
@@ -30,7 +31,7 @@ npm run tauri build -- --debug --no-bundle
 
 正式 bundle 用 `npm run tauri build`；簽章與發行安裝包另行處理。
 
-`bridge-core/examples/live_probe.rs` 可使用 `HALO2_HOST`、`HALO2_USERNAME`、`HALO2_PASSWORD` 環境變數測試相同 Rust 核心；預設唯讀，只有明確指定 `--power-on`／`--power-off` 才送 RF。
+`bridge-core/examples/live_probe.rs` 可使用 `HALO2_HOST`、`HALO2_USERNAME`、`HALO2_PASSWORD` 環境變數測試相同 Rust 核心；預設唯讀，只有明確指定 `--power-on`／`--power-off` 或 `--patch '{"mode":"front"}'` 才送 RF。patch 模式明確啟用 experimental，僅供人工監督的實機驗證。
 
 ## 架構與錯誤語意
 

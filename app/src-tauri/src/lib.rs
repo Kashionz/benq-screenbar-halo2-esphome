@@ -1,4 +1,4 @@
-use halo2_bridge_core::{Bridge, Fault, Record, Snapshot};
+use halo2_bridge_core::{Bridge, Fault, Record, Snapshot, StatePatch};
 use tauri::State;
 use tokio::sync::Mutex;
 
@@ -54,6 +54,25 @@ async fn set_power(
     bridge.power(power).await
 }
 #[tauri::command]
+async fn set_light_state(
+    device_id: String,
+    patch: StatePatch,
+    experimental: bool,
+    session: State<'_, Session>,
+) -> Result<Record, Fault> {
+    let mut slot = session
+        .0
+        .try_lock()
+        .map_err(|_| Fault::new("BUSY", "命令處理中。"))?;
+    let bridge = slot
+        .as_mut()
+        .ok_or_else(|| Fault::new("NOT_CONNECTED", "請先連線。"))?;
+    if bridge.device_id != device_id {
+        return Err(Fault::new("DEVICE_CHANGED", "裝置已變更，請重新連線。"));
+    }
+    bridge.set_state(patch, experimental).await
+}
+#[tauri::command]
 async fn lookup_command(session: State<'_, Session>) -> Result<Option<Record>, Fault> {
     let mut slot = session
         .0
@@ -74,6 +93,7 @@ pub fn run() {
             disconnect_bridge,
             bridge_state,
             set_power,
+            set_light_state,
             lookup_command
         ])
         .run(tauri::generate_context!())
