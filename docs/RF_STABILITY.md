@@ -102,3 +102,11 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 後續唯讀確認沒有重啟、配對仍保存、radio/pairing 為 ready，最後命令仍為該筆 failed；沒有重送或恢復命令。原始紀錄保留在 ignored `.esphome/off-metal-30min-diagnostics.jsonl`。
 
 移開機殼未消除故障，先前六筆短測成功不能視為修復。下一個待執行對照為保持電腦 USB 插孔、模組位置及訊號接線，只替換較短 USB 線；尚未換線或量測供電，不能先判定線材有問題。換線會造成重新上電，後續解讀必須納入此差異，不能只以換線後短暫成功推論線材是根因。
+
+### 電腦供電 USB Hub 對照
+
+使用者沒有短 USB 線，改插 USB Hub，並確認 Hub 只靠電腦 USB 供電。此次改變 USB 連接路徑，並非獨立電源對照。換插後裝置確實重新上電，API ready、配對自動恢復、關燈目標由儲存資料載入。
+
+沿用 61 筆、間隔 30 秒的排程，前八筆均 1/1 TX_DS，第九筆 `TX_MAX_RETRIES`；約 243 秒停止，`successful=8`、`complete=false`。失敗前後 IRQ `0E→1E`、RT2 `00→10`，追蹤 12,201 μs，FIFO `11/11/01/01`，失敗後清除仍為 `01`。設定讀回與前次一致，HTTP 正常回傳該筆 failed；沒有自動重送。停止後唯讀確認測試期間未重啟、配對保存且最後命令仍為該筆 failed。
+
+Hub 路徑仍重現 RF 故障，不能以成功筆數增加推定供電改善，也不能排除供電因素；重新上電與隨機性皆可能影響比較。原始紀錄位於 ignored `.esphome/hub-30min-diagnostics.jsonl`，未完成 30 分鐘穩定性驗收。
