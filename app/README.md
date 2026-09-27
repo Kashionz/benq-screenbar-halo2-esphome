@@ -51,6 +51,8 @@ Windows bundle 用 `npm run tauri build -- --bundles nsis`；平台設定由 `ta
 
 `bridge-core/examples/live_probe.rs` 可使用 `HALO2_HOST`、`HALO2_USERNAME`、`HALO2_PASSWORD` 環境變數測試相同 Rust 核心；預設唯讀，只有明確指定 `--power-on`／`--power-off` 或 `--patch '{"mode":"front"}'` 才送 RF。patch 模式明確啟用 experimental，僅供人工監督的實機驗證。
 
+`cargo run --locked -p halo2-bridge-core --example soak -- 900 report.json` 使用相同環境變數進行約 30 分鐘唯讀 LAN 測試（每次回應後間隔 2 秒，逾時會延長總時間）。報告包含完成筆數、連線失敗、開機變化、模組未就緒及延遲統計，不包含帳密或主機位址。必須選擇尚不存在的報告路徑；中途停止的報告保留 `complete=false`。此程式不送 RF，不能證明 RF 控制長期穩定。
+
 ## 架構與錯誤語意
 
 - 前端使用受限的 Tauri commands：連線、燈光控制、查詢、設定保存與診斷；沒有任意 URL、檔案路徑或 shell 代理。
