@@ -25,6 +25,7 @@ lamp response. The project is a personal fork of
 | Direct TX | Replaying a captured original-controller OFF frame physically turned this lamp off, but normal web TX later became intermittent after idle. |
 | Packet-engine TX | Sending a captured OFF payload physically turned the lamp off (`IRQ=20`, `FIFO=10`, `TX_DS=1`, `MAX_RT=0`). |
 | Web Power | After switching learned nine-bit-PCF pairs to packet-engine TX, ON and OFF both physically changed the lamp. Both still worked after about ten minutes idle (`IRQ=2E`, `FIFO=11`, `TX_DS=1`). |
+| Later TX/RX stall | Web ON/OFF later reported `IRQ=1F`, `FIFO=21`, `TX FAILED`; original-controller changes no longer updated `Lamp state`. Power-cycling only the bridge restored both. A firmware change now clears TX failure state and verifies FIFO flushing; immediate ON/OFF after flashing both worked with `IRQ=2E`, `FIFO=11`, `TX_DS=1`. |
 
 The original address `9C EA BB 86` retains the existing direct-TX path. Its
 previous validation is documented in [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md).
@@ -38,11 +39,13 @@ was checked separately.
   load the saved pair. Learning a different pair updates flash only after five
   matching CRC-seed observations. A hardware reset produced `HALO2 PAIRING
   RESTORED ADDRESS=B0 1E E8 E6 CRC_SEED=CC88 PCF_PREFIX_ZERO=1` without
-  using the original controller. Full power removal and physical lamp control
-  after the reset have not yet been checked.
+  using the original controller. The same restored pair was logged after the
+  FIFO recovery firmware was flashed, and web ON/OFF physically controlled
+  the lamp without relearning.
 - The learned pair's web Power ON/OFF was tested immediately and after roughly
-  ten minutes idle. Longer-term behavior and all other control entities on
-  that pair have not been physically verified.
+  ten minutes idle before the later stall. The FIFO recovery change has only
+  been tested immediately after flashing. Its longer-term effect and all other
+  control entities on that pair have not been physically verified.
 - The address finder uses a known rear-brightness/temperature pattern and five
   matching captures. Other Halo 2 controller/lamp pairs may need different
   capture settings or framing analysis.
