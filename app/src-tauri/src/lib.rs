@@ -17,20 +17,32 @@ async fn discover_bridges() -> Result<Vec<halo2_app_support::discovery::Candidat
         .map_err(|_| Fault::new("DISCOVERY_UNAVAILABLE", "搜尋無法完成，請手動輸入 IP。"))?
 }
 
+// Flyout-only window commands. The flyout never calls bridge commands; its
+// lighting intents go to the main window's coordinator as events.
 #[tauri::command]
-async fn set_tray_available(app: tauri::AppHandle, enabled: bool) -> Result<bool, Fault> {
+fn flyout_open_main(app: tauri::AppHandle) {
     #[cfg(desktop)]
-    {
-        app.state::<tray::Controls>()
-            .set_enabled(enabled)
-            .map_err(|_| Fault::new("TRAY_ERROR", "桌面快捷選單無法更新，請使用 App 控制。"))?;
-        Ok(true)
-    }
+    tray::open_main(&app);
     #[cfg(mobile)]
-    {
-        let _ = (app, enabled);
-        Ok(false)
-    }
+    let _ = app;
+}
+#[tauri::command]
+fn flyout_hide(app: tauri::AppHandle) {
+    #[cfg(desktop)]
+    tray::hide(&app);
+    #[cfg(mobile)]
+    let _ = app;
+}
+#[tauri::command]
+fn flyout_resize(app: tauri::AppHandle, height: f64) {
+    #[cfg(desktop)]
+    tray::resize(&app, height);
+    #[cfg(mobile)]
+    let _ = (app, height);
+}
+#[tauri::command]
+fn flyout_quit(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 #[derive(Default)]
@@ -377,6 +389,20 @@ async fn lookup_command(
 pub fn run() {
     tauri::Builder::default()
         .manage(Session::default())
+        .on_window_event(|window, event| {
+            #[cfg(desktop)]
+            match (window.label(), event) {
+                // Closing the main window ends the App, as before; the flyout
+                // cannot act without the main window's command coordinator.
+                ("main", tauri::WindowEvent::Destroyed) => window.app_handle().exit(0),
+                (tray::FLYOUT, tauri::WindowEvent::Focused(false)) => {
+                    tray::hide(window.app_handle())
+                }
+                _ => (),
+            }
+            #[cfg(mobile)]
+            let _ = (window, event);
+        })
         .setup(|app| {
             #[cfg(desktop)]
             tray::setup(app)?;
@@ -414,7 +440,10 @@ pub fn run() {
             list_presets,
             save_preset,
             delete_preset,
-            set_tray_available
+            flyout_open_main,
+            flyout_hide,
+            flyout_resize,
+            flyout_quit
         ])
         .run(tauri::generate_context!())
         .expect("Unable to start Halo 2 Control");

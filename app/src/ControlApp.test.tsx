@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import App from "./ControlApp";
 import {
   bridge,
+  flyout,
   resultLabel,
   type Snapshot,
   type CommandRecord,
@@ -17,10 +18,14 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 vi.mock("./bridge", async (original) => ({
   ...(await original<typeof import("./bridge")>()),
+  flyout: {
+    publish: vi.fn().mockResolvedValue(undefined),
+    ack: vi.fn().mockResolvedValue(undefined),
+    onIntent: vi.fn().mockResolvedValue(() => {}),
+    onShown: vi.fn().mockResolvedValue(() => {}),
+  },
   bridge: {
     discover: vi.fn(),
-    trayAvailable: vi.fn().mockResolvedValue(true),
-    onTrayPower: vi.fn().mockResolvedValue(() => {}),
     presets: vi.fn().mockResolvedValue([]),
     connect: vi.fn(),
     disconnect: vi.fn(),
@@ -338,5 +343,55 @@ describe("disabled reasons", () => {
     expect(screen.getByText("已斷線 · 重試中")).toBeInTheDocument();
     expect(screen.getByText(/最後已知目標/)).toBeInTheDocument();
     expect(bridge.power).not.toHaveBeenCalled();
+  });
+});
+
+const lastPublished = () => {
+  const calls = vi.mocked(flyout.publish).mock.calls;
+  return calls[calls.length - 1]?.[0];
+};
+describe("tray flyout intents", () => {
+  it("use the same guarded command path and are refused while a command is in flight", async () => {
+    let intent!: (payload: unknown) => Promise<void> | void;
+    vi.mocked(flyout.onIntent).mockImplementation(async (handler) => {
+      intent = handler as typeof intent;
+      return () => {};
+    });
+    let finish!: (record: CommandRecord) => void;
+    vi.mocked(bridge.power).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    render(<App />);
+    await login();
+    await waitFor(() => expect(intent).toBeDefined());
+    let first!: Promise<void> | void;
+    await waitFor(() => {
+      first = intent({ id: "one", kind: "power", value: false });
+    });
+    await waitFor(() => expect(bridge.power).toHaveBeenCalledTimes(1));
+    await intent({ id: "two", kind: "power", value: false });
+    expect(flyout.ack).toHaveBeenCalledWith({ id: "two", done: false });
+    finish(transmitted());
+    await first;
+    expect(flyout.ack).toHaveBeenCalledWith({ id: "one", done: true });
+    expect(bridge.power).toHaveBeenCalledExactlyOnceWith(snapshot.device_id, false);
+    await waitFor(() =>
+      expect(lastPublished()).toMatchObject({
+        connected: true,
+        lock: null,
+        feedback: { title: "指令已送出" },
+      }),
+    );
+  });
+  it("ignore flyout intents before a connection", async () => {
+    let intent!: (payload: unknown) => Promise<void> | void;
+    vi.mocked(flyout.onIntent).mockImplementation(async (handler) => {
+      intent = handler as typeof intent;
+      return () => {};
+    });
+    render(<App />);
+    await waitFor(() => expect(intent).toBeDefined());
+    await intent({ id: "one", kind: "power", value: true });
+    expect(flyout.ack).toHaveBeenCalledWith({ id: "one", done: false });
+    expect(bridge.power).not.toHaveBeenCalled();
+    expect(lastPublished()).toMatchObject({ connected: false, lock: "已斷線" });
   });
 });

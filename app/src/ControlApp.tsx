@@ -23,7 +23,8 @@ import {
   type Tone,
 } from "./controlState";
 import { DevicePage } from "./DevicePage";
-import { useTray } from "./useTray";
+import { useFlyoutHost } from "./useFlyoutHost";
+import { OFFLINE_FEEDBACK } from "./flyout";
 import { ConnectPage } from "./ConnectPage";
 import { detectPlatform } from "./platform";
 import { useCompact } from "./useCompact";
@@ -217,18 +218,15 @@ export default function App() {
       setBusy(false);
     }
   }
-  async function power(value: boolean) {
-    await command(value ? "開燈" : "關燈", () =>
+  function power(value: boolean) {
+    return command(value ? "開燈" : "關燈", () =>
       bridge.power(snapshot!.device_id, value),
     );
   }
-  async function light(patch: LightPatch) {
-    if (
-      await command("套用燈光設定", () =>
-        bridge.setState(snapshot!.device_id, patch),
-      )
-    )
-      setDraft({});
+  function light(patch: LightPatch) {
+    return command("套用燈光設定", () =>
+      bridge.setState(snapshot!.device_id, patch),
+    );
   }
   async function command(label: string, send: () => Promise<CommandRecord>) {
     if (!snapshot || commanding.current) return false;
@@ -279,7 +277,6 @@ export default function App() {
     }
   }
   const lock = lockReason({ online, snapshot, busy, fault });
-  useTray(native, lock === null, power);
   const badge: { tone: Tone; text: string } = !connected
     ? busy
       ? { tone: "pending", text: "連線中" }
@@ -287,6 +284,33 @@ export default function App() {
     : online
       ? { tone: "ok", text: "已連線" }
       : { tone: "warn", text: "已斷線 · 重試中" };
+  const feedback = commandFeedback({ online, commanding: sending, action, result, fault });
+  useFlyoutHost(
+    native,
+    {
+      connected,
+      online,
+      badge,
+      lock,
+      desired: snapshot?.desired.values ?? null,
+      features: snapshot?.features ?? {},
+      feedback: connected ? feedback : OFFLINE_FEEDBACK,
+      updated,
+    },
+    {
+      lock,
+      power,
+      apply: async (patch) => {
+        if (!snapshot) return false;
+        // Only fields that still differ from the latest target are sent.
+        const pending = pendingDraft(patch, snapshot.desired.values);
+        return Object.keys(pending).length ? light(pending) : true;
+      },
+      sync: () => {
+        if (connected) void refresh();
+      },
+    },
+  );
   let banner: BannerSpec | null = null;
   if (connected) {
     if (lock === "已斷線")
@@ -406,7 +430,11 @@ export default function App() {
         setDraft={setDraft}
         lock={lock}
         power={(value) => void power(value)}
-        apply={(patch) => void light(patch)}
+        apply={(patch) =>
+          void light(patch).then((transmitted) => {
+            if (transmitted) setDraft({});
+          })
+        }
       />
     );
     const target = (
@@ -421,7 +449,7 @@ export default function App() {
     const recent = (
       <RecentCommand
         key="recent"
-        feedback={commandFeedback({ online, commanding: sending, action, result, fault })}
+        feedback={feedback}
         snapshot={snapshot}
         lookup={() => void lookup()}
         lookupDisabled={busy}

@@ -1,0 +1,336 @@
+/* Tray / menu-bar flyout, 340 px wide. On Windows the window is transparent
+   over a native acrylic backdrop; on macOS the window is opaque. */
+html,
+body.flyout-body,
+.flyout-body #root {
+  height: auto;
+  background: transparent;
+  overflow: hidden;
+}
+.flyout {
+  width: 340px;
+  border-radius: 10px;
+  background: rgba(246, 247, 249, 0.62);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 4px rgba(255, 255, 255, 0.16),
+    0 0 0 0.5px rgba(40, 50, 70, 0.2);
+  color: var(--ink);
+  line-height: 1.45;
+  overflow: hidden;
+  user-select: none;
+}
+/* macOS keeps an opaque rectangular window (no private transparency API). */
+.flyout-macos {
+  border-radius: 0;
+  background: #f6f7f9;
+  border: 0;
+}
+.flyout .dot {
+  width: 6px;
+  height: 6px;
+}
+.flyout-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+}
+.flyout-title {
+  flex: 1;
+  min-width: 0;
+}
+.flyout-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.flyout-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.flyout-sub.tone-warn .dot,
+.flyout-sub.tone-pending .dot,
+.flyout-status.tone-warn .dot,
+.flyout-status.tone-busy .dot {
+  animation: hb-pulse 1.2s ease-in-out infinite;
+}
+.flyout-sub-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.flyout-open {
+  flex: none;
+  white-space: nowrap;
+  min-height: 30px;
+  padding: 2px 12px;
+  border-radius: 99px;
+  border: 0;
+  background: var(--fill);
+  font-size: 12.5px;
+}
+.flyout-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px 10px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 12px;
+  background: var(--tone-bg);
+  color: var(--tone-ink);
+  font-size: 12.5px;
+}
+.flyout-status.tone-warn {
+  background: rgba(255, 170, 0, 0.16);
+}
+.flyout-status.tone-busy,
+.flyout-status.tone-info {
+  background: var(--fill);
+}
+.flyout-status .dot {
+  width: 7px;
+  height: 7px;
+}
+.flyout-status-text {
+  flex: 1;
+  min-width: 0;
+}
+.flyout-status-text b {
+  font-weight: 600;
+}
+.flyout-status button {
+  flex: none;
+  white-space: nowrap;
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--warn-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.flyout-card {
+  margin: 0 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 0.5px rgba(40, 50, 70, 0.1);
+  overflow: hidden;
+}
+.flyout-power {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 0.5px solid var(--separator);
+}
+.power-button.small {
+  width: 44px;
+  height: 44px;
+}
+.flyout-power-state {
+  font-size: 14px;
+  font-weight: 600;
+}
+.flyout-power-hint {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.flyout-modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin: 8px 10px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--fill);
+}
+.flyout-modes button {
+  min-height: 28px;
+  border-radius: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.flyout-modes button.active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 2px #0002;
+}
+.flyout-modes button.drafted {
+  color: var(--accent);
+}
+.mini-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.settings > .flyout-modes {
+  margin-bottom: 0;
+}
+.flyout .settings {
+  border-top: 0;
+}
+.flyout-modes + .flyout-slider {
+  margin-top: 8px;
+  border-top: 0.5px solid var(--separator);
+}
+.flyout-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 0.5px solid var(--separator);
+}
+.flyout-slider:last-child {
+  border-bottom: 0;
+}
+.flyout-slider-label {
+  flex: none;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.flyout-slider-label .mini-dot {
+  width: 5px;
+  height: 5px;
+  margin-left: 0;
+}
+.slider-track.compact {
+  flex: 1;
+  height: 26px;
+  margin-top: 0;
+}
+.slider-track.compact .track,
+.slider-track.compact .fill {
+  top: 11px;
+}
+.slider-track.compact .target-mark {
+  top: 8px;
+}
+.slider-track.compact .knob {
+  top: 2px;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.14);
+}
+.flyout-slider.drafted .fill {
+  background: var(--accent);
+}
+.flyout-slider.drafted .knob {
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.flyout-slider-value {
+  flex: none;
+  width: 58px;
+  text-align: right;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.flyout-slider.drafted .flyout-slider-value {
+  color: var(--accent);
+}
+.flyout-apply {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
+  border-top: 0.5px solid var(--separator);
+  background: var(--accent-wash);
+  font-size: 12.5px;
+}
+.flyout-apply > span {
+  flex: 1;
+  min-width: 0;
+}
+.flyout-apply .ghost-pill,
+.flyout-apply .primary-pill {
+  min-height: 30px;
+  font-size: 12.5px;
+}
+.flyout-apply .ghost-pill {
+  padding: 2px 10px;
+}
+.flyout-apply .primary-pill {
+  padding: 2px 12px;
+}
+.flyout-presets {
+  padding: 12px 12px 4px;
+}
+.flyout-presets-label {
+  padding: 0 4px 6px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.flyout-presets .pills {
+  margin-top: 0;
+  font-size: 12.5px;
+}
+.flyout-pill {
+  min-height: 30px;
+  padding: 2px 12px;
+  border: 1px solid var(--separator);
+  background: rgba(255, 255, 255, 0.55);
+  font-size: 12.5px;
+}
+.flyout-pill.active {
+  border-color: var(--accent);
+  background: rgba(10, 116, 232, 0.1);
+  color: var(--ink);
+  box-shadow: none;
+}
+.flyout-card.locked + .flyout-presets .pills {
+  opacity: 0.4;
+}
+.flyout-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px 10px 16px;
+  border-top: 0.5px solid var(--separator);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.flyout-foot > span {
+  flex: 1;
+  min-width: 0;
+}
+.flyout-foot button {
+  flex: none;
+  white-space: nowrap;
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font-size: 12.5px;
+}

@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import type { FlyoutAck, FlyoutIntent, FlyoutState } from "./flyout";
 
 export interface LightState {
   power: boolean;
@@ -86,10 +88,6 @@ export const failure = (e: unknown): Fault =>
     : { code: "APP_ERROR", message: "操作無法完成，請重新連線。" };
 export const bridge = {
   discover: () => invoke<DiscoveredBridge[]>("discover_bridges"),
-  trayAvailable: (enabled: boolean) => invoke<boolean>("set_tray_available", { enabled }),
-  onTrayPower: (handler: (power: boolean) => void) => listen<boolean>("halo-tray-power", (event) => {
-    if (typeof event.payload === "boolean") handler(event.payload);
-  }),
   presets: () => invoke<Preset[]>("list_presets"),
   savePreset: (name: string, values: PresetValues) => invoke<Preset[]>("save_preset", { name, values }),
   deletePreset: (id: string) => invoke<Preset[]>("delete_preset", { id }),
@@ -129,3 +127,23 @@ export function resultLabel(record: CommandRecord): string {
       return "結果不明";
   }
 }
+// Listen only to events addressed to this window; a listener with the default
+// "Any" target would also receive events meant for the other window.
+const own = <T>(event: string, handler: (payload: T) => void) =>
+  getCurrentWebviewWindow().listen<T>(event, (e) => handler(e.payload));
+export const flyout = {
+  // Main window side.
+  publish: (state: FlyoutState) => emitTo("tray", "halo-flyout-state", state),
+  ack: (ack: FlyoutAck) => emitTo("tray", "halo-flyout-ack", ack),
+  onIntent: (handler: (payload: unknown) => void) => own<unknown>("halo-flyout-intent", handler),
+  // Both windows: the flyout was just opened.
+  onShown: (handler: () => void) => own<unknown>("halo-flyout-shown", () => handler()),
+  // Flyout side.
+  send: (intent: FlyoutIntent) => emitTo("main", "halo-flyout-intent", intent),
+  onState: (handler: (payload: unknown) => void) => own<unknown>("halo-flyout-state", handler),
+  onAck: (handler: (payload: unknown) => void) => own<unknown>("halo-flyout-ack", handler),
+  openMain: () => invoke<void>("flyout_open_main"),
+  hide: () => invoke<void>("flyout_hide"),
+  resize: (height: number) => invoke<void>("flyout_resize", { height }),
+  quit: () => invoke<void>("flyout_quit"),
+};

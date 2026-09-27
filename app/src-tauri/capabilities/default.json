@@ -2,8 +2,27 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "allow-discover-bridges",
+    "allow-connect-bridge",
+    "allow-disconnect-bridge",
+    "allow-bridge-state",
+    "allow-set-power",
+    "allow-set-light-state",
+    "allow-lookup-command",
+    "allow-saved-connection",
+    "allow-remember-connection",
+    "allow-forget-connection",
+    "allow-connect-saved",
+    "allow-diagnostic-history",
+    "allow-export-diagnostics",
+    "allow-clear-diagnostics",
+    "allow-list-presets",
+    "allow-save-preset",
+    "allow-delete-preset"
   ]
 }
