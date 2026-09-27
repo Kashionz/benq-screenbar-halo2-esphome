@@ -14,9 +14,9 @@ import time
 import uuid
 
 if __package__:
-    from .halo2_client import ApiError, Client, ProtocolError
+    from .halo2_client import ApiError, Client, ProtocolError, TransportError
 else:
-    from halo2_client import ApiError, Client, ProtocolError
+    from halo2_client import ApiError, Client, ProtocolError, TransportError
 
 
 class StopTest(Exception):
@@ -25,6 +25,8 @@ class StopTest(Exception):
 
 def failure_details(exc):
     """Allowlisted diagnostics only: never serialize exception text or response bodies."""
+    if isinstance(exc, TransportError):
+        return dict(exc.details)
     if isinstance(exc, ApiError):
         detail = {"category": "http_status"}
         if type(exc.status) is int and 100 <= exc.status <= 599:

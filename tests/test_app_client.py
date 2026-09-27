@@ -1,12 +1,49 @@
 import unittest
 from unittest.mock import patch
+import json
 
-from tools.halo2_client import ApiError, Client, ProtocolError, UnknownOutcome
+from tools.halo2_client import ApiError, Client, ProtocolError, UnknownOutcome, TransportError
+from tools.check_rf_stability import failure_details
 
 BOOT = "22222222-2222-4222-8222-222222222222"
 
 
 class ClientTests(unittest.TestCase):
+    def test_transport_phases_close_without_retry_or_private_details(self):
+        for phase, operation in (("connect", "connect"), ("send_request", "request"),
+                                 ("response_headers", "getresponse"), ("response_body", "read")):
+            with self.subTest(phase=phase), patch("tools.halo2_client.http.client.HTTPConnection") as factory:
+                connection = factory.return_value
+                response = connection.getresponse.return_value
+                target = response if operation == "read" else connection
+                getattr(target, operation).side_effect = TimeoutError("private-host secret-password")
+                client = Client("private-host", "private-user", "secret-password")
+                with self.assertRaises(TransportError) as caught:
+                    client.request("POST", "/api/v1/commands", {"power": True})
+                detail = failure_details(caught.exception)
+                self.assertEqual(detail["transport_phase"], phase)
+                self.assertEqual(detail["category"], "timeout")
+                self.assertGreaterEqual(detail["elapsed_ms"], 0)
+                self.assertNotIn("private", json.dumps(detail) + str(caught.exception))
+                self.assertNotIn("secret", json.dumps(detail) + str(caught.exception))
+                connection.connect.assert_called_once()
+                self.assertEqual(connection.request.call_count, 0 if phase == "connect" else 1)
+                connection.close.assert_called_once()
+
+    @patch("tools.halo2_client.http.client.HTTPConnection")
+    def test_real_request_path_success_and_api_rejection(self, factory):
+        response = factory.return_value.getresponse.return_value
+        response.status = 200
+        response.read.return_value = b'{"ok":true}'
+        response.getheader.return_value = "application/json"
+        client = Client("localhost", "test", "test")
+        self.assertEqual(client.request("GET", "/api/v1/state"), {"ok": True})
+        self.assertEqual(factory.return_value.auto_open, 0)
+        response.status = 409
+        response.read.return_value = b'{"error":{"code":"REVISION_CONFLICT"}}'
+        with self.assertRaises(ApiError):
+            client.request("POST", "/api/v1/commands", {})
+
     def client(self):
         client = Client("127.0.0.1", "test", "test")
         calls = []

@@ -199,3 +199,11 @@ B 組使用者整組確認「每次都有變化，最後已熄滅」，因此五
 停止後一次唯讀查核已恢復正常，開機識別未變、配對保存且 radio/pairing ready；最後命令仍為第 18 筆關燈 transmitted。使用者整組確認這輪九次開燈、九次關燈「每次都有動作，目前已熄滅」。原始紀錄保留於 ignored `.esphome/acceptance-30min-alternating.jsonl`。
 
 收斂結論：短測的實際開關已有確認；長時間控制仍因查詢逾時未通過，歷史 MAX_RT 亦尚未證明已排除。依驗收規則結束本輪，不自動重開另一組短測、不進入閒置驗證，也不因本次未見 MAX_RT 就宣稱 RF 穩定。後續優先處理可重現的連線可靠性，取得故障時的傳輸階段與網路證據，再重跑同一驗收條件。
+
+## 2026-09-28 傳輸階段診斷
+
+Python 參考客戶端及 RF 測試工具新增安全的傳輸失敗欄位：`transport_phase` 區分 `connect`、`send_request`、`response_headers`、`response_body`；`elapsed_ms` 是該 HTTP 請求開始至失敗的總時間，並非單一階段耗時。`connect` 在使用主機名稱時包含名稱解析，不能直接視為已證明 TCP 連線故障。既有 `stopped_at` 仍描述驗收流程位置，`category` 保留 timeout／connection 等分類。
+
+沿用原本三秒 socket timeout 與每請求獨立連線，明確關閉隱式重新連線；沒有新增 POST 重送。報告不包含 URL、主機、帳密、回應內容或原始例外文字。這是 Python 測試工具的診斷更新，未更動 App、韌體或 RF 參數，也不代表已修復間歇性故障。
+
+28 項 Python 測試通過，包含四個傳輸階段的逾時注入、關閉連線、無重送、隱私欄位與驗收失敗摘要保留。實機僅做一次身分查詢與三次間隔十秒的唯讀狀態查詢，三次分別 30／27／29 ms，開機識別相同且 radio ready；沒有發送控制命令，沒有重現逾時。原始紀錄位於 ignored `.esphome/transport-phase-smoke-*.jsonl`。長測及閒置驗收仍待完成；下次長測發生傳輸失敗時可直接使用上述欄位判讀階段。

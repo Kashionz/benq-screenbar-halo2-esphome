@@ -16,6 +16,17 @@ class ProtocolError(Exception):
     pass
 
 
+class TransportError(ProtocolError):
+    """Safe transport evidence; no endpoint, headers, body or exception text."""
+    def __init__(self, cause, phase, elapsed_ms):
+        category = ("timeout" if isinstance(cause, TimeoutError) else
+                    "connection" if isinstance(cause, ConnectionError) else
+                    "os_error" if isinstance(cause, OSError) else "http_transport")
+        self.details = {"category": category, "transport_phase": phase,
+                        "elapsed_ms": elapsed_ms}
+        super().__init__(f"{category} during {phase} ({elapsed_ms} ms)")
+
+
 class ApiError(ProtocolError):
     def __init__(self, status, code):
         self.status, self.code = status, code
@@ -45,9 +56,17 @@ class Client:
             if len(data) > 1024:
                 raise ProtocolError("請求超過 1024 bytes")
             headers["Content-Type"] = "application/json"
+        started = time.monotonic()
+        phase = "connect"
         try:
+            # Includes name resolution for hostnames. Disable implicit reconnects.
+            connection.connect()
+            connection.auto_open = 0
+            phase = "send_request"
             connection.request(method, path, data, headers)
+            phase = "response_headers"
             response = connection.getresponse()
+            phase = "response_body"
             raw = response.read(8193)
             if len(raw) > 8192 or response.getheader("Content-Type", "").split(";")[0] != "application/json":
                 raise ProtocolError("不是 App protocol v1 JSON 回應；請確認韌體與 8080 連接埠")
@@ -61,6 +80,8 @@ class Client:
                 code = value.get("error", {}).get("code", "UNKNOWN_ERROR")
                 raise ApiError(response.status, code)
             return value
+        except (OSError, http.client.HTTPException) as exc:
+            raise TransportError(exc, phase, round((time.monotonic() - started) * 1000)) from exc
         finally:
             connection.close()
 

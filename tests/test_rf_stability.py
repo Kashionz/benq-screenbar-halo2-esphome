@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 from tools.check_rf_stability import main, run
-from tools.halo2_client import ApiError, ProtocolError
+from tools.halo2_client import ApiError, ProtocolError, TransportError
 
 
 class FakeClient:
@@ -95,6 +95,8 @@ class RfStabilityTests(unittest.TestCase):
 
     def test_query_failures_are_classified_without_leaking_details_or_sending(self):
         for error, expected in [
+            (TransportError(TimeoutError("private-host password"), "response_headers", 3001),
+             {"category": "timeout", "transport_phase": "response_headers", "elapsed_ms": 3001}),
             (TimeoutError("private-host password"), {"category": "timeout"}),
             (ConnectionResetError("private-host password"), {"category": "connection"}),
             (OSError("private-host password"), {"category": "os_error"}),
