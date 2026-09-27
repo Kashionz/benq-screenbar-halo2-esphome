@@ -178,6 +178,6 @@ Hub 路徑仍重現 RF 故障，不能以成功筆數增加推定供電改善，
 
 其餘 RT2 結束值為 `00`。全部 IRQ=`2E`、FIFO=`11`，晶片 FIFO 四個採樣點均 `11/11/01/11`；沒有 MAX_RT、HTTP 查詢錯誤、裝置重啟或日誌斷線。兩組皆遇失敗即停且不重送，本次沒有觸發停止條件；測試完成後已關閉日誌訂閱。
 
-B 組的實際燈光變化仍待使用者整組確認；A 組從已關燈狀態重複 OFF，無法以不變的燈光證明每一筆均被燈具接收。原始資料保留於 ignored `.esphome/comparison-a.jsonl`、`.esphome/comparison-b.jsonl`、`.esphome/comparison-log-session.log`。
+B 組使用者整組確認「每次都有變化，最後已熄滅」，因此五次開燈、五次關燈皆有實際觀察支持。A 組從已關燈狀態重複 OFF，無法以不變的燈光證明每一筆均被燈具接收。原始資料保留於 ignored `.esphome/comparison-a.jsonl`、`.esphome/comparison-b.jsonl`、`.esphome/comparison-log-session.log`。
 
 此次沒有測得兩組失敗率差異，不支持把重複 payload 直接認定為故障根因。只有一次固定 A→B 順序、每組十筆且皆帶持續日誌連線，仍可能受時間與網路活動影響；不代表排除重複封包因素或完成 30 分鐘 RF 驗收。後續若繼續調查，應保留這組基準，針對日誌訂閱有無做單一條件對照，而非直接改動 ACK／PID 邏輯。
