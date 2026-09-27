@@ -4,15 +4,30 @@
 
 ## 狀態
 
-- [ ] 前後燈、兩路亮度、色溫與原廠控制器同步：程式已新增，逐項驗收中。
+- [x] Windows 前後燈、兩路亮度、色溫與原廠控制器同步：原生 App 與目前配對燈具實測通過；Apple 實機另列。
 - [x] Windows 連線資料保存、系統憑證庫、橋接器斷電恢復、可匯出診斷：原生 UI 與實體橋接器驗收通過；Apple 端另列驗收。
 - [x] Windows 安裝程式、專案圖示、保存連線與原生開關燈驗收（開發版未簽章）。
 - [ ] macOS 建置、權限、系統憑證庫及實機操作。
 - [ ] iOS 建置、區域網路權限、前景恢復及實機操作。
-- [ ] 情境預設、桌面系統匣控制、區域網路搜尋。
+- [x] Windows 情境預設與桌面系統匣控制：原生操作及燈具反應通過。
+- [ ] 區域網路搜尋、Apple 情境預設與選單列控制。
 - [ ] 長時間穩定性及間歇 TX_MAX_RETRIES 調查。
 
 使用者已確認有 Mac 與 iPhone 可供測試；目前自動執行環境是 Windows。
+
+目前開發順序依使用者要求以 Windows 為主，Apple 實機驗收延後；原跨平臺範圍仍保留。
+
+## 2026-09-27 Windows 情境套用實測
+
+- 已安裝原生 App 先套用前燈 70%、2700 K，命令 `098a682e-cc1d-4c21-b2fb-d50565e86972` 為 1/1 TX_DS、IRQ 2E/FIFO 11。使用者回覆「燈光有變化了」；未額外聲稱光度或色溫經儀器量測。
+- 帶入已保存的「目前桌面」後，App 草稿顯示前燈 35%、後燈 50%、5500 K。唯讀 snapshot 仍為前燈 70%、2700 K，命令 ID 與 control_revision=2 不變，確認帶入未發送。
+- 接著透過原生 App 按套用，命令 `57db51cd-b58f-4ab6-98db-132b6eeb05d6` 回報 1/1 TX_DS、IRQ 2E/FIFO 11；control_revision=3，目標前燈 35%、後燈 50%、5500 K，電源仍 ON。使用者確認「是，亮度與色溫都恢復」，Windows 情境的保存、重開、帶入不發送及實際套用流程通過。
+- 最新 Windows [App CI 36319142788](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36319142788) 與 [韌體 CI 36319142772](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36319142772) 已成功；Windows CI 涵蓋前端、Rust 核心與 support 測試、clippy 及 Tauri debug 建置。
+- 原廠控制器同步：使用者切成只開後燈並調亮度後，snapshot 顯示 desired.source=remote、mode=back、back_brightness=60、control_revision=9，observed_remote 一致。Windows 原生畫面實際顯示「後燈」、60% 與「原廠控制器最近操作」，確認同步已到 UI，非僅 API 讀取。
+- 原生 App 切換前後燈：命令 `ff671e69-f1e2-4747-b396-3c2c3aef4ebf`，前 35%、後 60%、5500 K，1/1 TX_DS、IRQ 2E/FIFO 11。使用者確認「是，前後都亮」。
+- 原生 App 改為只開後燈 20%：命令 `83b49c2f-48a8-40a3-8100-ee011a76ea03`，1/1 TX_DS、IRQ 2E/FIFO 11，control_revision=11。使用者確認「是，只有較暗的後燈」，模式與後燈亮度實測通過。
+- 測試結束後以同一情境恢復前燈 35%、後燈設定 50%、5500 K，命令 `82823ee9-1136-4d00-8d7c-8f27d0054361` 回報 1/1 TX_DS，control_revision=12。此最後一次恢復僅記錄發送結果；情境實際燈光驗證以上方使用者確認為依據。
+- 同批 [Apple CI 36319142766](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36319142766) 已成功；Apple 實機操作仍依使用者要求延後，不以建置成功代替實機驗收。
 
 ## 2026-09-27 情境預設初版
 
@@ -31,7 +46,7 @@
 - 前端 14 項與儲存模組 8 項測試通過，clippy 無警告，Windows release／NSIS 建置成功。
 - 安裝更新 exit code 0；原生 UI 使用既有保存帳密連線，建立「目前桌面」（前燈模式、前 35%、後 50%、5500 K）。退出整個 App 程序後再開啟、連線、展開情境，確認資料仍在。此流程未按套用，沒有拿保存測試宣稱 RF 控制成功。
 - 本批安裝包 SHA-256：`CCECD844A6A12CCFA2EBBFD663157C618E23B25101110DDD7757B172FA6A026E`。
-- 待驗收：情境的原生實際套用與燈光觀察、Apple 情境保存。Windows 系統匣已通過、macOS 選單列待驗收；LAN 搜尋進度見下節。
+- Windows 情境原生實際套用已通過，證據見本文件「Windows 情境套用實測」。仍待 Apple 情境保存。Windows 系統匣已通過、macOS 選單列待驗收；LAN 搜尋進度見下節。
 - 900 次唯讀 LAN 測試已完成，結果見下節；不代表 RF 長時間穩定已驗收。
 
 ## 2026-09-27 約半小時唯讀 LAN 測試
