@@ -10,6 +10,7 @@
 #include "halo2_address_learning.h"
 #include "halo2_pairing_storage.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/log.h"
 #include "driver/gpio.h"
 #include "esp_rom_sys.h"
 #include "esp_cpu.h"
@@ -370,6 +371,9 @@ struct PacketEngineResult {
   uint8_t irq=0;
   uint8_t fifo_status=0;
   uint8_t mode=0;
+  uint8_t fifo_before_flush=0;
+  uint8_t fifo_after_flush=0;
+  uint8_t fifo_after_write=0;
   bool attempted=false;
   bool sent() const { return attempted && (irq&0x20U) && !(irq&0x10U) && (fifo_status&0x10U); }
 };
@@ -379,15 +383,51 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
   if(address_learning||!crc_seed_ready||!tx_pcf_prefix_zero||
      !payload||length==0||length>32)return result;
   setup_exact_pico(active_radio_address,RADIO_CHANNEL);
-  command(0x09); // Flush TX FIFO.
+  // Keep PTX in single-strobe mode while changing the FIFO so an old
+  // unacknowledged packet cannot transmit again.
+  write_reg(0x15,0x00);
+  result.fifo_before_flush=read_reg(0x05);
   write_reg(0x04,0x70); // Clear TX_DS, MAX_RT and RX_DR.
+  command(0x09); // Flush any packet retained after MAX_RT.
+  result.fifo_after_flush=read_reg(0x05);
+  if(!(result.fifo_after_flush&0x10U)){
+    command(0x0C);
+    write_reg(0x15,0x00);
+    command(0x09);
+    result.fifo_after_flush=read_reg(0x05);
+  }
+  if(!(result.fifo_after_flush&0x10U)){
+    result.fifo_status=result.fifo_after_flush;
+    ESP_LOGW("halo2","HALO2 PACKET TX FIFO STUCK before=%02X after=%02X",
+             result.fifo_before_flush,result.fifo_after_flush);
+    prepare_halo_receive();
+    return result;
+  }
   write_bytes(0x11,payload,length); // Hardware 9-bit PCF and CRC, with ACK.
+  result.fifo_after_write=read_reg(0x05);
+  if(result.fifo_after_write&0x20U){
+    result.fifo_status=result.fifo_after_write;
+    ESP_LOGW("halo2","HALO2 PACKET TX FIFO FULL after one payload=%02X",
+             result.fifo_after_write);
+    command(0x09);
+    prepare_halo_receive();
+    return result;
+  }
   result.attempted=true;
   command(0x0E); // Trigger TX, including configured hardware retries.
   esp_rom_delay_us(10000);
   result.irq=read_reg(0x04);
   result.fifo_status=read_reg(0x05);
   result.mode=read_reg(0x26)&0x07U;
+  if(!result.sent()){
+    ESP_LOGW("halo2","HALO2 PACKET TX FAILED irq=%02X fifo=%02X mode=%u before=%02X flushed=%02X queued=%02X",
+             result.irq,result.fifo_status,result.mode,result.fifo_before_flush,
+             result.fifo_after_flush,result.fifo_after_write);
+    command(0x0C);
+    write_reg(0x15,0x00);
+    write_reg(0x04,0x70);
+    command(0x09);
+  }
   prepare_halo_receive();
   return result;
 }
