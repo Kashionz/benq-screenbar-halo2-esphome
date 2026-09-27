@@ -1,0 +1,18 @@
+{
+  "format": "halo2-lan-soak-public-v1",
+  "source_format": "halo2-lan-soak-v1",
+  "complete": true,
+  "read_only": true,
+  "elapsed_ms": 1848365,
+  "samples_planned": 900,
+  "samples_completed": 900,
+  "successful": 894,
+  "network_failures": 6,
+  "other_failures": 0,
+  "longest_failure_streak": 1,
+  "boot_changes": 0,
+  "not_ready": 0,
+  "max_latency_ms": 2016,
+  "mean_latency_ms": 45,
+  "radio_states": { "ready": 894 }
+}

@@ -25,4 +25,10 @@
 - macOS／iOS：需驗證 Bonjour 與 OS LAN 權限。iOS 使用原生 Bonjour 瀏覽，宣告固定服務的 `NSBonjourServices`，不依賴需要額外 multicast entitlement 的任意 UDP 掃描。平台限制依 [Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)。
 - 實機驗收：至少找到真實橋接器、選取不送出、登入後控制成功；無候選、拒絕權限／斷線有可理解回應；多候選不自動選擇或發送帳密。
 
-目前只有韌體宣告與契約，App 搜尋程式與三平台驗收尚未完成。
+## 2026-09-27 韌體實測
+
+ESPHome 2026.9.0 編譯成功，OTA 更新成功。重開後 API 與配對皆 ready、配對仍持久保存，目標設定由 restored 載入，沒有自動重送命令。
+
+對實體橋接器的 UDP 5353 單播 DNS-SD 查詢得到正確 PTR、SRV（8080）、TXT（上述兩個欄位）及主機 A record，確認服務已註冊。一般 Zeroconf 五秒搜尋、指定實際 Wi-Fi 介面的搜尋及 multicast 查詢則沒有結果；不能把單播查詢成功視為自動搜尋已驗收。尚未區分 OS、AP／路由器 multicast 或韌體介面行為，未修改防火牆或路由設定。
+
+目前只有韌體宣告與契約，App 搜尋程式與三平台驗收尚未完成。需保留此真實網路環境的空結果案例及手動輸入 fallback。
