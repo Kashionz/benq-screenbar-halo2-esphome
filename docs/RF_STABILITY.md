@@ -238,3 +238,27 @@ ESPHome 2026.9.0 編譯及 OTA 成功（config hash `0x15703ddb`），開機後 
 僅送出 ON／OFF 各一筆，兩者 1/1 TX_DS、IRQ=`2E`、FIFO=`11`，使用者分別確認「燈有亮起來」與「燈熄滅了」。port 80 快照讀取成功，seq 依序為 1／2，CMD=2、CONTROL=1／0，RT2 前後皆零，耗時分別 4430／4054 us。第一筆 FIFO steps=`01/11/01`、logic recovery=true；第二筆=`11/11/01`、logic recovery=false。這是既有復原流程的觀察，不足以判定故障根因。
 
 兩筆成功後 last failure 仍為 `available=false`；「成功後仍保留先前失敗」已在 C++ 測試驗證，實機本輪未觸發失敗，尚未驗證該情境。控制測試已結束，燈已熄滅，不以這兩筆宣稱長測通過或 MAX_RT 已修復。原始讀取報告保存於 ignored `.esphome/rf-snapshots-*.jsonl`。
+
+### 2026-09-28 快照長測：第 27 筆 MAX_RT
+
+沿用快照韌體與同一次開機，從 OFF 開始規劃 62 筆交替命令，每筆完成後等待 30 秒，未訂閱持續日誌。停止後等待 1.2 秒讓文字感測器發布，再唯讀查詢 state 與兩份快照，沒有補送、重啟或改動 RF 參數。原始報告為 ignored `.esphome/acceptance-snapshots-20260928-011257.jsonl`。
+
+約 789.2 秒（13 分 9 秒）停止：前 26 筆均 1/1 TX_DS；第 27 筆 ON 為 `failed/TX_MAX_RETRIES`，frames planned/attempted/transmitted=`1/1/0`，IRQ=`1E`、FIFO=`01`、MODE=`2`。HTTP 無例外，最後 state 顯示同一次開機、radio/pairing ready、配對保存，沒有 active command，last command 為該筆失敗的 ON。實際燈光反應待使用者確認。
+
+last packet 與 last failure 都成功讀出相同 seq=29（本次開機先前另有兩筆驗證命令），快照 uptime 與該命令完成時間一致，CMD=`02`、CONTROL=`01`：
+
+| 項目 | 快照（暫存器以十六進位表示） |
+| --- | --- |
+| 退出階段 | terminal；attempted=true、sent=false |
+| FIFO 初始／清理後／入列後 | `11 / 11 / 01` |
+| 發送前 IRQ／終態 IRQ | `0E / 1E` |
+| 發送前後 RT2 | `00 / 10` |
+| 發送耗時 | 12210 us |
+| 發送前邏輯復原 | false |
+| CFG／RC1／MASK／PKT | `00 / 30 / 00 / 20` |
+| RFCH／DM1／RT1／CE | `05 / 82 / 72 / 00` |
+| 失敗清理後 FIFO／RC1 | `01 / 30` |
+
+發送前 FIFO 的 TX_EMPTY 位元已設、IRQ 尚無 TX_DS/MAX_RT；因此這筆不是發送前已知 FIFO 未清空或殘留 MAX_RT 旗標。發送後約 12.2 ms 進入 MAX_RT，後續清理仍未取得 TX_EMPTY。這些資料與先前日誌的失敗型態一致，但清理不成功是終態之後的觀察，不能倒推為本筆 RF 失敗原因；目前仍無空中封包或 ACK 捕捉，無法區分發送未被接收與 ACK 路徑問題。
+
+已驗證無持續日誌時可在實機失敗後取回兩份 RAM 快照；成功發送後保留歷史失敗的實機情境尚未測試。30 分鐘長測仍未通過，未開始閒置驗收。
