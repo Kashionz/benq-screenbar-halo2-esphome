@@ -1,0 +1,520 @@
+[
+  {
+    "name": "device-info",
+    "schema": "DeviceInfo",
+    "body": {
+      "device_id": "11111111-1111-4111-8111-111111111111",
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "protocol": {
+        "name": "halo2-bridge",
+        "major": 1,
+        "minor": 0
+      },
+      "firmware_version": "protocol-v1-design-example",
+      "lamp_model": "ScreenBar Halo 2",
+      "capabilities": {
+        "state_events": true,
+        "command_lookup": true,
+        "lamp_confirmation": false
+      },
+      "limits": {
+        "max_request_bytes": 1024,
+        "max_response_bytes": 8192,
+        "max_inflight_commands": 1,
+        "min_command_interval_ms": 500,
+        "max_command_future_ms": 5000,
+        "result_capacity": 64,
+        "result_retention_ms": 30000,
+        "max_event_subscribers": 2,
+        "heartbeat_ms": 10000,
+        "snapshot_coalesce_ms": 250
+      }
+    }
+  },
+  {
+    "name": "snapshot-before-command",
+    "schema": "Snapshot",
+    "body": {
+      "device_id": "11111111-1111-4111-8111-111111111111",
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "uptime_ms": 100000,
+      "state_version": 20,
+      "control_revision": 12,
+      "desired": {
+        "values": {
+          "power": true,
+          "mode": "back",
+          "front_brightness": 22,
+          "back_brightness": 10,
+          "temperature_k": 3925,
+          "ultrasonic_enabled": false
+        },
+        "source": "remote",
+        "updated_at_uptime_ms": 99000,
+        "command_id": null
+      },
+      "observed_remote": {
+        "values": {
+          "power": true,
+          "mode": "back",
+          "front_brightness": 22,
+          "back_brightness": 10,
+          "temperature_k": 3925,
+          "ultrasonic_enabled": false
+        },
+        "received_at_uptime_ms": 99000
+      },
+      "lamp_confirmation": "unavailable",
+      "radio_status": "ready",
+      "radio_error_code": null,
+      "pairing_status": "ready",
+      "pairing_persisted": true,
+      "active_command": null,
+      "last_command": null,
+      "features": {
+        "power": "verified",
+        "mode": "experimental",
+        "front_brightness": "experimental",
+        "back_brightness": "experimental",
+        "temperature_k": "experimental",
+        "ultrasonic_enabled": "experimental"
+      }
+    }
+  },
+  {
+    "name": "power-off-request",
+    "schema": "CommandRequest",
+    "body": {
+      "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "expected_revision": 12,
+      "not_after_uptime_ms": 104000,
+      "type": "set_state",
+      "patch": {
+        "power": false
+      }
+    }
+  },
+  {
+    "name": "power-off-accepted",
+    "schema": "CommandRecord",
+    "body": {
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "accepted_revision": 13,
+      "target": {
+        "power": false,
+        "mode": "back",
+        "front_brightness": 22,
+        "back_brightness": 10,
+        "temperature_k": 3925,
+        "ultrasonic_enabled": false
+      },
+      "status": "accepted",
+      "effect": "not_attempted",
+      "accepted_at_uptime_ms": 100100,
+      "started_at_uptime_ms": null,
+      "finished_at_uptime_ms": null,
+      "error": null,
+      "tx": {
+        "frames_planned": 1,
+        "frames_attempted": 0,
+        "frames_transmitted": 0,
+        "irq": null,
+        "fifo": null,
+        "mode": null
+      }
+    }
+  },
+  {
+    "name": "power-off-transmitted",
+    "schema": "CommandRecord",
+    "body": {
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "accepted_revision": 13,
+      "target": {
+        "power": false,
+        "mode": "back",
+        "front_brightness": 22,
+        "back_brightness": 10,
+        "temperature_k": 3925,
+        "ultrasonic_enabled": false
+      },
+      "status": "transmitted",
+      "effect": "unconfirmed",
+      "accepted_at_uptime_ms": 100100,
+      "started_at_uptime_ms": 100110,
+      "finished_at_uptime_ms": 100180,
+      "error": null,
+      "tx": {
+        "frames_planned": 1,
+        "frames_attempted": 1,
+        "frames_transmitted": 1,
+        "irq": 46,
+        "fifo": 17,
+        "mode": 2
+      }
+    }
+  },
+  {
+    "name": "snapshot-after-command-remote-still-old",
+    "schema": "Snapshot",
+    "body": {
+      "device_id": "11111111-1111-4111-8111-111111111111",
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "uptime_ms": 100200,
+      "state_version": 23,
+      "control_revision": 13,
+      "desired": {
+        "values": {
+          "power": false,
+          "mode": "back",
+          "front_brightness": 22,
+          "back_brightness": 10,
+          "temperature_k": 3925,
+          "ultrasonic_enabled": false
+        },
+        "source": "app",
+        "updated_at_uptime_ms": 100100,
+        "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      },
+      "observed_remote": {
+        "values": {
+          "power": true,
+          "mode": "back",
+          "front_brightness": 22,
+          "back_brightness": 10,
+          "temperature_k": 3925,
+          "ultrasonic_enabled": false
+        },
+        "received_at_uptime_ms": 99000
+      },
+      "lamp_confirmation": "unavailable",
+      "radio_status": "ready",
+      "radio_error_code": null,
+      "pairing_status": "ready",
+      "pairing_persisted": true,
+      "active_command": null,
+      "last_command": {
+        "boot_id": "22222222-2222-4222-8222-222222222222",
+        "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "accepted_revision": 13,
+        "target": {
+          "power": false,
+          "mode": "back",
+          "front_brightness": 22,
+          "back_brightness": 10,
+          "temperature_k": 3925,
+          "ultrasonic_enabled": false
+        },
+        "status": "transmitted",
+        "effect": "unconfirmed",
+        "accepted_at_uptime_ms": 100100,
+        "started_at_uptime_ms": 100110,
+        "finished_at_uptime_ms": 100180,
+        "error": null,
+        "tx": {
+          "frames_planned": 1,
+          "frames_attempted": 1,
+          "frames_transmitted": 1,
+          "irq": 46,
+          "fifo": 17,
+          "mode": 2
+        }
+      },
+      "features": {
+        "power": "verified",
+        "mode": "experimental",
+        "front_brightness": "experimental",
+        "back_brightness": "experimental",
+        "temperature_k": "experimental",
+        "ultrasonic_enabled": "experimental"
+      }
+    }
+  },
+  {
+    "name": "max-retries-not-proof-of-no-effect",
+    "schema": "CommandRecord",
+    "body": {
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "accepted_revision": 13,
+      "target": {
+        "power": false,
+        "mode": "back",
+        "front_brightness": 22,
+        "back_brightness": 10,
+        "temperature_k": 3925,
+        "ultrasonic_enabled": false
+      },
+      "status": "failed",
+      "effect": "unconfirmed",
+      "accepted_at_uptime_ms": 100100,
+      "started_at_uptime_ms": 100110,
+      "finished_at_uptime_ms": 100180,
+      "error": {
+        "code": "TX_MAX_RETRIES",
+        "message": "Radio retry limit reached."
+      },
+      "tx": {
+        "frames_planned": 1,
+        "frames_attempted": 1,
+        "frames_transmitted": 0,
+        "irq": 31,
+        "fifo": 33,
+        "mode": 2
+      }
+    }
+  },
+  {
+    "name": "fifo-stuck-before-air",
+    "schema": "CommandRecord",
+    "body": {
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "accepted_revision": 13,
+      "target": {
+        "power": false,
+        "mode": "back",
+        "front_brightness": 22,
+        "back_brightness": 10,
+        "temperature_k": 3925,
+        "ultrasonic_enabled": false
+      },
+      "status": "failed",
+      "effect": "not_attempted",
+      "accepted_at_uptime_ms": 100100,
+      "started_at_uptime_ms": null,
+      "finished_at_uptime_ms": 100110,
+      "error": {
+        "code": "TX_FIFO_STUCK",
+        "message": "TX FIFO did not become empty."
+      },
+      "tx": {
+        "frames_planned": 1,
+        "frames_attempted": 0,
+        "frames_transmitted": 0,
+        "irq": 14,
+        "fifo": 33,
+        "mode": 2
+      }
+    }
+  },
+  {
+    "name": "expired-before-start",
+    "schema": "CommandRecord",
+    "body": {
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "accepted_revision": 13,
+      "target": {
+        "power": false,
+        "mode": "back",
+        "front_brightness": 22,
+        "back_brightness": 10,
+        "temperature_k": 3925,
+        "ultrasonic_enabled": false
+      },
+      "status": "expired",
+      "effect": "not_attempted",
+      "accepted_at_uptime_ms": 100100,
+      "started_at_uptime_ms": null,
+      "finished_at_uptime_ms": 104001,
+      "error": {
+        "code": "DEADLINE_EXPIRED",
+        "message": "Command expired before transmission."
+      },
+      "tx": {
+        "frames_planned": 1,
+        "frames_attempted": 0,
+        "frames_transmitted": 0,
+        "irq": null,
+        "fifo": null,
+        "mode": null
+      }
+    }
+  },
+  {
+    "name": "remote-supersedes-pending",
+    "schema": "CommandRecord",
+    "body": {
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "accepted_revision": 13,
+      "target": {
+        "power": false,
+        "mode": "back",
+        "front_brightness": 22,
+        "back_brightness": 10,
+        "temperature_k": 3925,
+        "ultrasonic_enabled": false
+      },
+      "status": "superseded",
+      "effect": "not_attempted",
+      "accepted_at_uptime_ms": 100100,
+      "started_at_uptime_ms": null,
+      "finished_at_uptime_ms": 100109,
+      "error": {
+        "code": "CONTROL_SUPERSEDED",
+        "message": "Control target changed before execution."
+      },
+      "tx": {
+        "frames_planned": 1,
+        "frames_attempted": 0,
+        "frames_transmitted": 0,
+        "irq": null,
+        "fifo": null,
+        "mode": null
+      }
+    }
+  },
+  {
+    "name": "partial-two-frame-failure",
+    "schema": "CommandRecord",
+    "body": {
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "command_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "accepted_revision": 13,
+      "target": {
+        "power": false,
+        "mode": "back",
+        "front_brightness": 22,
+        "back_brightness": 10,
+        "temperature_k": 3925,
+        "ultrasonic_enabled": false
+      },
+      "status": "failed",
+      "effect": "unconfirmed",
+      "accepted_at_uptime_ms": 100100,
+      "started_at_uptime_ms": 100110,
+      "finished_at_uptime_ms": 100180,
+      "error": {
+        "code": "TX_MAX_RETRIES",
+        "message": "Second frame reached the retry limit."
+      },
+      "tx": {
+        "frames_planned": 2,
+        "frames_attempted": 2,
+        "frames_transmitted": 1,
+        "irq": 30,
+        "fifo": 1,
+        "mode": 2
+      }
+    }
+  },
+  {
+    "name": "snapshot-after-reboot",
+    "schema": "Snapshot",
+    "body": {
+      "device_id": "11111111-1111-4111-8111-111111111111",
+      "boot_id": "33333333-3333-4333-8333-333333333333",
+      "uptime_ms": 2100,
+      "state_version": 1,
+      "control_revision": 0,
+      "desired": {
+        "values": {
+          "power": true,
+          "mode": "back",
+          "front_brightness": 22,
+          "back_brightness": 10,
+          "temperature_k": 3925,
+          "ultrasonic_enabled": false
+        },
+        "source": "restored",
+        "updated_at_uptime_ms": 0,
+        "command_id": null
+      },
+      "observed_remote": null,
+      "lamp_confirmation": "unavailable",
+      "radio_status": "ready",
+      "radio_error_code": null,
+      "pairing_status": "ready",
+      "pairing_persisted": true,
+      "active_command": null,
+      "last_command": null,
+      "features": {
+        "power": "verified",
+        "mode": "experimental",
+        "front_brightness": "experimental",
+        "back_brightness": "experimental",
+        "temperature_k": "experimental",
+        "ultrasonic_enabled": "experimental"
+      }
+    }
+  },
+  {
+    "name": "revision-conflict",
+    "schema": "Error",
+    "body": {
+      "error": {
+        "code": "REVISION_CONFLICT",
+        "message": "Refresh the control state.",
+        "retryable": false
+      },
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "control_revision": 14
+    }
+  },
+  {
+    "name": "boot-changed",
+    "schema": "Error",
+    "body": {
+      "error": {
+        "code": "BOOT_CHANGED",
+        "message": "Bridge restarted; refresh the session.",
+        "retryable": false
+      },
+      "boot_id": "33333333-3333-4333-8333-333333333333",
+      "control_revision": 0
+    }
+  },
+  {
+    "name": "busy",
+    "schema": "Error",
+    "body": {
+      "error": {
+        "code": "BUSY",
+        "message": "Another command is in progress.",
+        "retryable": true
+      },
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "control_revision": 13
+    }
+  },
+  {
+    "name": "unknown-command",
+    "schema": "Error",
+    "body": {
+      "error": {
+        "code": "COMMAND_NOT_FOUND",
+        "message": "Command result is not retained.",
+        "retryable": false
+      },
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "control_revision": 13
+    }
+  },
+  {
+    "name": "unauthorized",
+    "schema": "Error",
+    "body": {
+      "error": {
+        "code": "UNAUTHORIZED",
+        "message": "Authentication required.",
+        "retryable": false
+      },
+      "boot_id": null,
+      "control_revision": null
+    }
+  }
+]

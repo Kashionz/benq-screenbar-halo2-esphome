@@ -14,13 +14,19 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install ESPHome
-        run: pip install esphome==2026.9.0
+        run: pip install esphome==2026.9.0 -r protocol/v1/requirements-dev.txt
+      - name: App protocol contract
+        run: python tools/validate_app_protocol.py
       - name: Protocol vectors
         run: python -m unittest discover -s tests -v
       - name: Build address learning C++ test
         run: g++ -std=c++17 -Wall -Wextra -pedantic tests/test_address_learning.cpp -o /tmp/test_address_learning
       - name: Run address learning C++ test
         run: /tmp/test_address_learning
+      - name: Command dispatcher scenarios
+        run: |
+          g++ -std=c++17 -Wall -Wextra -pedantic tests/test_dispatcher.cpp -o /tmp/test_dispatcher
+          /tmp/test_dispatcher
       - name: Create compile-only secrets
         run: |
           cat > secrets.yaml <<'EOF'
@@ -36,3 +42,9 @@ jobs:
         run: esphome config screenbar-halo2.yaml
       - name: Compile firmware
         run: esphome compile screenbar-halo2.yaml
+      - name: JSON codec and firmware response schemas
+        run: |
+          g++ -std=c++17 -Wall -Wextra -pedantic -I.esphome/build/screenbar-halo2/managed_components/bblanchon__arduinojson/src tests/test_app_codec.cpp -o /tmp/test_app_codec
+          /tmp/test_app_codec
+          /tmp/test_app_codec --fixtures > /tmp/protocol_codec_fixtures.json
+          python tools/validate_app_protocol.py --cpp-fixtures /tmp/protocol_codec_fixtures.json

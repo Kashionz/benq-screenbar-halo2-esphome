@@ -1,0 +1,930 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Halo 2 Bridge App Protocol v1.0",
+  "description": "Design contract; firmware endpoints not implemented. Validate a message using its named $defs schema.",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "Counter": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "LightState": {
+      "type": "object",
+      "properties": {
+        "power": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "front",
+            "back",
+            "both"
+          ]
+        },
+        "front_brightness": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "back_brightness": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "temperature_k": {
+          "type": "integer",
+          "minimum": 2700,
+          "maximum": 6500,
+          "multipleOf": 25
+        },
+        "ultrasonic_enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "power",
+        "mode",
+        "front_brightness",
+        "back_brightness",
+        "temperature_k",
+        "ultrasonic_enabled"
+      ],
+      "additionalProperties": true
+    },
+    "LightPatch": {
+      "type": "object",
+      "properties": {
+        "power": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "front",
+            "back",
+            "both"
+          ]
+        },
+        "front_brightness": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "back_brightness": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "temperature_k": {
+          "type": "integer",
+          "minimum": 2700,
+          "maximum": 6500,
+          "multipleOf": 25
+        },
+        "ultrasonic_enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "CommandRequest": {
+      "type": "object",
+      "properties": {
+        "command_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "client_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "boot_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "not_after_uptime_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": {
+          "const": "set_state"
+        },
+        "patch": {
+          "$ref": "#/$defs/LightPatch"
+        }
+      },
+      "required": [
+        "command_id",
+        "client_id",
+        "boot_id",
+        "expected_revision",
+        "not_after_uptime_ms",
+        "type",
+        "patch"
+      ],
+      "additionalProperties": false
+    },
+    "ResultError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 160
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": true
+    },
+    "TxResult": {
+      "type": "object",
+      "properties": {
+        "frames_planned": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "frames_attempted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "frames_transmitted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "irq": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fifo": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "frames_planned",
+        "frames_attempted",
+        "frames_transmitted",
+        "irq",
+        "fifo",
+        "mode"
+      ],
+      "additionalProperties": true
+    },
+    "CommandRecord": {
+      "type": "object",
+      "properties": {
+        "boot_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "command_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "client_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "accepted_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "target": {
+          "$ref": "#/$defs/LightState"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "executing",
+            "transmitted",
+            "failed",
+            "expired",
+            "superseded"
+          ]
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "not_attempted",
+            "unconfirmed"
+          ]
+        },
+        "accepted_at_uptime_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "started_at_uptime_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finished_at_uptime_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResultError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tx": {
+          "$ref": "#/$defs/TxResult"
+        }
+      },
+      "required": [
+        "boot_id",
+        "command_id",
+        "client_id",
+        "accepted_revision",
+        "target",
+        "status",
+        "effect",
+        "accepted_at_uptime_ms",
+        "started_at_uptime_ms",
+        "finished_at_uptime_ms",
+        "error",
+        "tx"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "transmitted",
+                  "failed",
+                  "expired",
+                  "superseded"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "finished_at_uptime_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "finished_at_uptime_ms": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "accepted",
+                  "executing",
+                  "transmitted"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "error": {
+                "$ref": "#/$defs/ResultError"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "accepted"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "started_at_uptime_ms": {
+                "type": "null"
+              },
+              "effect": {
+                "const": "not_attempted"
+              },
+              "tx": {
+                "properties": {
+                  "frames_attempted": {
+                    "const": 0
+                  },
+                  "frames_transmitted": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "executing",
+                  "transmitted"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "started_at_uptime_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "transmitted"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effect": {
+                "const": "unconfirmed"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "expired",
+                  "superseded"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effect": {
+                "const": "not_attempted"
+              },
+              "tx": {
+                "properties": {
+                  "frames_attempted": {
+                    "const": 0
+                  },
+                  "frames_transmitted": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Desired": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "$ref": "#/$defs/LightState"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "boot_default",
+            "restored",
+            "app",
+            "legacy",
+            "remote"
+          ]
+        },
+        "updated_at_uptime_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "values",
+        "source",
+        "updated_at_uptime_ms",
+        "command_id"
+      ],
+      "additionalProperties": true
+    },
+    "RemoteObservation": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "$ref": "#/$defs/LightState"
+        },
+        "received_at_uptime_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "values",
+        "received_at_uptime_ms"
+      ],
+      "additionalProperties": true
+    },
+    "Snapshot": {
+      "type": "object",
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "boot_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "uptime_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "state_version": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "control_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "desired": {
+          "$ref": "#/$defs/Desired"
+        },
+        "observed_remote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RemoteObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lamp_confirmation": {
+          "const": "unavailable"
+        },
+        "radio_status": {
+          "type": "string",
+          "enum": [
+            "initializing",
+            "ready",
+            "learning",
+            "fault"
+          ]
+        },
+        "radio_error_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pairing_status": {
+          "type": "string",
+          "enum": [
+            "unpaired",
+            "learning",
+            "ready"
+          ]
+        },
+        "pairing_persisted": {
+          "type": "boolean"
+        },
+        "active_command": {
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommandRecord"
+                },
+                {
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "accepted",
+                        "executing"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_command": {
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommandRecord"
+                },
+                {
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "transmitted",
+                        "failed",
+                        "expired",
+                        "superseded"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "features": {
+          "type": "object",
+          "properties": {
+            "power": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "experimental",
+                "unsupported"
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "experimental",
+                "unsupported"
+              ]
+            },
+            "front_brightness": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "experimental",
+                "unsupported"
+              ]
+            },
+            "back_brightness": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "experimental",
+                "unsupported"
+              ]
+            },
+            "temperature_k": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "experimental",
+                "unsupported"
+              ]
+            },
+            "ultrasonic_enabled": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "experimental",
+                "unsupported"
+              ]
+            }
+          },
+          "required": [
+            "power",
+            "mode",
+            "front_brightness",
+            "back_brightness",
+            "temperature_k",
+            "ultrasonic_enabled"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "device_id",
+        "boot_id",
+        "uptime_ms",
+        "state_version",
+        "control_revision",
+        "desired",
+        "observed_remote",
+        "lamp_confirmation",
+        "radio_status",
+        "radio_error_code",
+        "pairing_status",
+        "pairing_persisted",
+        "active_command",
+        "last_command",
+        "features"
+      ],
+      "additionalProperties": true
+    },
+    "DeviceInfo": {
+      "type": "object",
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "boot_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "protocol": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "const": "halo2-bridge"
+            },
+            "major": {
+              "const": 1
+            },
+            "minor": {
+              "const": 0
+            }
+          },
+          "required": [
+            "name",
+            "major",
+            "minor"
+          ],
+          "additionalProperties": true
+        },
+        "firmware_version": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "lamp_model": {
+          "const": "ScreenBar Halo 2"
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "state_events": {
+              "type": "boolean"
+            },
+            "command_lookup": {
+              "const": true
+            },
+            "lamp_confirmation": {
+              "const": false
+            }
+          },
+          "required": [
+            "state_events",
+            "command_lookup",
+            "lamp_confirmation"
+          ],
+          "additionalProperties": true
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "max_request_bytes": {
+              "const": 1024
+            },
+            "max_response_bytes": {
+              "const": 8192
+            },
+            "max_inflight_commands": {
+              "const": 1
+            },
+            "min_command_interval_ms": {
+              "type": "integer",
+              "minimum": 500
+            },
+            "max_command_future_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "result_capacity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "result_retention_ms": {
+              "type": "integer",
+              "minimum": 30000
+            },
+            "max_event_subscribers": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "heartbeat_ms": {
+              "const": 10000
+            },
+            "snapshot_coalesce_ms": {
+              "const": 250
+            }
+          },
+          "required": [
+            "max_request_bytes",
+            "max_response_bytes",
+            "max_inflight_commands",
+            "min_command_interval_ms",
+            "max_command_future_ms",
+            "result_capacity",
+            "result_retention_ms",
+            "max_event_subscribers",
+            "heartbeat_ms",
+            "snapshot_coalesce_ms"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "device_id",
+        "boot_id",
+        "protocol",
+        "firmware_version",
+        "lamp_model",
+        "capabilities",
+        "limits"
+      ],
+      "additionalProperties": true
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "retryable": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "retryable"
+          ],
+          "additionalProperties": true
+        },
+        "boot_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "control_revision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "error",
+        "boot_id",
+        "control_revision"
+      ],
+      "additionalProperties": true
+    }
+  }
+}
