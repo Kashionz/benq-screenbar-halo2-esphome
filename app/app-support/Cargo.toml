@@ -12,7 +12,7 @@ tempfile = "3"
 keyring = { version = "3.6.3", features = ["windows-native", "apple-native"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-mdns-sd = "0.21.4"
+windows-sys = { version = "0.61.2", features = ["Win32_NetworkManagement_Dns"] }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 libc = "0.2"
