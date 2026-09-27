@@ -243,7 +243,7 @@ ESPHome 2026.9.0 編譯及 OTA 成功（config hash `0x15703ddb`），開機後 
 
 沿用快照韌體與同一次開機，從 OFF 開始規劃 62 筆交替命令，每筆完成後等待 30 秒，未訂閱持續日誌。停止後等待 1.2 秒讓文字感測器發布，再唯讀查詢 state 與兩份快照，沒有補送、重啟或改動 RF 參數。原始報告為 ignored `.esphome/acceptance-snapshots-20260928-011257.jsonl`。
 
-約 789.2 秒（13 分 9 秒）停止：前 26 筆均 1/1 TX_DS；第 27 筆 ON 為 `failed/TX_MAX_RETRIES`，frames planned/attempted/transmitted=`1/1/0`，IRQ=`1E`、FIFO=`01`、MODE=`2`。HTTP 無例外，最後 state 顯示同一次開機、radio/pairing ready、配對保存，沒有 active command，last command 為該筆失敗的 ON。實際燈光反應待使用者確認。
+約 789.2 秒（13 分 9 秒）停止：前 26 筆均 1/1 TX_DS；第 27 筆 ON 為 `failed/TX_MAX_RETRIES`，frames planned/attempted/transmitted=`1/1/0`，IRQ=`1E`、FIFO=`01`、MODE=`2`。HTTP 無例外，最後 state 顯示同一次開機、radio/pairing ready、配對保存，沒有 active command，last command 為該筆發送端判定失敗的 ON。使用者確認「前26次有動作，燈目前是開啟狀態」：前十三次開燈、十三次關燈有實際觀察，停止後燈為 ON，與第 27 筆開燈目標一致，不能將此筆 MAX_RT 解讀成燈具未執行。
 
 last packet 與 last failure 都成功讀出相同 seq=29（本次開機先前另有兩筆驗證命令），快照 uptime 與該命令完成時間一致，CMD=`02`、CONTROL=`01`：
 
@@ -259,6 +259,8 @@ last packet 與 last failure 都成功讀出相同 seq=29（本次開機先前�
 | RFCH／DM1／RT1／CE | `05 / 82 / 72 / 00` |
 | 失敗清理後 FIFO／RC1 | `01 / 30` |
 
-發送前 FIFO 的 TX_EMPTY 位元已設、IRQ 尚無 TX_DS/MAX_RT；因此這筆不是發送前已知 FIFO 未清空或殘留 MAX_RT 旗標。發送後約 12.2 ms 進入 MAX_RT，後續清理仍未取得 TX_EMPTY。這些資料與先前日誌的失敗型態一致，但清理不成功是終態之後的觀察，不能倒推為本筆 RF 失敗原因；目前仍無空中封包或 ACK 捕捉，無法區分發送未被接收與 ACK 路徑問題。
+發送前 FIFO 的 TX_EMPTY 位元已設、IRQ 尚無 TX_DS/MAX_RT；因此這筆不是發送前已知 FIFO 未清空或殘留 MAX_RT 旗標。發送後約 12.2 ms 進入 MAX_RT，後續清理仍未取得 TX_EMPTY。這些資料與先前日誌的失敗型態一致，但清理不成功是終態之後的觀察，不能倒推為本筆 RF 失敗原因。結合使用者觀察，本筆支持「燈具已動作，但橋接器未取得成功終態」的情境；ACK 未回傳、未收到或未被正確辨識仍只是待查方向，沒有空中封包或 ACK 捕捉可定位原因。
+
+此觀察與上一輪第 13 筆 MAX_RT 後燈仍熄滅的結果不同，兩者都保留：MAX_RT 可能伴隨燈具動作，也可能伴隨未動作，不能一律改判成功或自動重送。協定的 `effect=unconfirmed` 仍適用，`frames_transmitted=0` 是依橋接器終態計數，不是空中未曾發送的證明。後續排查優先比對 ACK 接收／辨識與完成判定，並繼續分開記錄 TX 結果與實際燈光反應。
 
 已驗證無持續日誌時可在實機失敗後取回兩份 RAM 快照；成功發送後保留歷史失敗的實機情境尚未測試。30 分鐘長測仍未通過，未開始閒置驗收。
