@@ -2,6 +2,7 @@ import { useState } from "react";
 import { bridge, failure, type DiagnosticReport } from "./bridge";
 
 export function DiagnosticsPanel() {
+  const iphone = /iPhone|iPod/.test(navigator.userAgent);
   const [report, setReport] = useState<DiagnosticReport | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,6 +53,11 @@ export function DiagnosticsPanel() {
       {message && (
         <p role="status" className="export-path">
           {message}
+        </p>
+      )}
+      {iphone && message.startsWith("已匯出：") && (
+        <p className="hint">
+          開啟「檔案」→「我的 iPhone」→「Halo 2 Control」→「Halo2Control」，即可取用診斷檔案。
         </p>
       )}
       {report?.warning && <p role="alert">{report.warning.message}</p>}

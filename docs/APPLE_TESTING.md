@@ -64,7 +64,9 @@ npm run tauri ios dev -- --open
 
 回報格式：裝置／OS 版本、提交 SHA、測試項目、實際燈光結果、App 顯示訊息。若失敗，附診斷 JSON；不要附帳密、憑證或原始 secrets.yaml。
 
-iOS 匯出目前寫入 App 文件目錄；若實機無法透過 Files 取得檔案，需補上分享流程後才能勾選通過。CI 僅驗證編譯與自動測試，Keychain 存取與 LAN 權限必須在實機驗收。
+iOS 匯出寫入 App 文件目錄；已透過 iOS 專用 Info.plist 啟用文件取用。匯出後到「檔案」→「我的 iPhone」→「Halo 2 Control」→「Halo2Control」取出 JSON，確認可以開啟後才勾選通過。連線設定與內部歷史仍存放 Application Support，密碼存於 Keychain。此取用路徑仍待實機確認。
+
+文件取用依據 [Apple 文件提供者設定](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/LaunchServicesKeys.html#//apple_ref/doc/uid/20001431-102364)。CI 僅驗證編譯與自動測試，Keychain 存取與 LAN 權限必須在實機驗收。
 
 ## 已取得的建置證據
 
