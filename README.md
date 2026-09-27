@@ -89,7 +89,10 @@ Use `web_username` and `web_password` from ESPHome `secrets.yaml`. Web-based fir
 
 The development App protocol is available at `http://screenbar-halo2:8080/api/v1`
 with the same credentials. It currently supports polling, commands and result
-lookup; SSE and the Tauri app are not implemented yet. See the
+lookup; SSE is not implemented yet. A [minimal Tauri app](app/README.md)
+provides manual LAN login, polling, power control and result diagnostics.
+Windows builds and the shared Rust client's hardware checks pass; Apple-platform
+and native-UI acceptance remain pending. See the
 [implementation guide](docs/APP_PROTOCOL_IMPLEMENTATION.md) for usage and tests.
 
 Future updates:

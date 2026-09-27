@@ -19,11 +19,14 @@
 - FIFO=01 卡住時一次 RC1.RSTLL 恢復為 FIFO=11，後續 ON 的實體亮燈由使用者確認。
 - Python 15 項、C++ dispatcher／codec／address learning、Schema 6 組與 5 份實際 C++ encoder 回應通過。
 - ESPHome 2026.9.0 編譯及 COM3 115200 刷入，寫入 hash 驗證成功。
+- 重啟後約 15 分鐘無 App 命令（uptime 918–922 秒、last_command=null），以 Tauri 共用 Rust 核心送 OFF／ON，兩筆皆 transmitted、IRQ=2E、FIFO=11。
+- Tauri Windows debug 執行檔建置、TypeScript/Vite 建置、5 項前端互動測試、6 項 Rust 測試與 core Clippy 通過。Rust 測試含真實 loopback TCP 的回應遺失／查詢恢復與衝突不覆寫。
+- 桌面與 390px 窄螢幕瀏覽器版面已檢視。這不替代 Windows 原生 UI／Apple 實機驗收。
 
 ## 尚待驗證
 
 - 本次新版原廠控制器／API 交替操作與所有實體 OFF 效果（已請使用者協助）。
-- 長時間閒置後控制、24 小時運作、AP 斷線與復原；短期查詢測試不能替代。
+- 24 小時運作、AP 斷線與復原；15 分鐘閒置與短期查詢測試不能替代。
 - macOS／iOS 建置、安裝、LAN 權限與實機控制；需要 Mac／Xcode。
 - SSE 尚未提供，App 使用輪詢。亮度、色溫等維持 experimental。
 

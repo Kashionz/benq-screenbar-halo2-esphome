@@ -1,0 +1,30 @@
+name: App validation
+on:
+  push:
+    paths: ['app/**', 'protocol/**', '.github/workflows/app.yml']
+  pull_request:
+    paths: ['app/**', 'protocol/**', '.github/workflows/app.yml']
+  workflow_dispatch:
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: cargo fmt --all -- --check
+      - run: cargo test --locked -p halo2-bridge-core
+      - run: cargo clippy --locked -p halo2-bridge-core --all-targets -- -D warnings
+      - run: npm run tauri build -- --debug --no-bundle

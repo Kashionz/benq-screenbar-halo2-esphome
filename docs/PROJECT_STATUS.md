@@ -91,9 +91,11 @@ This is a development checkpoint, not a completed physical-control release.
   state reads and reboot checks succeeded; this does not establish long-term
   network stability.
 
-SSE, the Tauri/Rust client, Windows/macOS/iOS integration, original-controller
+The [Tauri MVP and Rust client](../app/README.md) now build on Windows and the
+Rust core's OFF/ON commands completed after about 15 minutes idle. SSE,
+Apple-platform integration, native-UI acceptance, original-controller
 interleaving, and the 24-hour stability gate remain pending. The Python command
-client is a development test tool, not the cross-platform product.
+client remains a development test tool.
 
 ## Hardware and verified wiring
 

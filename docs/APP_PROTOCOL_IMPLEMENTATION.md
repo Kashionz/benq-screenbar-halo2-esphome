@@ -1,6 +1,6 @@
 # App protocol v1 開發版
 
-這一階段實作 ESP32 的共享命令處理器、HTTP polling API 與命令列驗證工具。Tauri App UI、Rust 通訊核心、SSE、mDNS 探索與三平臺驗收仍是後續工作。
+這一階段實作 ESP32 的共享命令處理器、HTTP polling API 與命令列驗證工具。[Tauri 最小 App 與 Rust 通訊核心](../app/README.md)也已建立；SSE、mDNS 探索與三平臺完整驗收仍是後續工作。
 
 ## 連線
 

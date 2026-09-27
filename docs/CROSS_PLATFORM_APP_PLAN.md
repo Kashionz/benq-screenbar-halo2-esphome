@@ -1,6 +1,6 @@
 # ScreenBar Halo 2 跨平臺 App 開發規劃
 
-狀態：Tauri App 規劃草案；韌體 polling API 與命令列驗證工具已有開發版，尚未開始 App UI／Rust 核心實作。進度見 [協定開發版說明](APP_PROTOCOL_IMPLEMENTATION.md)。
+狀態：韌體 polling API、Rust 核心與 Tauri 最小控制頁已實作；Windows 執行檔已建置，共用 Rust 核心已連實體橋接器驗證電源命令。Apple 平臺與長時間驗收尚未完成。使用方式見 [App 說明](../app/README.md)及[協定開發版說明](APP_PROTOCOL_IMPLEMENTATION.md)。
 
 開發前置順序已確定：先完成 [ESP32 ↔ App protocol v1](APP_PROTOCOL_V1.md)、Schema 與行為驗收，再實作最小韌體／Rust client，通過契約測試後才大量開發 App UI。
 
@@ -84,9 +84,11 @@ Tauri commands 以已登錄的 device_id 接受操作，由 Rust 驗證目標與
 
 每個橋接器全域限制一筆未終結命令。滑桿先更新本地預覽，依 info 公告的最小間隔合併（v1 基準 500 ms），放開時保留最新意圖並依節流送出。接收遠端狀態不觸發新的控制請求。網路逾時以同 ID 查詢／去重，不更換 ID 盲目重放；重啟後則標示結果不明。
 
-## 韌體需先補強的契約
+## 韌體契約追蹤
 
-1. 提供結構化裝置資訊：協定版本、韌體版本、裝置識別與能力清單。欄位為待實作提案，現有韌體尚未提供。
+下列 1–5 已由 protocol v1 polling 開發版落實；第 6 項通用配對發行方式仍待處理。SSE 不在目前最小實作內。
+
+1. 提供結構化裝置資訊：協定版本、韌體版本、裝置識別與能力清單。
 2. 分離 `desired_state` 與 `observed_remote_state`，後者附接收時間或相對經過時間；原廠控制器封包仍不等於獨立燈具確認。橋接器可用 uptime 加 boot_id，避免依賴尚未校時的 UTC。
 3. 統一所有控制項的發送結果：至少區分 accepted、transmitted、failed、unknown，保存錯誤類別與時間。晶片 TX_DS 只能映射 transmitted。
 4. 為完整狀態命令提供 command_id、狀態 revision 與結構化結果，讓重連及多個客戶端不會把舊結果誤認為新命令成功。新增專用端點需自訂 ESPHome 元件／HTTP handler，不能假設現有 YAML 已具備。
