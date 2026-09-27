@@ -169,12 +169,15 @@ has not yet been measured.
 
 The reply control byte can differ from the requested control byte. For example, the accepted ON request carried control `0x11`, while its lamp reply carried `0x10`. Treating the reply as authoritative state would incorrectly turn the Home Assistant entity back off.
 
-Observed stock exchanges distinguish the roles through PCF packet-ID parity:
+Observed stock exchanges distinguish the roles through canonical PCF bit 0
+(NO_ACK), not PID parity. PID occupies bits 2:1; both request and reply frames
+can have any two-bit PID. This is a role filter based on the observed Halo 2
+exchanges, not a universal sender identity guaranteed by NO_ACK:
 
-- **even PID:** original-controller request — authoritative desired state;
-- **odd PID:** lamp reply — response metadata, not authoritative state.
+- **NO_ACK=0:** observed original-controller request — authoritative desired state;
+- **NO_ACK=1:** observed lamp reply — response metadata, not authoritative state.
 
-Passive RX therefore accepts only even-PID requests and additionally requires:
+Passive RX therefore accepts only NO_ACK=0 frames and additionally requires:
 
 - 14 FIFO bytes aligned to one complete 13-byte frame;
 - valid CRC;

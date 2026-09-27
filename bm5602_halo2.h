@@ -281,7 +281,8 @@ inline bool poll_halo_receive(HaloRxState& s){
     if(normal_rx_session)++normal_rx_rejected;
     return false;
   }
-  // Odd PIDs are lamp replies; their control byte is not authoritative state.
+  // Canonical PCF bit 0 is NO_ACK, not PID (PID occupies bits 2:1).
+  // Observed NO_ACK=1 lamp replies are not authoritative desired state.
   if(frame[0]&0x01U){
     if(normal_rx_session)++normal_rx_rejected;
     return false;

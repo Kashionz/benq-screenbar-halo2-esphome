@@ -118,3 +118,15 @@ Hub 路徑仍重現 RF 故障，不能以成功筆數增加推定供電改善，
 同樣安排 61 筆、間隔 30 秒，第一筆 1/1 TX_DS；第二筆 `TX_MAX_RETRIES`，planned=1、attempted=1、transmitted=0、IRQ=`1E`、FIFO=`01`、MODE=2。約 30.7 秒後停止，`successful=1`、`stopped_at=tx_result`、`complete=false`，沒有自動重送。API 正常回傳 failed，沒有觀察到查詢錯誤；沒有串列資料可判定本次發送前 FIFO 或 RT2。
 
 更換電源來源未消除故障，不能單憑此測試排除供電品質、USB 線材或模組接線，也不能確定是協定或 ACK 問題。原始報告位於 ignored `.esphome/charger-30min-diagnostics.jsonl`，30 分鐘穩定性仍未通過；此輪未取得新的燈具實際反應確認。
+
+### PID 與 ACK 處理檢查
+
+對照 [BC5602 v1.20](https://www.holtek.com/webapi/116711/BC5602v120.pdf) 第 22、26–29 頁及 [Pico 參考實作](https://github.com/kuzmin-no/BenQ_ScreenBar_HALO_2_HA_integration/blob/main/src/benq_halo/__init__.py)：
+
+- 正式控制在 `PCF_PREFIX_ZERO=1` 時將十位元組 payload 交給 `W_TX_FIFO_WITH_ACK`，PCF、PID 與 CRC 由硬體產生；`halo_app_pid` 不參與這條路徑。不能修改它就宣稱修復封包引擎序號。
+- 手冊規定 PID 為兩位元、ACK 成功後推進；重傳保留同一 PID。重複封包判斷結合 PID 與 CRC。現有 API／IRQ 記錄沒有空中 PID，尚不能證明序號碰撞或其因果。
+- canonical PCF bit 0 是 NO_ACK，bits 2:1 才是 PID。既有 RX 判斷 `frame[0] & 1` 的程式行為未改，但修正將其誤稱為「奇偶 PID」的註解與文件。依既有樣本略過 NO_ACK=1 回覆是專案觀察，不代表此位元普遍保證發送者身分。
+- DPL、CRC、ENAA、RT1 的設定與參考實作相同。參考實作在 FIFO 未空時會再次觸發 TX，並可能送出多筆狀態同步命令；本專案保留單次觸發與不自動重送語意，不能直接抄入這些行為來掩蓋失敗。
+- `0x10` 是手冊中的 PTX／PRX pipe 0 位址寫入命令，不能套用其他晶片的暫存器配置，直接斷言少寫了一個 RX 位址就是原因。
+
+目前沒有足夠證據修改正式 PID／ACK 邏輯。本輪只修正文詞，未重刷或更改 RF 設定；地址學習／CRC C++ 測試通過。另發起一次新的開燈目標回報 1/1 TX_DS，使用者確認燈已亮起；下一筆關燈也回報 1/1 TX_DS，使用者確認燈已熄滅。這兩筆未重現 MAX_RT，不能用來確定故障時的實際燈具反應。先前同目標關燈測試無法區分「命令未生效」與「燈具已收到但橋接器未取得 ACK」，需要故障當下的實際狀態變化補足證據。
