@@ -66,9 +66,18 @@ external_components:
     components: [halo2_api]
 halo2_api:
   id: app_bridge
-  port: 8080
+  port: &halo2_app_port 8080
   username: !secret web_username
   password: !secret web_password
+
+mdns:
+  services:
+    - service: "_halo2-bridge"
+      protocol: "_tcp"
+      port: *halo2_app_port
+      txt:
+        api: "1"
+        model: "screenbar-halo2-bridge"
 
 esp32:
   board: m5stack-atom
