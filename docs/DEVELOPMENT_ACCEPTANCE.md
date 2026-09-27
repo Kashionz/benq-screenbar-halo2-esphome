@@ -117,3 +117,9 @@
 - 使用者將 ESP32 USB 電源拔掉約 10 秒後插回。App 記錄 NETWORK 後恢復 ready；boot_id 從 `4936a9f3-5e61-4532-b504-12c5f2ebaabe` 改成 `89c0371d-377f-4eb8-a2de-c35e52b294eb`，device_id 不變、pairing_persisted=true。前景 UI 同步新狀態並清除舊 observed_remote，無需重新登入或學習。
 - 重開後 desired.source=restored、前燈 35%、後燈 50%、5500 K；last_command=null，確認這次恢復未自動重送控制命令。此測試未涵蓋 AP 中斷或命令發送途中斷電。
 - 待驗收：Apple Keychain；AP 斷線／換網路、命令結果不明時恢復與長時間穩定性。
+
+## 2026-09-27 RF 穩定性測試未通過
+
+- 有界測試預定 20 次，首筆回報 `TX_MAX_RETRIES`（IRQ `1E`／FIFO `01`），立即停止且沒有重送；成功 0 次。詳見 [測試方式與失敗證據](RF_STABILITY.md)。
+- 已通過的後燈 20% 與其他互動控制實測仍有效，但不能據此宣稱間歇性 RF 故障已修復。
+- 工具新增停止條件、單次 POST、非同步結果查詢與明確 opt-in 測試；Python 測試共 24 項通過。
