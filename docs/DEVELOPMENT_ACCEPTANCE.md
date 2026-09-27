@@ -51,7 +51,7 @@
 - App 已加入 Windows DNS-SD、Apple Bonjour 與明確搜尋／選取介面；Windows 唯讀核心在 5004 ms 返回空候選，真實 multicast 搜尋仍未通過。契約及實測範圍見 [LAN 搜尋](LAN_DISCOVERY.md)。
 - 新增搜尋版本檢查、候選上限／去重／移除、並行搜尋拒絕與選取不登入／不發送／清除密碼的測試。Windows support 11 項、前端 19 項及 Tauri clippy 通過；Apple 新版建置與原生搜尋驗收待完成。
 - 原生檢查另發現橋接器重開後仍顯示前一次 boot 的成功結果；已修正 snapshot 更新時清除舊命令結果。增加不重播命令的回歸測試後，前端共 20 項通過，歷史診斷不刪除。
-- Apple CI 首次因找不到獨立 dns_sd 庫失敗，改以 libSystem 連結後，macOS Rust 測試與 App bundle 已成功。TXT 解析移至跨平台測試，Windows support 現為 12 項通過；完整 iOS App 建置仍在驗證。
+- Apple CI 首次因找不到獨立 dns_sd 庫失敗，改以 libSystem 連結後，[修正版 CI 36317392509](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36317392509) 全部成功：macOS Rust 測試與 App bundle、兩個 iOS Rust 目標、完整 iOS 模擬器 App 及 Bonjour／LAN／文件權限宣告。TXT 解析移至跨平台測試，Windows support 現為 12 項通過。這不代表搜尋、權限或控制已在 Apple 實機驗收。
 - Windows 更新安裝 exit code 0，安裝包 SHA-256：`4901E3161636DCBB3044E43DADA6785A5E4B9AA27854BF7AADECD3E34695C2B2`。原生啟動可見搜尋按鈕與保存連線，未自動登入。
 - 原生按搜尋後出現 Windows 安全性／防火牆提示，要求允許 Halo 2 Control 的網路存取；背景可見空結果提示與手動 IP 表單。權限提示交由使用者操作，目前尚未確認允許後的搜尋與登入，不自動調整防火牆。
 

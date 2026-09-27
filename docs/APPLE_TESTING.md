@@ -74,6 +74,8 @@ iOS 匯出寫入 App 文件目錄；已透過 iOS 專用 Info.plist 啟用文件
 
 ## 已取得的建置證據
 
+2026-09-27：[Bonjour 修正版 CI 36317392509](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36317392509)，提交 `55a9636`，完整流程成功。包括 macOS App、iOS 真機／模擬器 Rust 檢查、完整模擬器 App、產生後的 `NSBonjourServices` 固定服務與 LAN／文件宣告。尚未在 Mac 或 iPhone 執行搜尋與權限實測。
+
 2026-09-27：[Apple CI 36314887598](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36314887598) 選用 Xcode 16.2 後，完整 ARM iOS 模擬器 App 建置成功，產生的 Info.plist 通過 LAN 用途、文件共享與原地開啟宣告檢查。macOS bundle 與 iOS 兩個 Rust 目標也成功。模擬器 App 未在此工作流程啟動，仍不能替代實機驗收。
 
 2026-09-27：[Apple CI 36313722538](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/runs/36313722538) 在 macos-14 成功執行前端測試、Rust 核心／儲存測試、macOS debug App bundle，以及 `aarch64-apple-ios-sim`、`aarch64-apple-ios` 的 App library 檢查。沒有執行 iPhone App，也沒有驗證真實 Keychain／區域網路權限。
