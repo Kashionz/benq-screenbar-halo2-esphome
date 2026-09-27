@@ -15,6 +15,11 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v5
+      # Tauri generates Xcode project format 77; macos-14 defaults to Xcode 15.4.
+      - name: Select Xcode 16.2
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
