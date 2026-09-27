@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 #include "halo2_address_learning.h"
+#include "halo2_pairing_storage.h"
+#include "esphome/core/preferences.h"
 #include "driver/gpio.h"
 #include "esp_rom_sys.h"
 #include "esp_cpu.h"
@@ -41,7 +43,35 @@ inline uint8_t halo_app_pid=0;
 inline std::array<uint8_t,13> captured_remote_off{};
 inline bool captured_remote_off_valid=false;
 inline bool captured_remote_off_event=false;
+inline esphome::ESPPreferenceObject pairing_preference;
+inline bool pairing_preference_ready=false;
 inline portMUX_TYPE tbclk_mux=portMUX_INITIALIZER_UNLOCKED;
+
+enum class PairingBootSource { Restored, Initialized, RamOnly };
+
+inline bool save_active_pairing(){
+  if(!pairing_preference_ready||address_learning||!crc_seed_ready)return false;
+  const PairingConfig pairing{active_radio_address,active_crc_seed,tx_pcf_prefix_zero};
+  const uint64_t record=encode_pairing(pairing);
+  return pairing_preference.save(&record) && esphome::global_preferences->sync();
+}
+
+inline PairingBootSource restore_or_initialize_pairing(){
+  pairing_preference=esphome::global_preferences->make_preference<uint64_t>(
+    PAIRING_PREFERENCE_KEY,true);
+  pairing_preference_ready=true;
+  uint64_t record=0;
+  PairingConfig pairing{};
+  const bool restored=pairing_preference.load(&record)&&decode_pairing(record,pairing);
+  if(!restored)pairing=VERIFIED_PAIRING;
+  active_radio_address=pairing.address;
+  active_crc_seed=pairing.crc_seed;
+  tx_pcf_prefix_zero=pairing.pcf_prefix_zero;
+  crc_seed_ready=true;
+  ++normal_rx_session;
+  if(restored)return PairingBootSource::Restored;
+  return save_active_pairing()?PairingBootSource::Initialized:PairingBootSource::RamOnly;
+}
 
 inline void half() { esp_rom_delay_us(5); } // Pico reference uses 100 kHz SPI.
 inline void begin() {

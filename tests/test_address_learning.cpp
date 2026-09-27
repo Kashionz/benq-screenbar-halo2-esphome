@@ -1,4 +1,5 @@
 #include "../halo2_address_learning.h"
+#include "../halo2_pairing_storage.h"
 
 #include <array>
 #include <cassert>
@@ -10,6 +11,10 @@ using bm5602_halo2::align_normal_rx;
 using bm5602_halo2::crc_with_zero_before_pcf;
 using bm5602_halo2::extract_address_candidate;
 using bm5602_halo2::recover_crc_seed;
+using bm5602_halo2::PairingConfig;
+using bm5602_halo2::VERIFIED_PAIRING;
+using bm5602_halo2::decode_pairing;
+using bm5602_halo2::encode_pairing;
 
 static std::array<uint8_t, 16> fifo_from_aligned(std::array<uint8_t, 16> aligned) {
   std::array<uint8_t, 16> raw{};
@@ -21,6 +26,20 @@ static std::array<uint8_t, 16> fifo_from_aligned(std::array<uint8_t, 16> aligned
 }
 
 int main() {
+  const uint64_t saved_pair=encode_pairing(VERIFIED_PAIRING);
+  assert(saved_pair==0xA101CC88B01EE8E6ULL);
+  PairingConfig restored{{0,0,0,0},0,false};
+  assert(decode_pairing(saved_pair,restored));
+  assert(restored.address==VERIFIED_PAIRING.address);
+  assert(restored.crc_seed==0xCC88 && restored.pcf_prefix_zero);
+  assert(!decode_pairing(saved_pair ^ (1ULL<<56U),restored));
+  assert(!decode_pairing(saved_pair | (2ULL<<48U),restored));
+  assert(restored.address==VERIFIED_PAIRING.address);
+  const PairingConfig original_pair{{0x9C,0xEA,0xBB,0x86},0xEFDF,false};
+  assert(decode_pairing(encode_pairing(original_pair),restored));
+  assert(restored.address==original_pair.address);
+  assert(restored.crc_seed==0xEFDF && !restored.pcf_prefix_zero);
+
   // Previous request: rear brightness 0A, 3925 K, tail 01 02, CRC 9FDA.
   // Next repeated request: preamble AA, air address 86 BB EA 9C.
   const std::array<uint8_t, 16> aligned{

@@ -4,6 +4,7 @@ esphome:
   includes:
     - bm5602_halo2.h
     - halo2_address_learning.h
+    - halo2_pairing_storage.h
   on_boot:
     priority: -100
     then:
@@ -15,9 +16,16 @@ esphome:
             char error[80]; snprintf(error,sizeof(error),"BM5602 ERROR VERSION=%02X %02X %02X",v[0],v[1],v[2]);
             id(radio_status).publish_state(error); return;
           }
+          const auto source=bm5602_halo2::restore_or_initialize_pairing();
+          const char *pair_status=source==bm5602_halo2::PairingBootSource::Restored?"RESTORED":
+            source==bm5602_halo2::PairingBootSource::Initialized?"INITIALIZED":"RAM ONLY";
+          const auto &address=bm5602_halo2::active_radio_address;
+          ESP_LOGI("halo2", "HALO2 PAIRING %s ADDRESS=%02X %02X %02X %02X CRC_SEED=%04X PCF_PREFIX_ZERO=%u",
+            pair_status,address[0],address[1],address[2],address[3],
+            bm5602_halo2::active_crc_seed,bm5602_halo2::tx_pcf_prefix_zero?1U:0U);
           bm5602_halo2::prepare_halo_receive();
-          char text[96]; snprintf(text,sizeof(text),"READY VERSION=%02X %02X %02X TBCLK=G25 RX=ON",
-            v[0],v[1],v[2]); id(radio_status).publish_state(text);
+          char text[96]; snprintf(text,sizeof(text),"READY VERSION=%02X %02X %02X TBCLK=G25 RX=ON PAIR=%s",
+            v[0],v[1],v[2],pair_status); id(radio_status).publish_state(text);
 
 esp32:
   board: m5stack-atom
@@ -415,6 +423,8 @@ button:
           }
           char status[80]; snprintf(status,sizeof(status),"ADDRESS APPLIED %02X %02X %02X %02X (RAM)",a[0],a[1],a[2],a[3]);
           ESP_LOGI("halo2", "HALO2 ADDRESS APPLIED (register order, RAM): %02X %02X %02X %02X",a[0],a[1],a[2],a[3]);
+          if(bm5602_halo2::crc_seed_ready && !bm5602_halo2::save_active_pairing())
+            ESP_LOGW("halo2", "HALO2 PAIRING SAVE FAILED");
           id(radio_status).publish_state(bm5602_halo2::crc_seed_ready?status:"ADDRESS APPLIED; LEARNING CRC SEED");
   - platform: template
     name: "Resend current state"
@@ -501,7 +511,9 @@ interval:
             ESP_LOGI("halo2", "HALO2 CRC SEED FOUND: %04X",bm5602_halo2::active_crc_seed);
             ESP_LOGI("halo2", "HALO2 TX FRAMING: PCF_PREFIX_ZERO=%u",
               bm5602_halo2::tx_pcf_prefix_zero?1U:0U);
-            id(radio_status).publish_state(status);
+            const bool saved=bm5602_halo2::save_active_pairing();
+            ESP_LOGI("halo2", "HALO2 PAIRING %s",saved?"SAVED TO FLASH":"SAVE FAILED");
+            id(radio_status).publish_state(saved?status:"CRC SEED FOUND; PAIR UNSAVED");
           }
           if(bm5602_halo2::captured_remote_off_event){
             const auto &frame=bm5602_halo2::captured_remote_off;
