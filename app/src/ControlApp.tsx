@@ -22,7 +22,7 @@ import {
   type LightPatch,
   type Tone,
 } from "./controlState";
-import { DiagnosticsPanel } from "./DiagnosticsPanel";
+import { DevicePage } from "./DevicePage";
 import { useTray } from "./useTray";
 import { DiscoveryPanel } from "./DiscoveryPanel";
 import { useCompact } from "./useCompact";
@@ -464,72 +464,26 @@ export default function App() {
     );
   } else if (panel === "device") {
     body = (
-      <div className="device-page">
-        <div className="device-details">
-          <h3>ScreenBar Halo 2</h3>
-          <p className="host">
-            {host}:{port}
-          </p>
-          <dl>
-            <dt>無線模組</dt>
-            <dd>
-              {snapshot?.radio_status === "ready"
-                ? "就緒"
-                : snapshot?.radio_status}
-            </dd>
-            <dt>配對保存</dt>
-            <dd>{snapshot?.pairing_persisted ? "已保存" : "未保存"}</dd>
-            <dt>最後同步</dt>
-            <dd>{updated || "—"}</dd>
-          </dl>
-          <button
-            className="secondary"
-            onClick={() => void refresh()}
-            disabled={busy}
-          >
-            重新整理
-          </button>
-          <button
-            className="text-button"
-            onClick={() => void disconnect()}
-            disabled={busy}
-          >
-            中斷連線／更換裝置
-          </button>
-          {saved && (
-            <button
-              className="text-button"
-              disabled={busy}
-              onClick={() => void forget()}
-            >
-              忘記已保存連線
-            </button>
-          )}
-        </div>
-        {settingsMessage && (
-          <p role="status" className="hint">
-            {settingsMessage}
-          </p>
-        )}
-        <details className="diagnostics">
-          <summary>連線與命令診斷</summary>
-          <pre>
-            {JSON.stringify(
-              {
-                device_id: snapshot?.device_id,
-                boot_id: snapshot?.boot_id,
-                radio: snapshot?.radio_status,
-                radio_error: snapshot?.radio_error_code,
-                last_command: result ?? snapshot?.last_command,
-                error: fault ?? networkFault,
-              },
-              null,
-              2,
-            )}
-          </pre>
-        </details>
-        {native && <DiagnosticsPanel />}
-      </div>
+      <DevicePage
+        snapshot={snapshot}
+        address={`${host}:${port}`}
+        updated={updated}
+        busy={busy}
+        saved={saved}
+        settingsMessage={settingsMessage}
+        native={native}
+        raw={{
+          device_id: snapshot?.device_id,
+          boot_id: snapshot?.boot_id,
+          radio: snapshot?.radio_status,
+          radio_error: snapshot?.radio_error_code,
+          last_command: result ?? snapshot?.last_command,
+          error: fault ?? networkFault,
+        }}
+        refresh={() => void refresh()}
+        disconnect={() => void disconnect()}
+        forget={() => void forget()}
+      />
     );
   } else if (snapshot) {
     const desired = snapshot.desired.values;

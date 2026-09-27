@@ -55,6 +55,7 @@ beforeEach(() => {
   vi.mocked(bridge.saved).mockResolvedValue(null);
   vi.mocked(bridge.connect).mockResolvedValue(snapshot);
   vi.mocked(bridge.state).mockResolvedValue(snapshot);
+  vi.mocked(bridge.diagnostics).mockResolvedValue({ events: [], warning: null });
 });
 async function login() {
   const user = userEvent.setup();
