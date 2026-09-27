@@ -78,6 +78,7 @@ class RfStabilityTests(unittest.TestCase):
         client.timeout = True
         result = self.execute(client)
         self.assertFalse(result["complete"])
+        self.assertEqual(result["stopped_at"], "command")
         self.assertEqual(len(client.posts), 1)
         self.assertEqual([e["kind"] for e in self.events], ["attempt", "summary"])
 
@@ -87,6 +88,19 @@ class RfStabilityTests(unittest.TestCase):
             client.status = status
             self.assertEqual(self.execute(client)["reason"], "TX_NOT_TRANSMITTED")
             self.assertEqual(len(client.posts), 1)
+
+    def test_state_timeout_after_success_preserves_known_tx_result(self):
+        client = FakeClient()
+        def timeout(c):
+            if c.reads == 3:
+                raise TimeoutError()
+        client.after_read = timeout
+        result = self.execute(client)
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["stopped_at"], "after_command_state")
+        self.assertEqual(result["successful"], 1)
+        self.assertEqual(len(client.posts), 1)
+        self.assertEqual(self.events[1]["status"], "transmitted")
 
     def test_change_after_our_command_prevents_next_command(self):
         client = FakeClient()

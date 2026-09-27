@@ -74,8 +74,10 @@ def run(client, count, interval, emit, sleep=time.sleep, now=time.monotonic):
     successful = 0
     started = now()
     reason = "COMPLETE"
+    stage = "info"
     try:
         info = client.info()
+        stage = "initial_state"
         baseline = client.state()
         if info.get("device_id") != baseline.get("device_id") or info.get("boot_id") != baseline.get("boot_id"):
             raise StopTest("DEVICE_OR_BOOT_CHANGED")
@@ -83,11 +85,15 @@ def run(client, count, interval, emit, sleep=time.sleep, now=time.monotonic):
         previous_command = None
         for index in range(count):
             if index:
+                stage = "interval"
                 sleep(interval)
+            stage = "before_command_state"
             state = client.state()
             check_state(state, baseline, revision, previous_command)
             tick = now()
+            stage = "command"
             result = command(client, state, emit, sleep, now)
+            stage = "tx_result"
             tx = result.get("tx", {})
             emit({"kind": "result", "sample": index + 1,
                   "command_id": result["command_id"], "status": result["status"],
@@ -104,7 +110,9 @@ def run(client, count, interval, emit, sleep=time.sleep, now=time.monotonic):
             successful += 1
             revision += 1
             previous_command = result["command_id"]
+            stage = "after_command_state"
             check_state(client.state(), baseline, revision, previous_command)
+        stage = "complete"
     except StopTest as exc:
         reason = str(exc)
     except KeyboardInterrupt:
@@ -113,6 +121,7 @@ def run(client, count, interval, emit, sleep=time.sleep, now=time.monotonic):
         # A transport error after POST may mean it was accepted. Never retry it.
         reason = "REQUEST_FAILED_OR_UNKNOWN"
     summary = {"kind": "summary", "format": "halo2-rf-soak-v1", "reason": reason,
+               "stopped_at": stage,
                "complete": reason == "COMPLETE", "samples_planned": count,
                "successful": successful, "elapsed_ms": round((now() - started) * 1000),
                "lamp_confirmation": "unavailable", "native_ui_test": False}
