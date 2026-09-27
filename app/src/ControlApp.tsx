@@ -58,6 +58,7 @@ export default function App() {
     };
   }, [native]);
   const accept = useCallback((next: Snapshot) => {
+    setResult((current) => current?.boot_id === next.boot_id ? current : null);
     setSnapshot((current) =>
       current &&
       current.boot_id === next.boot_id &&

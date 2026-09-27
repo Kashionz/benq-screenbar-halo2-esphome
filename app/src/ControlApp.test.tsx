@@ -54,6 +54,17 @@ async function login() {
   return user;
 }
 describe("control safety", () => {
+  it("removes the previous boot's command result without transmitting after a reboot", async () => {
+    vi.mocked(bridge.power).mockResolvedValue({ status: "transmitted", boot_id: snapshot.boot_id } as CommandRecord);
+    render(<App />);
+    const user = await login();
+    await user.click(screen.getByRole("button", { name: "關燈" }));
+    await screen.findByText("指令已送出");
+    vi.mocked(bridge.state).mockResolvedValue({ ...snapshot, boot_id: "new-boot", last_command: null });
+    await user.click(screen.getByRole("button", { name: "重新整理" }));
+    await waitFor(() => expect(screen.queryByText("指令已送出")).not.toBeInTheDocument());
+    expect(bridge.power).toHaveBeenCalledTimes(1);
+  });
   it("selects discovered addresses without login or RF and clears the entered password", async () => {
     vi.mocked(bridge.discover).mockResolvedValue([{ name: "Desk", host: "desk.local", port: 8080 }]);
     render(<App />);
