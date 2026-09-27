@@ -113,9 +113,50 @@ pub fn discover() -> Result<Vec<Candidate>, Fault> {
     }
 }
 
+#[cfg(any(target_vendor = "apple", test))]
+fn txt_fields(bytes: &[u8]) -> Option<(Option<&str>, Option<&str>)> {
+    let (mut api, mut model) = (None, None);
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        let len = bytes[cursor] as usize;
+        cursor += 1;
+        let field = bytes.get(cursor..cursor.checked_add(len)?)?;
+        cursor += len;
+        if let Some(split) = field.iter().position(|b| *b == b'=') {
+            let key = &field[..split];
+            if key.eq_ignore_ascii_case(b"api") || key.eq_ignore_ascii_case(b"model") {
+                let value = std::str::from_utf8(&field[split + 1..]).ok()?;
+                let slot = if key.eq_ignore_ascii_case(b"api") {
+                    &mut api
+                } else {
+                    &mut model
+                };
+                if slot.replace(value).is_some() {
+                    return None;
+                }
+            }
+        }
+    }
+    Some((api, model))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn txt_is_bounded_and_rejects_duplicate_version() {
+        let model = b"model=screenbar-halo2-bridge";
+        let mut valid = b"\x05api=1".to_vec();
+        valid.push(model.len() as u8);
+        valid.extend_from_slice(model);
+        assert_eq!(
+            txt_fields(&valid),
+            Some((Some("1"), Some("screenbar-halo2-bridge")))
+        );
+        valid.pop();
+        assert_eq!(txt_fields(&valid), None);
+        assert_eq!(txt_fields(b"\x05api=1\x05API=2"), None);
+    }
     fn valid(host: &str) -> Option<Candidate> {
         candidate(
             "Desk",

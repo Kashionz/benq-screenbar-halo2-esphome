@@ -29,7 +29,8 @@ type ResolveReply = unsafe extern "C" fn(
     *const u8,
     *mut c_void,
 );
-#[link(name = "dns_sd")]
+// Bonjour symbols are exported by libSystem on Apple SDKs.
+#[link(name = "System")]
 extern "C" {
     fn DNSServiceBrowse(
         reference: *mut Ref,
@@ -119,32 +120,6 @@ unsafe extern "C" fn browsed(
             add: flags & 2 != 0,
         });
     }
-}
-
-fn txt_fields(bytes: &[u8]) -> Option<(Option<&str>, Option<&str>)> {
-    let (mut api, mut model) = (None, None);
-    let mut cursor = 0;
-    while cursor < bytes.len() {
-        let len = bytes[cursor] as usize;
-        cursor += 1;
-        let field = bytes.get(cursor..cursor.checked_add(len)?)?;
-        cursor += len;
-        if let Some(split) = field.iter().position(|b| *b == b'=') {
-            let key = &field[..split];
-            if key.eq_ignore_ascii_case(b"api") || key.eq_ignore_ascii_case(b"model") {
-                let value = std::str::from_utf8(&field[split + 1..]).ok()?;
-                let slot = if key.eq_ignore_ascii_case(b"api") {
-                    &mut api
-                } else {
-                    &mut model
-                };
-                if slot.replace(value).is_some() {
-                    return None;
-                }
-            }
-        }
-    }
-    Some((api, model))
 }
 
 unsafe extern "C" fn resolved(
@@ -315,22 +290,4 @@ pub(super) fn scan(deadline: Instant) -> Result<Vec<Candidate>, Fault> {
         }
     }
     Ok(results.finish())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn txt_is_bounded_and_rejects_duplicate_version() {
-        assert_eq!(
-            txt_fields(b"\x05api=1\x1amodel=screenbar-halo2-bridge"),
-            Some((Some("1"), Some("screenbar-halo2-bridge")))
-        );
-        assert_eq!(
-            txt_fields(b"\x05api=1\x1cmodel=screenbar-halo2-bridge"),
-            None
-        );
-        assert_eq!(txt_fields(b"\x05api=1"), Some((Some("1"), None)));
-        assert_eq!(txt_fields(b"\x05api=1\x05API=2"), None);
-    }
 }
