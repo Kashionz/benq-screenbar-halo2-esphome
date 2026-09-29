@@ -47,7 +47,8 @@
           "front_brightness": 22,
           "back_brightness": 10,
           "temperature_k": 3925,
-          "ultrasonic_enabled": false
+          "ultrasonic_enabled": false,
+          "auto_dimming": false
         },
         "source": "remote",
         "updated_at_uptime_ms": 99000,
@@ -77,7 +78,8 @@
         "front_brightness": "experimental",
         "back_brightness": "experimental",
         "temperature_k": "experimental",
-        "ultrasonic_enabled": "experimental"
+        "ultrasonic_enabled": "experimental",
+        "auto_dimming": "experimental"
       }
     }
   },
@@ -93,6 +95,21 @@
       "type": "set_state",
       "patch": {
         "power": false
+      }
+    }
+  },
+  {
+    "name": "auto-dimming-on-request",
+    "schema": "CommandRequest",
+    "body": {
+      "command_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "client_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "boot_id": "22222222-2222-4222-8222-222222222222",
+      "expected_revision": 12,
+      "not_after_uptime_ms": 104000,
+      "type": "set_state",
+      "patch": {
+        "auto_dimming": true
       }
     }
   },

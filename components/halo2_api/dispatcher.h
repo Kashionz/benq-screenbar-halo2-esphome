@@ -25,7 +25,7 @@ inline bool valid_id(const char *value) {
 }
 inline Id make_id(const char *value) { Id id{}; if (valid_id(value)) std::memcpy(id.data(), value, 36); return id; }
 
-enum Field : uint8_t { POWER = 1, MODE = 2, FRONT = 4, BACK = 8, TEMPERATURE = 16, ULTRASONIC = 32, ALL = 63 };
+enum Field : uint8_t { POWER = 1, MODE = 2, FRONT = 4, BACK = 8, TEMPERATURE = 16, ULTRASONIC = 32, AUTO_DIM = 64, ALL = 127 };
 enum class Mode : uint8_t { Front, Back, Both };
 inline const char *mode_name(Mode mode) { return mode == Mode::Front ? "front" : mode == Mode::Back ? "back" : "both"; }
 struct LightState {
@@ -34,9 +34,11 @@ struct LightState {
   uint8_t front{12}, back{91};
   uint16_t temperature{3925};
   bool ultrasonic{false};
+  // Control bit 1. The lamp sets brightness from ambient light while it is on.
+  bool auto_dimming{false};
   bool operator==(const LightState &b) const {
     return power == b.power && mode == b.mode && front == b.front && back == b.back &&
-           temperature == b.temperature && ultrasonic == b.ultrasonic;
+           temperature == b.temperature && ultrasonic == b.ultrasonic && auto_dimming == b.auto_dimming;
   }
 };
 struct Patch {
@@ -49,6 +51,9 @@ struct Patch {
     if (fields & BACK) target.back = values.back;
     if (fields & TEMPERATURE) target.temperature = values.temperature;
     if (fields & ULTRASONIC) target.ultrasonic = values.ultrasonic;
+    // Like the original controller, a manual brightness change ends auto-dimming.
+    if ((fields & (FRONT | BACK)) && !(fields & AUTO_DIM)) target.auto_dimming = false;
+    if (fields & AUTO_DIM) target.auto_dimming = values.auto_dimming;
     return target;
   }
   bool valid() const {
@@ -190,7 +195,10 @@ class Dispatcher {
     if (pairing != Pairing::Ready || radio != Radio::Ready) { finish(Status::Failed, pairing != Pairing::Ready ? "PAIRING_REQUIRED" : "RADIO_UNAVAILABLE", now); return 0; }
     if (r.started && now - r.started_at >= 1000) { finish(Status::Failed, "TX_TIMEOUT", now); return 0; }
     if (!r.started) { r.started = true; r.started_at = now; r.status = Status::Executing; ++version; }
-    return (r.request.patch.fields & ~POWER) && r.transmitted == 0 ? 0x03 : 0x02;
+    if (!(r.request.patch.fields & ~POWER) || r.transmitted != 0) return 0x02;
+    // The original controller's auto-dimming button sends command 0x06.
+    const auto &patch = r.request.patch;
+    return (patch.fields & AUTO_DIM) && patch.values.auto_dimming ? 0x06 : 0x03;
   }
   void complete_frame(const TxResult &tx, Time now) {
     if (active < 0) return;

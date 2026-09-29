@@ -40,8 +40,17 @@ fn reject_urls_and_credentials_in_host() {
 fn decode_contract_snapshot_and_unknown_fields() {
     let mut value = fixture("Snapshot");
     value["future_extension"] = json!(true);
-    let state: Snapshot = decode(value).unwrap();
+    let state: Snapshot = decode(value.clone()).unwrap();
     assert_eq!(state.lamp_confirmation, "unavailable");
+    assert!(!state.desired.values.auto_dimming);
+    // Firmware that predates auto-dimming omits the field.
+    let mut older = value;
+    older["desired"]["values"]
+        .as_object_mut()
+        .unwrap()
+        .remove("auto_dimming");
+    let state: Snapshot = decode(older).unwrap();
+    assert!(!state.desired.values.auto_dimming);
 }
 
 #[test]
@@ -116,6 +125,21 @@ fn light_patch_validates_ranges_and_capabilities() {
             .validate(&json!({"ultrasonic_enabled":"unsupported"}))
             .unwrap_err()
             .code,
+        "UNSUPPORTED_FIELD"
+    );
+    let dimming = StatePatch {
+        auto_dimming: Some(true),
+        ..Default::default()
+    };
+    assert_eq!(
+        dimming
+            .validate(&json!({"auto_dimming":"experimental"}))
+            .unwrap(),
+        json!({"auto_dimming":true})
+    );
+    // Firmware without the feature reports no flag: refused, never sent.
+    assert_eq!(
+        dimming.validate(&json!({})).unwrap_err().code,
         "UNSUPPORTED_FIELD"
     );
     assert!(serde_json::from_value::<StatePatch>(json!({"unknown":1})).is_err());

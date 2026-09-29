@@ -12,6 +12,9 @@ pub struct LightState {
     pub back_brightness: u8,
     pub temperature_k: u16,
     pub ultrasonic_enabled: bool,
+    /// Absent from firmware that predates auto-dimming.
+    #[serde(default)]
+    pub auto_dimming: bool,
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +31,8 @@ pub struct StatePatch {
     pub temperature_k: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ultrasonic_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_dimming: Option<bool>,
 }
 impl StatePatch {
     fn validate(&self, features: &Value) -> Result<Value, Fault> {

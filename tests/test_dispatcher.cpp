@@ -48,6 +48,29 @@ int main() {
     assert(std::strcmp(d.records[d.last].error, "DEADLINE_DURING_TX") == 0);
   }
   {
+    // Auto-dimming: turning it on uses the controller's button command 0x06,
+    // other patches keep it, and a manual brightness change ends it.
+    auto d = ready(); auto on = req(d, 1, 100, AUTO_DIM); on.patch.values.auto_dimming = true;
+    assert(d.admit(on, 100).http == 202 && d.desired.auto_dimming);
+    assert(d.begin_frame(101) == 0x06); d.complete_frame(SENT, 180);
+    assert(d.records[d.last].status == Status::Transmitted && d.records[d.last].planned == 1);
+    auto temperature = req(d, 2, 1000, TEMPERATURE); temperature.patch.values.temperature = 4000;
+    d.admit(temperature, 1000); assert(d.desired.auto_dimming && d.begin_frame(1001) == 0x03); d.complete_frame(SENT, 1080);
+    auto power = req(d, 3, 2000); d.admit(power, 2000); assert(d.desired.auto_dimming && d.begin_frame(2001) == 0x02);
+    d.complete_frame(SENT, 2080);
+    auto front = req(d, 4, 3000, FRONT); front.patch.values.front = 40;
+    d.admit(front, 3000); assert(!d.desired.auto_dimming && d.begin_frame(3001) == 0x03); d.complete_frame(SENT, 3080);
+    auto both = req(d, 5, 4000, BACK | AUTO_DIM); both.patch.values.back = 30; both.patch.values.auto_dimming = true;
+    d.admit(both, 4000); assert(d.desired.auto_dimming && d.begin_frame(4001) == 0x06); d.complete_frame(SENT, 4080);
+    auto off = req(d, 6, 5000, AUTO_DIM); off.patch.values.auto_dimming = false;
+    d.admit(off, 5000); assert(!d.desired.auto_dimming && d.begin_frame(5001) == 0x03); d.complete_frame(SENT, 5080);
+    // An observed remote auto-dimming change is a real target change.
+    auto remote = d.desired; remote.auto_dimming = true; const auto rev = d.revision;
+    d.observe(remote, 6000); assert(d.revision == rev + 1 && d.desired.auto_dimming);
+    d.supported = ALL & ~AUTO_DIM; auto refused = req(d, 7, 7000, AUTO_DIM);
+    assert(std::strcmp(d.admit(refused, 7000).error, "UNSUPPORTED_FEATURE") == 0);
+  }
+  {
     auto d = ready(); assert(d.begin_maintenance()); assert(!d.begin_maintenance());
     assert(std::strcmp(d.admit(req(d, 1, 100), 100).error, "BUSY") == 0); d.end_maintenance();
     auto r = req(d, 1, 100); r.patch.fields |= TEMPERATURE; r.patch.values.temperature = 3926; assert(d.admit(r, 100).http == 422);

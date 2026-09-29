@@ -67,6 +67,7 @@ HTTP handler 只驗證及登錄命令，RF 工作由主迴圈執行，不在網�
 ```
 
 - `power`、`ultrasonic_enabled` 是 boolean。
+- `auto_dimming`（boolean，選填）是 control byte 的 bit 1。較舊的韌體不送此欄位與其 `features` 標記，App 視為不支援。打開時以命令 `0x06` 送出（與原廠自動調光按鍵相同）；其他命令保留此位元；只改亮度而未指定 `auto_dimming` 的 patch 會把它關閉，與原廠控制器一致。
 - `mode` 為 `front | back | both`，不另提供可互相矛盾的 front/back 布林。
 - 兩路亮度是 1–100 的整數；0 不是關燈別名。
 - `temperature_k` 是 2700–6500、25 K 步進，套用到目前協定共用的前後燈色溫。

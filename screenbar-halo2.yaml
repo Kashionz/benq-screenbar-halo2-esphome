@@ -33,7 +33,7 @@ esphome:
               return halo2_protocol::TxResult{false,false,0,0,0,"RADIO_UNAVAILABLE",false};
             const bool ok=bm5602_halo2::send_halo_state(command,state.power,state.ultrasonic,
               state.mode!=halo2_protocol::Mode::Back,state.mode!=halo2_protocol::Mode::Front,
-              state.front,state.back,state.temperature);
+              state.front,state.back,state.temperature,state.auto_dimming);
             if(!bm5602_halo2::halo_last_tx_packet_engine)
               return halo2_protocol::TxResult{true,ok,0,0,0,"TX_TIMEOUT",false};
             const auto &tx=bm5602_halo2::halo_last_packet_result;
@@ -487,6 +487,11 @@ interval:
           static uint32_t last_publish=0;
           bm5602_halo2::HaloRxState s;
           const bool received=bm5602_halo2::poll_halo_receive(s)&&s.valid;
+          if(bm5602_halo2::rx_frame_trace.event){
+            // One line per capture, including frames the bridge cannot decode yet.
+            bm5602_halo2::rx_frame_trace.event=false;
+            ESP_LOGI("halo2", "HALO2 RX FRAME %s",bm5602_halo2::rx_frame_trace.line().c_str());
+          }
           if(bm5602_halo2::normal_rx_last_seed_votes){
             ESP_LOGI("halo2", "HALO2 CRC SEED CANDIDATE: %04X (%u/5)",
               bm5602_halo2::normal_rx_last_seed,bm5602_halo2::normal_rx_last_seed_votes);
@@ -540,7 +545,7 @@ interval:
           }
           if(received){
             halo2_protocol::LightState remote;
-            remote.power=s.power; remote.ultrasonic=s.pir;
+            remote.power=s.power; remote.ultrasonic=s.pir; remote.auto_dimming=s.auto_dim;
             remote.mode=s.front&&s.back?halo2_protocol::Mode::Both:s.back?halo2_protocol::Mode::Back:halo2_protocol::Mode::Front;
             remote.front=s.front_brightness; remote.back=s.back_brightness; remote.temperature=s.color_temperature;
             halo2_protocol::Patch check; check.fields=halo2_protocol::ALL; check.values=remote;

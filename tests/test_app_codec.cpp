@@ -11,11 +11,14 @@ int main(int argc, char **argv) {
   assert(!decode_request(command("{\"power\":true}"), r).error);
   assert(!decode_request(command("{\"mode\":\"back\",\"power\":true}"), r).error);
   assert(!decode_request(command("{\"power\":true,\"mode\":\"back\"}"), r2).error && r == r2);
+  assert(!decode_request(command("{\"auto_dimming\":true}"), r2).error &&
+         r2.patch.fields == AUTO_DIM && r2.patch.values.auto_dimming);
   for (const char *patch : {"{}", "null", "[]", "{\"power\":1}", "{\"power\":null}", "{\"front_brightness\":true}",
        "{\"unknown\":true}", "{\"power\":true,\"power\":false}", "{\"power\":true,\"powe\\u0072\":false}",
        "{\"power\":{\"bad\":true}}", "{\"power\":true,}", "{power:true}", "{\"power\\u0000extra\":true}",
        "{\"power\":True}", "{\"power\":true /* comment */}", "{\"front_brightness\":01}",
-       "{\"temperature_k\":3925.0}", "{\"temperature_k\":3.925e3}"}) {
+       "{\"temperature_k\":3925.0}", "{\"temperature_k\":3.925e3}", "{\"auto_dimming\":1}",
+       "{\"auto_dimming\":null}"}) {
     if (decode_request(command(patch), r).http != 400) { std::cerr << "Unexpected acceptance: " << patch << '\n'; return 1; }
   }
   for (const char *patch : {"{\"front_brightness\":0}", "{\"back_brightness\":101}", "{\"temperature_k\":3926}", "{\"mode\":\"none\"}"})

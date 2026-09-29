@@ -74,5 +74,18 @@ int main() {
   history.last={true,UINT32_MAX,UINT64_MAX,failed};
   const auto large=history.last.json();
   assert(large.size()<1024 && large.back()=='}');
+
+  // Passive-RX capture lines name the verdict and any undecoded control bits.
+  RxFrameTrace rx;
+  rx.verdict=RxFrameTrace::Verdict::Accepted; rx.length=14;
+  rx.frame={0x50,0x02,0x11,0x0C,0x0F,0x55,0x5B,0x0F,0x55,0x01,0x02,0xE9,0x62};
+  assert(rx.line()=="verdict=accepted len=14 CMD=02 CONTROL=11 UNKNOWN_BITS=00 "
+                    "frame=50 02 11 0C 0F 55 5B 0F 55 01 02 E9 62");
+  rx.verdict=RxFrameTrace::Verdict::Shape; rx.frame[1]=0x07; rx.frame[2]=0xD7;
+  assert(rx.line().find("verdict=shape len=14 CMD=07 CONTROL=D7 UNKNOWN_BITS=C6 ")==0);
+  rx.verdict=RxFrameTrace::Verdict::LampReply; rx.length=255; rx.frame.fill(255);
+  const auto widest=rx.line();
+  assert(widest.size()<128 && widest.find("verdict=lamp-reply len=255 ")==0 &&
+         widest.substr(widest.size()-2)=="FF");
   std::cout << "packet diagnostic retention tests passed\n";
 }

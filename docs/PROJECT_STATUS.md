@@ -143,6 +143,53 @@ was checked separately.
   capture settings or framing analysis.
 - A successful local TX status alone is not proof of a lamp state change. The
   bridge cannot independently confirm every web command through one radio.
+- Auto-dimming support is experimental. The switch from the App was confirmed
+  by the user on one pair (see below); longer-term behavior is not measured.
+
+## Auto-dimming (2026-09-29)
+
+Decoded from passive `HALO2 RX FRAME` captures (receive-only logging of every
+passive-RX frame with its verdict, command, control byte and undecoded bits;
+the frame starts at the PCF, so no pairing address is logged). The user
+pressed only the original controller's auto-dimming button four times, changed
+brightness once, then pressed it once more.
+
+| Field | Observation |
+| --- | --- |
+| Command `0x06` | Exactly one controller frame per auto-dimming press (five presses, five frames). Earlier firmware rejected it as `CMD > 0x05`. |
+| Control bit 1 (`0x02`) | Set while auto-dimming is on. A manual brightness change (`CMD=03`) cleared it; the next button press set it again. |
+| Brightness source | The lamp computes it: after a press, the lamp's reply carried the new level about 1.8 s before the controller did. While on, the awake controller relays the level about once per second with `CMD=04`. |
+| Turning off | The button has no off action; the user reported the lamp changes briefly and then returns on each press. Only a manual brightness change ends it. |
+
+Implementation:
+
+- The protocol has an optional `auto_dimming` state field and patch key, with
+  its own `features` flag. Firmware that predates it omits both; the App then
+  hides the switch.
+- Turning it on sends command `0x06` with bit 1 set, like the button. Other
+  commands keep bit 1, so they no longer switch auto-dimming off. A brightness
+  patch without `auto_dimming` clears it, like the original controller.
+- Passive RX accepts command `0x06` and reads bit 1 into the observed state.
+
+Hardware results on the learned `B0 1E E8 E6` pair:
+
+- The user confirmed that turning auto-dimming on from the App worked.
+- In a follow-up run the user clicked brightness ten times with the lamp in
+  manual mode, then did five rounds of "enable auto-dimming, then set a
+  brightness". The user saw every change; all 39 bridge frames reported
+  `TX_DS` (`IRQ=2E`, no logic recovery). This includes the first frame after
+  each auto-dimming period, so "leaving auto-dimming fails" was not
+  reproduced.
+- Earlier the same evening 12 of 27 frames failed with the known `MAX_RT`
+  signature (`IRQ=1E`, about 11 ms, residual FIFO `01`) in two runs of nine
+  and three. Those log lines did not record the command, so they cannot be
+  tied to a command type. See `docs/RF_STABILITY.md`.
+
+Still unverified: how the lamp handles auto-dimming together with the
+ultrasonic mode, behavior after long idle, and any pair other than
+`B0 1E E8 E6`. Controller wake frames (`CMD=00`, and `CMD=05` with a clear
+power bit) are still accepted as remote state and briefly report the lamp as
+off; that is unchanged here.
 
 ## Validation before publishing
 
