@@ -29,7 +29,7 @@ cargo test --locked -p halo2-bridge-core -p halo2-app-support
 
 ```sh
 npm run tauri build -- --debug --bundles app
-open "target/debug/bundle/macos/Halo 2 Control.app"
+open "target/debug/bundle/macos/HaloDesk.app"
 ```
 
 這是從原始碼在自己的 Mac 建置的測試版，尚未代表 Developer ID 簽章、公證或對外發行。登入橋接器 `192.168.0.99:8080`，使用橋接器既有網頁帳密。macOS 若詢問區域網路權限，允許此 App 連線。
@@ -40,7 +40,7 @@ open "target/debug/bundle/macos/Halo 2 Control.app"
 
 ```sh
 npm run tauri ios init
-npm run tauri icon -- app-icon.svg --ios-color '#294a3e'
+npm run tauri icon -- app-icon.svg --ios-color '#e9ebef'
 npm run tauri ios dev -- --open
 ```
 
@@ -68,7 +68,7 @@ npm run tauri ios dev -- --open
 
 回報格式：裝置／OS 版本、提交 SHA、測試項目、實際燈光結果、App 顯示訊息。若失敗，附診斷 JSON；不要附帳密、憑證或原始 secrets.yaml。
 
-iOS 匯出寫入 App 文件目錄；已透過 iOS 專用 Info.plist 啟用文件取用。匯出後到「檔案」→「我的 iPhone」→「Halo 2 Control」→「Halo2Control」取出 JSON，確認可以開啟後才勾選通過。連線設定與內部歷史仍存放 Application Support，密碼存於 Keychain。此取用路徑仍待實機確認。
+iOS 匯出寫入 App 文件目錄；已透過 iOS 專用 Info.plist 啟用文件取用。匯出後到「檔案」→「我的 iPhone」→「HaloDesk」→「HaloDesk」取出 JSON，確認可以開啟後才勾選通過。連線設定與內部歷史仍存放 Application Support，密碼存於 Keychain。此取用路徑仍待實機確認。
 
 文件取用依據 [Apple 文件提供者設定](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/LaunchServicesKeys.html#//apple_ref/doc/uid/20001431-102364)。CI 僅驗證編譯與自動測試，Keychain 存取與 LAN 權限必須在實機驗收。
 
@@ -86,4 +86,4 @@ iOS 匯出寫入 App 文件目錄；已透過 iOS 專用 Info.plist 啟用文件
 
 在未連線畫面按「搜尋區域網路橋接器」，約 5 秒後應顯示候選或空結果提示。候選未經認證，選取不會套用保存帳密；請明確登入。Mac／iPhone 均使用系統 Bonjour，權限提示需由使用者操作。
 
-若 App 找不到，可在 Mac Terminal 執行 `dns-sd -B _halo2-bridge._tcp local.`，觀察約 10 秒後按 Control-C 結束。這只瀏覽服務，不傳帳密或控制燈具。記錄是否出現 `screenbar-halo2`，以協助區分 App 與網路 multicast 問題；Windows 目前的 multicast 搜尋尚無結果，不能推定 Mac／iPhone 也相同。
+若 App 找不到，可在 Mac Terminal 執行 `dns-sd -B _halo2-bridge._tcp local.`，觀察約 10 秒後按 Control-C 結束。這只瀏覽服務，不傳帳密或控制掛燈。記錄是否出現 `screenbar-halo2`，以協助區分 App 與網路 multicast 問題；Windows 目前的 multicast 搜尋尚無結果，不能推定 Mac／iPhone 也相同。

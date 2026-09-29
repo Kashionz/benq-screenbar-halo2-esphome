@@ -152,7 +152,7 @@ fn fault(code: i32) -> Fault {
     if code == -65570 {
         Fault::new(
             "DISCOVERY_PERMISSION",
-            "區域網路搜尋權限遭拒；請在系統設定允許 Halo 2 Control 存取區域網路。",
+            "區域網路搜尋權限遭拒；請在系統設定允許 HaloDesk 存取區域網路。",
         )
     } else {
         unavailable()

@@ -11,8 +11,8 @@ export interface ConnectionFields {
 }
 
 /**
- * First-connection flow: saved profile, LAN search and manual entry. Nothing
- * here connects on its own; only 「連線」 or 「使用已保存帳密連線」 does.
+ * First-connection flow: saved profile, LAN search and login. Nothing here
+ * connects on its own; only 「連線」 or 「使用已保存帳密連線」 does.
  */
 export function ConnectPage({
   native,
@@ -48,55 +48,64 @@ export function ConnectPage({
   pick: (candidate: DiscoveredBridge) => void;
 }) {
   const [searching, setSearching] = useState(false);
-  const field = (
-    label: string,
-    input: React.InputHTMLAttributes<HTMLInputElement>,
-  ) => (
+  const store = CREDENTIAL_STORE[platform];
+  const field = (label: string, input: React.InputHTMLAttributes<HTMLInputElement>) => (
     <label className="field">
       <span className="field-label">{label}</span>
       <input {...input} disabled={busy} required />
     </label>
   );
   return (
-    <div className="setup">
+    <form className="setup" onSubmit={submit}>
+      <div className="setup-head">
+        <h1 className="page-title">連接掛燈</h1>
+      </div>
       {!native && (
         <p role="alert" className="notice">
-          請在 Tauri 桌面或手機 App 中開啟；瀏覽器預覽不會連接燈具。
+          請在 Tauri 桌面或手機 App 中開啟；瀏覽器預覽不會連接掛燈。
         </p>
       )}
-      <div>
-        <h1 className="page-title">連線橋接器</h1>
-        <p className="page-subtitle">本機連線，不經雲端。</p>
-      </div>
-      {saved && (
-        <section aria-label="已保存">
-          <div className="group-label">已保存</div>
-          <div className="group">
-            <div className="kv saved-address">
-              <span>{saved.host}:{saved.port}</span>
+      <div className="setup-col">
+        {saved && (
+          <section aria-label="已保存">
+            <div className="group-label">已保存</div>
+            <div className="glass">
+              <div className="action-row">
+                <div className="action-text">
+                  <div className="action-title mono">{saved.host}:{saved.port}</div>
+                  <div className="action-desc">密碼存於 {store}。</div>
+                </div>
+                <button type="button" className="pill-button" disabled={busy || searching || !native}
+                  onClick={useSaved}>
+                  使用已保存帳密連線
+                </button>
+              </div>
+              <div className="action-row">
+                <div className="action-text">
+                  <div className="action-title">忘記已保存連線</div>
+                  <div className="action-desc">移除保存的位址、帳號與密碼。</div>
+                </div>
+                <button type="button" className="pill-button danger" disabled={busy}
+                  aria-label="忘記已保存連線" onClick={forget}>
+                  忘記
+                </button>
+              </div>
             </div>
-            <button type="button" className="list-button" disabled={busy || searching || !native}
-              onClick={useSaved}>
-              使用已保存帳密連線
-            </button>
-            <button type="button" className="list-button danger" disabled={busy} onClick={forget}>
-              忘記已保存連線
-            </button>
-          </div>
-        </section>
-      )}
-      <DiscoveryPanel
-        disabled={busy || !native}
-        dimmed={busy}
-        current={`${fields.host}:${fields.port}`}
-        platform={platform}
-        onSearching={setSearching}
-        select={pick}
-      />
-      <form className="setup-form" onSubmit={submit}>
-        <section aria-label="手動輸入">
-          <div className="group-label">手動輸入</div>
-          <div className="group">
+          </section>
+        )}
+        <DiscoveryPanel
+          disabled={busy || !native}
+          dimmed={busy}
+          current={`${fields.host}:${fields.port}`}
+          platform={platform}
+          onSearching={setSearching}
+          select={pick}
+        />
+      </div>
+      <section aria-label="登入" className="setup-col">
+        <div>
+          <div className="group-label">登入</div>
+          <div className="glass">
             {field("主機", {
               value: fields.host,
               onChange: (e) => edit({ host: e.target.value }),
@@ -127,36 +136,45 @@ export function ConnectPage({
               placeholder: "必填",
               autoComplete: "current-password",
             })}
-            <button type="button" role="switch" aria-checked={remember} className="list-button switch-row"
+            <button type="button" role="switch" aria-checked={remember} className="switch-row"
+              aria-labelledby="remember-title" aria-describedby="remember-desc"
               disabled={busy} onClick={() => setRemember(!remember)}>
-              <span>記住此連線與帳密</span>
+              <span className="action-text">
+                <span id="remember-title" className="action-title">記住此連線與帳密</span>
+                <span id="remember-desc" className="action-desc" style={{ display: "block" }}>
+                  密碼存於 {store}。
+                </span>
+              </span>
               <span className={`switch${remember ? " on" : ""}`} aria-hidden="true">
-                <span className="knob-small" />
+                <span />
               </span>
             </button>
           </div>
-          <p className="group-note">密碼存於{CREDENTIAL_STORE[platform]}</p>
-        </section>
-        <button type="submit" className="connect-button" disabled={busy || searching || !native}>
-          {busy && <span className="spinner light" aria-hidden="true" />}
-          {busy ? "連線中…" : "連線"}
-        </button>
-      </form>
-      {fault && (
-        <p role="alert" className="form-error">
-          {fault.message}
-        </p>
+        </div>
+      </section>
+      <button type="submit" className="connect-button" disabled={busy || searching || !native}>
+        {busy && <span className="spinner light" aria-hidden="true" />}
+        {busy ? "連線中…" : "連線"}
+      </button>
+      {(fault || settingsMessage || retryForget) && (
+        <div className="setup-messages">
+          {fault && (
+            <p role="alert" className="form-error">
+              {fault.message}
+            </p>
+          )}
+          {settingsMessage && (
+            <p role="status" className="group-note">
+              {settingsMessage}
+            </p>
+          )}
+          {retryForget && (
+            <button type="button" className="text-button" disabled={busy} onClick={forget}>
+              重試移除保存資料
+            </button>
+          )}
+        </div>
       )}
-      {settingsMessage && (
-        <p role="status" className="group-note tight">
-          {settingsMessage}
-        </p>
-      )}
-      {retryForget && (
-        <button type="button" className="text-button" disabled={busy} onClick={forget}>
-          重試移除保存資料
-        </button>
-      )}
-    </div>
+    </form>
   );
 }

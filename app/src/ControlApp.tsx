@@ -11,23 +11,29 @@ import {
 import "./halo.css";
 import { LightControls } from "./LightControls";
 import { LampPreview } from "./LampPreview";
-import { Banner, RecentCommand, TargetList, type BannerSpec } from "./StatusCards";
+import { PresetsPanel } from "./PresetsPanel";
+import { Banner, ConnectionStatus, type BannerSpec } from "./StatusCards";
 import {
+  LIGHT_KEYS,
   commandFeedback,
+  type Feedback,
   lockReason,
   pendingDraft,
-  previewValues,
-  sourceLabel,
+  stageDraft,
   type Draft,
-  type LightPatch,
-  type Tone,
+  type LightKey,
 } from "./controlState";
-import { DevicePage } from "./DevicePage";
+import { SettingsPage } from "./SettingsPage";
 import { useFlyoutHost } from "./useFlyoutHost";
-import { OFFLINE_FEEDBACK } from "./flyout";
 import { ConnectPage } from "./ConnectPage";
 import { detectPlatform } from "./platform";
-import { useCompact } from "./useCompact";
+import { PHONE_QUERY, SINGLE_COLUMN_QUERY, useMedia } from "./useCompact";
+import { loadTheme, saveTheme, useDocumentTheme, useResolvedTheme, type ThemePref } from "./theme";
+
+// The bridge accepts one command per 500 ms; keep a small margin.
+const LIVE_INTERVAL_MS = 550;
+type Outcome = "transmitted" | "not_transmitted" | "unknown" | "skipped";
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function App() {
   const [host, setHost] = useState("screenbar-halo2.local");
@@ -45,21 +51,50 @@ export default function App() {
   const [networkFault, setNetworkFault] = useState<Fault | null>(null);
   const [result, setResult] = useState<CommandRecord | null>(null);
   const [updated, setUpdated] = useState("");
-  const [draft, setDraft] = useState<Draft>({});
-  const [panel, setPanel] = useState<"main" | "device">("main");
-  const [sending, setSending] = useState(false);
+  // draft: values the user changed that have not been sent yet.
+  // sent: values transmitted but not yet confirmed by the next state read.
+  const [draft, setDraftState] = useState<Draft>({});
+  const [sent, setSentState] = useState<Draft>({});
+  const [panel, setPanel] = useState<"main" | "settings">("main");
+  const [sending, setSending] = useState<null | "power" | "light">(null);
   const [action, setAction] = useState("");
   const [rebooted, setRebooted] = useState(false);
   const [storeError, setStoreError] = useState(false);
+  // A transmitted power command is confirmed next to the button for a moment.
+  const [flash, setFlash] = useState<string | null>(null);
   const generation = useRef(0);
   const refreshing = useRef<Promise<Snapshot | null> | null>(null);
   const commanding = useRef(false);
   const connectionEdited = useRef(false);
   const lastBoot = useRef<string | null>(null);
-  const ownCommands = useRef(new Set<string>());
+  const draftRef = useRef<Draft>({});
+  const sentRef = useRef<Draft>({});
+  const snapshotRef = useRef<Snapshot | null>(null);
+  const lockRef = useRef<string | null>(null);
+  const pumping = useRef(false);
+  const lastSend = useRef(0);
+  const inflight = useRef<Promise<Outcome> | null>(null);
+  const lastOutcome = useRef<Outcome | null>(null);
+  const powerRequested = useRef(false);
+  const setDraft = useCallback((next: Draft) => {
+    draftRef.current = next;
+    setDraftState(next);
+  }, []);
+  const setSent = useCallback((next: Draft) => {
+    sentRef.current = next;
+    setSentState(next);
+  }, []);
   const native = isTauri();
-  const compact = useCompact();
+  const single = useMedia(SINGLE_COLUMN_QUERY);
+  const phone = useMedia(PHONE_QUERY);
   const platform = detectPlatform();
+  const [themePref, setThemePref] = useState<ThemePref>(loadTheme);
+  const theme = useResolvedTheme(themePref);
+  useDocumentTheme(theme);
+  useEffect(() => {
+    // The native title bar follows the App theme; the tray gets it published.
+    if (native) void bridge.windowTheme(theme === "dark").catch(() => {});
+  }, [native, theme]);
   useEffect(() => {
     if (!native) return;
     let cancelled = false;
@@ -91,6 +126,8 @@ export default function App() {
       setDraft({});
     }
     lastBoot.current = next.boot_id;
+    // A fresh read replaces values we were only assuming after transmission.
+    setSent({});
     setResult((current) => current?.boot_id === next.boot_id ? current : null);
     setSnapshot((current) =>
       current &&
@@ -102,7 +139,7 @@ export default function App() {
     setOnline(true);
     setNetworkFault(null);
     setUpdated(new Date().toLocaleTimeString("zh-TW", { hour12: false }));
-  }, []);
+  }, [setDraft, setSent]);
   const refresh = useCallback(() => {
     if (commanding.current) return Promise.resolve(null);
     if (refreshing.current) return refreshing.current;
@@ -131,14 +168,16 @@ export default function App() {
       if (!document.hidden) void refresh();
     }, 2000);
     const resume = () => {
-      if (!document.hidden) void refresh();
+      // Unsent adjustments never survive a trip to the background.
+      if (document.hidden) setDraft({});
+      else void refresh();
     };
     document.addEventListener("visibilitychange", resume);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
     };
-  }, [connected, refresh]);
+  }, [connected, refresh, setDraft]);
   async function connect(event: React.FormEvent) {
     event.preventDefault();
     await establish(
@@ -156,6 +195,7 @@ export default function App() {
       const next = await load();
       if (token !== generation.current) return;
       lastBoot.current = null;
+      lastOutcome.current = null;
       setRebooted(false);
       setDraft({});
       accept(next);
@@ -218,44 +258,137 @@ export default function App() {
       setBusy(false);
     }
   }
-  function power(value: boolean) {
-    return command(value ? "開燈" : "關燈", () =>
-      bridge.power(snapshot!.device_id, value),
-    );
+  /**
+   * One explicit power command. If a live lighting command is still in flight
+   * the press waits for it (live sending pauses meanwhile) and is dropped if
+   * that command's outcome is unknown. A press while power itself is in flight
+   * is ignored.
+   */
+  async function power(value: boolean) {
+    const device = snapshotRef.current?.device_id;
+    if (!device || powerRequested.current) return false;
+    powerRequested.current = true;
+    try {
+      while (commanding.current && inflight.current) await inflight.current;
+      if (lastOutcome.current === "unknown" || lockRef.current || snapshotRef.current?.device_id !== device)
+        return false;
+      const outcome = await command("power", value ? "開燈" : "關燈", () =>
+        bridge.power(device, value),
+      );
+      return outcome === "transmitted";
+    } finally {
+      powerRequested.current = false;
+    }
   }
-  function light(patch: LightPatch) {
-    return command("套用燈光設定", () =>
-      bridge.setState(snapshot!.device_id, patch),
-    );
+  /**
+   * Stage user-changed lighting values and send them live. Returns false when
+   * controls are locked. Only direct user input reaches this function.
+   */
+  function adjust(patch: Draft) {
+    const current = snapshotRef.current;
+    if (!current || lockRef.current) return false;
+    const base = { ...current.desired.values, ...sentRef.current };
+    let next = draftRef.current;
+    for (const key of LIGHT_KEYS)
+      if (patch[key] !== undefined) next = stageDraft(next, base, key, patch[key] as never);
+    setDraft(next);
+    void pump();
+    return true;
   }
-  async function command(label: string, send: () => Promise<CommandRecord>) {
-    if (!snapshot || commanding.current) return false;
+  /**
+   * Send the latest unsent values, one command at a time and at most every
+   * LIVE_INTERVAL_MS. Intermediate values are dropped, never queued. Values
+   * that were attempted are removed whatever the outcome, so nothing is
+   * retried, replayed or sent to "correct" a later change from elsewhere.
+   */
+  async function pump() {
+    if (pumping.current) return;
+    pumping.current = true;
+    try {
+      for (;;) {
+        const current = snapshotRef.current;
+        if (!current || lockRef.current) {
+          setDraft({});
+          return;
+        }
+        if (commanding.current || powerRequested.current) return;
+        const base = { ...current.desired.values, ...sentRef.current };
+        const pending = pendingDraft(draftRef.current, base);
+        const keys = Object.keys(pending) as LightKey[];
+        if (!keys.length) {
+          if (Object.keys(draftRef.current).length) setDraft({});
+          return;
+        }
+        const wait = lastSend.current + LIVE_INTERVAL_MS - Date.now();
+        if (wait > 0) {
+          await sleep(wait);
+          continue;
+        }
+        lastSend.current = Date.now();
+        const outcome = await command("light", "調整燈光", async () => {
+          const record = await bridge.setState(current.device_id, pending);
+          // Mark before command() starts its follow-up read, so that read
+          // replaces the assumption instead of racing it.
+          if (record.status === "transmitted") setSent({ ...sentRef.current, ...pending });
+          return record;
+        });
+        const remaining = { ...draftRef.current };
+        for (const key of keys) if (remaining[key] === pending[key]) delete remaining[key];
+        setDraft(remaining);
+        if (outcome === "unknown" || outcome === "skipped") {
+          setDraft({});
+          return;
+        }
+      }
+    } finally {
+      pumping.current = false;
+    }
+  }
+  function command(
+    kind: "power" | "light",
+    label: string,
+    send: () => Promise<CommandRecord>,
+  ): Promise<Outcome> {
+    if (!snapshotRef.current || commanding.current) return Promise.resolve("skipped");
+    const run = transmit(kind, label, send).then((outcome) => {
+      lastOutcome.current = outcome;
+      return outcome;
+    });
+    inflight.current = run;
+    return run;
+  }
+  async function transmit(
+    kind: "power" | "light",
+    label: string,
+    send: () => Promise<CommandRecord>,
+  ): Promise<Outcome> {
     const token = generation.current;
     commanding.current = true;
-    setBusy(true);
-    setSending(true);
+    // Power locks every control; live lighting keeps the sliders usable and
+    // coalesces further input until this command finishes.
+    if (kind === "power") setBusy(true);
+    setSending(kind);
     setAction(label);
     setFault(null);
     setResult(null);
     try {
       // Finish an already-started read before acquiring the native session for
       // this explicit command. Never retry a POST or poll during transmission.
-      if (refreshing.current && !(await refreshing.current)) return false;
-      if (token !== generation.current) return false;
+      if (refreshing.current && !(await refreshing.current)) return "skipped";
+      if (token !== generation.current) return "skipped";
       const next = await send();
-      if (token === generation.current) {
-        ownCommands.current.add(next.command_id);
-        setResult(next);
-      }
-      return token === generation.current && next.status === "transmitted";
+      if (token !== generation.current) return "skipped";
+      setResult(next);
+      return next.status === "transmitted" ? "transmitted" : "not_transmitted";
     } catch (e) {
-      if (token === generation.current) setFault(failure(e));
-      return false;
+      if (token !== generation.current) return "skipped";
+      setFault(failure(e));
+      return failure(e).code === "UNKNOWN_OUTCOME" ? "unknown" : "not_transmitted";
     } finally {
       commanding.current = false;
-      setSending(false);
+      setSending(null);
       if (token === generation.current) {
-        setBusy(false);
+        if (kind === "power") setBusy(false);
         void refresh();
       }
     }
@@ -266,9 +399,9 @@ export default function App() {
     try {
       const next = await bridge.lookup();
       if (token === generation.current && next) {
-        ownCommands.current.add(next.command_id);
         setResult(next);
         setFault(null);
+        lastOutcome.current = null;
       }
     } catch (e) {
       if (token === generation.current) setFault(failure(e));
@@ -277,35 +410,53 @@ export default function App() {
     }
   }
   const lock = lockReason({ online, snapshot, busy, fault });
-  const badge: { tone: Tone; text: string } = !connected
-    ? busy
-      ? { tone: "pending", text: "連線中" }
-      : { tone: "idle", text: "未連線" }
-    : online
-      ? { tone: "ok", text: "已連線" }
-      : { tone: "warn", text: "已斷線 · 重試中" };
-  const feedback = commandFeedback({ online, commanding: sending, action, result, fault });
+  snapshotRef.current = snapshot;
+  lockRef.current = lock;
+  useEffect(() => {
+    // Any lock drops unsent values so they are never sent later.
+    if (lock) {
+      setDraft({});
+      setSent({});
+    }
+  }, [lock, setDraft, setSent]);
+  const desiredValues = snapshot?.desired.values ?? null;
+  const shown = desiredValues ? { ...desiredValues, ...sent, ...draft } : null;
+  const adjusting = desiredValues
+    ? LIGHT_KEYS.filter((key) => shown![key] !== desiredValues[key])
+    : [];
+  const feedback = commandFeedback({ online, commanding: sending !== null, action, result, fault });
+  useEffect(() => {
+    if (result?.status !== "transmitted" || action === "調整燈光") return;
+    setFlash(result.command_id);
+    const timer = window.setTimeout(() => setFlash(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [result, action]);
+  // Status shown beside the power button instead of a separate card or banner.
+  // Live lighting only reports problems; the sliders already show the values.
+  let powerStatus: Feedback | null = null;
+  if (sending === "power") powerStatus = feedback;
+  else if (!sending && (feedback.tone === "err" || feedback.tone === "warn")) powerStatus = feedback;
+  else if (!sending && feedback.tone === "ok" && result && flash === result.command_id)
+    powerStatus = { ...feedback, body: "請以實際燈光為準" };
   useFlyoutHost(
     native,
     {
       connected,
       online,
-      badge,
       lock,
-      desired: snapshot?.desired.values ?? null,
+      desired: desiredValues,
+      values: shown,
+      adjusting,
+      sending: sending !== null,
       features: snapshot?.features ?? {},
-      feedback: connected ? feedback : OFFLINE_FEEDBACK,
+      status: connected ? powerStatus : null,
       updated,
+      theme,
     },
     {
       lock,
       power,
-      apply: async (patch) => {
-        if (!snapshot) return false;
-        // Only fields that still differ from the latest target are sent.
-        const pending = pendingDraft(patch, snapshot.desired.values);
-        return Object.keys(pending).length ? light(pending) : true;
-      },
+      adjust,
       sync: () => {
         if (connected) void refresh();
       },
@@ -320,6 +471,12 @@ export default function App() {
         body: `最後同步 ${updated}。不會重送先前的操作。`,
         action: { label: "立即重試", run: () => void refresh() },
       };
+    else if (lock === "無線模組未就緒")
+      banner = {
+        tone: "warn",
+        title: "無線模組未就緒",
+        body: "控制已暫停，模組就緒後即可操作。",
+      };
     else if (lock === "結果不明，請先查詢")
       banner = {
         tone: "warn",
@@ -327,32 +484,33 @@ export default function App() {
         body: `請先查詢「${action || "上一筆命令"}」的結果。`,
         action: { label: "查詢命令結果", run: () => void lookup(), disabled: busy },
       };
-    else if (lock === "處理中") banner = { tone: "info", title: "處理中", body: "" };
     else if (rebooted)
       banner = {
         tone: "info",
-        title: "橋接器已重新開機",
+        title: "裝置已重新開機",
         body: "已重新同步，先前的命令結果無法查詢。",
         action: { label: "知道了", run: () => setRebooted(false) },
       };
   }
   const header = (
     <header className="app-header">
-      {connected && panel === "device" && (
-        <button type="button" className="back" onClick={() => setPanel("main")}>
-          ‹ 燈光
+      {connected && panel === "settings" ? (
+        <button type="button" className="header-pill back" onClick={() => setPanel("main")}>
+          <span className="chevron" aria-hidden="true">‹</span>
+          燈光
         </button>
+      ) : (
+        <span />
       )}
-      <div className="app-title">{connected && panel === "device" ? "裝置與診斷" : "Halo 2 Control"}</div>
-      <span className={`badge tone-${badge.tone}`}>
-        <span className="dot" />
-        {badge.text}
-      </span>
-      <div className="spacer" />
-      {connected && panel === "main" && (
-        <button type="button" className="header-pill" onClick={() => setPanel("device")}>
-          裝置與診斷 ›
+      <div className="app-title">
+        {!connected ? "HaloDesk" : panel === "settings" ? "設定" : "ScreenBar Halo 2"}
+      </div>
+      {connected && panel === "main" ? (
+        <button type="button" className="header-pill" onClick={() => setPanel("settings")}>
+          設定
         </button>
+      ) : (
+        <span />
       )}
     </header>
   );
@@ -388,16 +546,19 @@ export default function App() {
         }}
       />
     );
-  } else if (panel === "device") {
+  } else if (panel === "settings") {
     body = (
-      <DevicePage
+      <SettingsPage
+        compact={phone}
+        native={native}
+        platform={platform}
         snapshot={snapshot}
         address={`${host}:${port}`}
+        online={online}
         updated={updated}
         busy={busy}
         saved={saved}
         settingsMessage={settingsMessage}
-        native={native}
         raw={{
           device_id: snapshot?.device_id,
           boot_id: snapshot?.boot_id,
@@ -406,74 +567,52 @@ export default function App() {
           last_command: result ?? snapshot?.last_command,
           error: fault ?? networkFault,
         }}
+        theme={themePref}
+        setTheme={(next) => {
+          setThemePref(next);
+          saveTheme(next);
+        }}
         refresh={() => void refresh()}
         disconnect={() => void disconnect()}
         forget={() => void forget()}
       />
     );
   } else if (snapshot) {
-    const desired = snapshot.desired.values;
     const preview = (
       <LampPreview
         key="preview"
-        power={desired.power}
-        preview={previewValues(desired, draft)}
-        drafted={Object.keys(pendingDraft(draft, desired)).length > 0}
+        power={snapshot.desired.values.power}
+        preview={shown!}
         online={online}
-      />
-    );
-    const lights = (
-      <LightControls
-        key="lights"
-        snapshot={snapshot}
-        draft={draft}
-        setDraft={setDraft}
         lock={lock}
-        power={(value) => void power(value)}
-        apply={(patch) =>
-          void light(patch).then((transmitted) => {
-            if (transmitted) setDraft({});
-          })
-        }
+        powerPending={sending === "power"}
+        status={powerStatus}
+        onPower={(value) => void power(value)}
       />
     );
-    const target = (
-      <TargetList
-        key="target"
-        snapshot={snapshot}
-        online={online}
-        updated={updated}
-        source={sourceLabel(snapshot.desired, ownCommands.current)}
-      />
+    const lights = <LightControls key="lights" snapshot={snapshot} values={shown!} lock={lock} adjust={adjust} />;
+    const presets = (
+      <PresetsPanel key="presets" values={shown!} disabled={lock !== null} select={(values) => adjust({ ...values })} />
     );
-    const recent = (
-      <RecentCommand
-        key="recent"
-        feedback={feedback}
-        snapshot={snapshot}
-        lookup={() => void lookup()}
-        lookupDisabled={busy}
-      />
-    );
-    body = compact ? (
-      // Phone order: preview → lights → target → recent command.
-      <div className="main-grid compact">{[preview, lights, target, recent]}</div>
+    body = single ? (
+      // Phone order: preview → lights → presets.
+      <div className="main-grid single">{[preview, lights, presets]}</div>
     ) : (
       <div className="main-grid">
-        <div className="column left">{[preview, target, recent]}</div>
+        <div className="column left">{[preview, presets]}</div>
         <div className="column right">{lights}</div>
       </div>
     );
   }
   return (
-    <div className="app">
+    <div className={`app${phone ? " compact" : ""}`}>
       {header}
       <main className="content">
         {banner && <Banner banner={banner} />}
         {body}
         <footer className="app-footer">
-          <span>LOCAL CONNECTION · NO CLOUD</span>
-          <span>非 BenQ 官方軟體 · 開發版 0.1.0</span>
+          <ConnectionStatus connected={connected} online={online} updated={updated} />
+          <span>開發版 0.1.0</span>
         </footer>
       </main>
     </div>

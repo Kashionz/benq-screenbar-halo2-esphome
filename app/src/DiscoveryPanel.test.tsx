@@ -14,7 +14,7 @@ it("keeps empty results and permission errors actionable with manual fallback", 
   render(<DiscoveryPanel disabled={false} platform="windows" select={vi.fn()} />);
   const user = userEvent.setup();
   await user.click(screen.getByRole("button"));
-  await screen.findByText("找不到橋接器，可直接輸入 IP。 若曾拒絕防火牆提示，請到「Windows 安全性」允許。");
+  await screen.findByText("找不到裝置，可直接輸入 IP。 若曾拒絕防火牆提示，請到「Windows 安全性」允許。");
   await user.click(screen.getByRole("button"));
   await screen.findByText("請允許區域網路權限");
 });
@@ -39,6 +39,7 @@ it("reports searching, shows a spinner label and marks the chosen address", asyn
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "搜尋區域網路" }));
   expect(screen.getByRole("button", { name: "搜尋中…約 5 秒" })).toBeDisabled();
+  expect(screen.getByText("搜尋中…約 5 秒")).toBeInTheDocument();
   expect(onSearching).toHaveBeenLastCalledWith(true);
   await act(async () => finish([{ name: "Desk", host: "desk.local", port: 8080 }]));
   expect(onSearching).toHaveBeenLastCalledWith(false);
@@ -48,5 +49,7 @@ it("reports searching, shows a spinner label and marks the chosen address", asyn
   expect(select).toHaveBeenCalledExactlyOnceWith({ name: "Desk", host: "desk.local", port: 8080 });
   expect(screen.getByText("已填入，請輸入密碼。")).toBeInTheDocument();
   view.rerender(<DiscoveryPanel disabled={false} platform="macos" current="desk.local:8080" select={select} />);
-  expect(screen.getByRole("button", { name: "選取 Desk desk.local:8080" })).toHaveAttribute("aria-pressed", "true");
+  const picked = screen.getByRole("button", { name: "選取 Desk desk.local:8080" });
+  expect(picked).toHaveAttribute("aria-pressed", "true");
+  expect(picked).toHaveTextContent("✓");
 });

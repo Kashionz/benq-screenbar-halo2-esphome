@@ -9,12 +9,15 @@ vi.mock("./bridge", () => ({
 const state: FlyoutState = {
   connected: true,
   online: true,
-  badge: { tone: "ok", text: "已連線" },
   lock: null,
   desired: null,
+  values: null,
+  adjusting: [],
+  sending: false,
   features: {},
-  feedback: { tone: "idle", title: "就緒", body: "", lookup: false },
+  status: null,
   updated: "",
+  theme: "light",
 };
 let intent!: (payload: unknown) => Promise<void> | void;
 let shown!: () => void;
@@ -39,7 +42,7 @@ afterEach(() => {
 const handlers = (overrides: Partial<FlyoutHandlers> = {}): FlyoutHandlers => ({
   lock: null,
   power: vi.fn(async () => true),
-  apply: vi.fn(async () => true),
+  adjust: vi.fn(() => true),
   sync: vi.fn(),
   ...overrides,
 });
@@ -65,16 +68,27 @@ it("runs one explicit power command per intent and acknowledges the outcome", as
   expect(h.power).toHaveBeenCalledExactlyOnceWith(false);
   expect(flyout.ack).toHaveBeenCalledExactlyOnceWith({ id: "p", done: false });
 });
+it("passes power and live adjustments to the main window's guarded handlers", async () => {
+  const h = handlers();
+  renderHook(() => useFlyoutHost(true, { ...state, sending: true }, h));
+  await waitFor(() => expect(flyout.onIntent).toHaveBeenCalled());
+  await act(async () => intent({ id: "p", kind: "power", value: true }));
+  await act(async () => intent({ id: "a", kind: "adjust", patch: { back_brightness: 55 } }));
+  expect(h.power).toHaveBeenCalledExactlyOnceWith(true);
+  expect(h.adjust).toHaveBeenCalledExactlyOnceWith({ back_brightness: 55 });
+  expect(flyout.ack).toHaveBeenCalledWith({ id: "p", done: true });
+  expect(flyout.ack).toHaveBeenCalledWith({ id: "a", done: true });
+});
 it("refuses intents while locked and ignores malformed ones", async () => {
   const h = handlers({ lock: "結果不明，請先查詢" });
   renderHook(() => useFlyoutHost(true, { ...state, lock: "結果不明，請先查詢" }, h));
   await waitFor(() => expect(flyout.onIntent).toHaveBeenCalled());
   await act(async () => intent({ id: "p", kind: "power", value: true }));
-  await act(async () => intent({ id: "a", kind: "apply", patch: { front_brightness: 40 } }));
+  await act(async () => intent({ id: "a", kind: "adjust", patch: { front_brightness: 40 } }));
   await act(async () => intent({ id: "t", kind: "toggle" }));
-  await act(async () => intent({ id: "x", kind: "apply", patch: { power: true } }));
+  await act(async () => intent({ id: "x", kind: "adjust", patch: { power: true } }));
   expect(h.power).not.toHaveBeenCalled();
-  expect(h.apply).not.toHaveBeenCalled();
+  expect(h.adjust).not.toHaveBeenCalled();
   expect(flyout.ack).toHaveBeenCalledTimes(2);
   expect(flyout.ack).toHaveBeenCalledWith({ id: "p", done: false });
   expect(flyout.ack).toHaveBeenCalledWith({ id: "a", done: false });
@@ -83,8 +97,8 @@ it("passes validated patches, resyncs on open and removes listeners", async () =
   const h = handlers();
   const view = renderHook(() => useFlyoutHost(true, state, h));
   await waitFor(() => expect(flyout.onShown).toHaveBeenCalled());
-  await act(async () => intent({ id: "a", kind: "apply", patch: { front_brightness: 40, mode: "both" } }));
-  expect(h.apply).toHaveBeenCalledExactlyOnceWith({ front_brightness: 40, mode: "both" });
+  await act(async () => intent({ id: "a", kind: "adjust", patch: { front_brightness: 40, mode: "both" } }));
+  expect(h.adjust).toHaveBeenCalledExactlyOnceWith({ front_brightness: 40, mode: "both" });
   expect(flyout.ack).toHaveBeenCalledWith({ id: "a", done: true });
   act(() => shown());
   expect(h.sync).toHaveBeenCalledOnce();

@@ -36,7 +36,7 @@ App 已加入明確的「搜尋區域網路橋接器」按鈕。Windows 使用 m
 
 Windows 共用搜尋核心實測 5004 ms 返回空候選；沒有向任何候選登入、發送 HTTP 或 RF。這確認逾時路徑可用，仍不代表真實 multicast 搜尋已通過。原生畫面與三平台完整搜尋驗收仍待完成。
 
-另以同一台 Windows 的 Zeroconf 暫時宣告 `TEST ONLY` 測試服務，Rust 搜尋 5006 ms 仍為空；測試服務於 25 秒後移除，沒有 HTTP 服務或認證。此結果也未能驗證候選成功路徑，不能據此將問題歸因於燈具或 ESP32。
+另以同一台 Windows 的 Zeroconf 暫時宣告 `TEST ONLY` 測試服務，Rust 搜尋 5006 ms 仍為空；測試服務於 25 秒後移除，沒有 HTTP 服務或認證。此結果也未能驗證候選成功路徑，不能據此將問題歸因於掛燈或 ESP32。
 
 原生安裝版實際按搜尋後，Windows 防火牆提示封鎖 Halo 2 Control 部分功能；背景已顯示未找到橋接器與手動連線表單。此為實際觀察到的權限阻擋線索，仍需使用者處理提示後重試，不能直接宣稱所有空結果均由防火牆造成。
 
@@ -52,7 +52,7 @@ Windows 共用搜尋核心實測 5004 ms 返回空候選；沒有向任何候選
 
 - 固定查詢類型、五秒總期限、最多 20 筆候選；只接受 PTR、SRV、相容 TXT 的完整組合，處理 goodbye／刪除及重複 TXT。
 - 取消搜尋後依 [Microsoft API 契約](https://learn.microsoft.com/en-us/windows/win32/api/windns/nf-windns-dnsservicebrowsecancel) 等待最終 `ERROR_CANCELLED` callback；若作業延遲完成，保留其資源與單一作業限制，避免懸空指標或反覆累積查詢。
-- 共用搜尋工具在 4851 ms 找到 `halo2-discovery-test.local:18080`。這是 DNS-SD 測試服務，不是燈具；沒有 HTTP 登入或 RF 命令。
+- 共用搜尋工具在 4851 ms 找到 `halo2-discovery-test.local:18080`。這是 DNS-SD 測試服務，不是掛燈；沒有 HTTP 登入或 RF 命令。
 - 測試服務停止後，同一工具在 4851 ms 返回空候選。真實 ESP32 的 multicast 搜尋仍未通過，不把此次 App 後端修正等同整個區網搜尋完成。
 - Rust support 14 項測試與 clippy 通過，包含 Windows 原生記錄結構、亂序組合、刪除、不相容版本與重複 TXT。
 - Windows release 建置與安裝成功，前端 20 項測試通過。原生 App 搜尋列出 `test only`；選取後正確填入 `.local` 主機與 18080，密碼空白、維持未連線且燈光按鈕停用。隨後按已保存帳密連線，使用原保存位址 8080 成功連回真實橋接器，顯示無線模組就緒、配對已保存；沒有對測試服務登入，也未操作燈光。

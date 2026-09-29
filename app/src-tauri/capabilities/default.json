@@ -23,6 +23,8 @@
     "allow-clear-diagnostics",
     "allow-list-presets",
     "allow-save-preset",
-    "allow-delete-preset"
+    "allow-restore-preset",
+    "allow-delete-preset",
+    "allow-set-window-theme"
   ]
 }

@@ -7,8 +7,8 @@ export interface FlyoutHandlers {
   lock: LockReason | null;
   /** Resolves true only when the explicit command was transmitted. */
   power: (value: boolean) => Promise<boolean>;
-  /** Resolves true when transmitted, or when nothing differs from the target. */
-  apply: (patch: Draft) => Promise<boolean>;
+  /** Stages user-changed values for live sending; false when locked. */
+  adjust: (patch: Draft) => boolean;
   /** Read-only resync (GET state) when the flyout opens. */
   sync: () => void;
 }
@@ -41,10 +41,9 @@ export function useFlyoutHost(native: boolean, state: FlyoutState, handlers: Fly
         const intent = parseIntent(payload);
         if (disposed || !intent) return;
         if (intent.kind === "sync") return publish();
-        const { lock, power, apply } = current.current.handlers;
+        const { lock, power, adjust } = current.current.handlers;
         const done =
-          lock === null &&
-          (intent.kind === "power" ? await power(intent.value) : await apply(intent.patch));
+          lock === null && (intent.kind === "power" ? await power(intent.value) : adjust(intent.patch));
         void flyout.ack({ id: intent.id, done }).catch(() => {});
       }),
     );

@@ -7,7 +7,6 @@ import {
   lockReason,
   pendingDraft,
   previewValues,
-  sourceLabel,
   stageDraft,
   tempColor,
 } from "./controlState";
@@ -67,20 +66,13 @@ describe("preview colours", () => {
 });
 
 describe("labels", () => {
-  it("names sources and claims our own command only by id", () => {
-    const app = { ...snapshot.desired, source: "app", command_id: "mine" };
-    expect(sourceLabel(app, new Set(["mine"]))).toBe("本 App");
-    expect(sourceLabel(app, new Set())).toBe("App");
-    expect(sourceLabel({ ...app, source: "legacy" }, new Set())).toBe("網頁／Home Assistant");
-    expect(sourceLabel({ ...app, source: "remote" }, new Set())).toBe("原廠控制器");
-  });
   it("never reports an unknown status or fault as sent", () => {
     const base = { online: true, commanding: false, action: "關燈", result: null, fault: null };
     expect(commandFeedback({ ...base, fault: unknown })).toMatchObject({ title: "結果不明", lookup: true });
     expect(commandFeedback({ ...base, result: { status: "future_success" } as never }).title).toBe("結果不明");
     expect(commandFeedback({ ...base, commanding: true }).body).toBe("正在送出「關燈」");
     expect(commandFeedback({ ...base, result: { status: "transmitted" } as never }).body).toBe(
-      "燈具不回報狀態，請以實際燈光為準。",
+      "掛燈不回報狀態，請以實際燈光為準。",
     );
   });
 });

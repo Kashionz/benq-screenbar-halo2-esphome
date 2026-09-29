@@ -35,15 +35,16 @@ function page(overrides: Partial<Parameters<typeof ConnectPage>[0]> = {}) {
 }
 it("names the platform credential store and shows the saved profile without connecting", () => {
   const { props, view } = page({ saved, platform: "macos" });
-  expect(screen.getByRole("heading", { name: "連線橋接器" })).toBeInTheDocument();
-  expect(screen.getByText("本機連線，不經雲端。")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "連接掛燈" })).toBeInTheDocument();
+  expect(screen.queryByText(/登入後即可控制/)).not.toBeInTheDocument();
   expect(screen.getByText("192.168.1.42:8080")).toBeInTheDocument();
-  expect(screen.getByText("密碼存於macOS 鑰匙圈")).toBeInTheDocument();
+  const remember = screen.getByRole("switch", { name: "記住此連線與帳密" });
+  expect(remember).toHaveAccessibleDescription("密碼存於 macOS 鑰匙圈。");
   expect(props.useSaved).not.toHaveBeenCalled();
   view.rerender(<ConnectPage {...props} platform="ios" />);
-  expect(screen.getByText("密碼存於iOS 鑰匙圈")).toBeInTheDocument();
+  expect(remember).toHaveAccessibleDescription("密碼存於 iOS 鑰匙圈。");
   view.rerender(<ConnectPage {...props} platform="windows" />);
-  expect(screen.getByText("密碼存於Windows 認證管理員")).toBeInTheDocument();
+  expect(remember).toHaveAccessibleDescription("密碼存於 Windows 認證管理員。");
 });
 it("disables connecting while a search runs", async () => {
   let finish!: (results: DiscoveredBridge[]) => void;

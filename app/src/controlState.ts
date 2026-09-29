@@ -12,6 +12,9 @@ export const modeLabel = (mode: string) => MODES[mode] ?? mode;
 /** 「前後燈 · 前 70% · 後 30% · 4300 K」 */
 export const lightSummary = (v: Pick<LightState, LightKey>) =>
   `${modeLabel(v.mode)} · 前 ${v.front_brightness}% · 後 ${v.back_brightness}% · ${v.temperature_k} K`;
+/** A preset matches when every lighting field equals the shown values. */
+export const samePreset = (a: Pick<LightState, LightKey>, b: Pick<LightState, LightKey>) =>
+  LIGHT_KEYS.every((key) => a[key] === b[key]);
 /** 「前 60% · 後 35% · 4000 K」 */
 export const levelSummary = (v: Pick<LightState, LightKey>) =>
   `前 ${v.front_brightness}% · 後 ${v.back_brightness}% · ${v.temperature_k} K`;
@@ -108,23 +111,6 @@ export function beamLevels(power: boolean, preview: LightState) {
   };
 }
 
-export function sourceLabel(desired: Snapshot["desired"], ownCommands: ReadonlySet<string>) {
-  switch (desired.source) {
-    case "app":
-      return desired.command_id && ownCommands.has(desired.command_id) ? "本 App" : "App";
-    case "remote":
-      return "原廠控制器";
-    case "legacy":
-      return "網頁／Home Assistant";
-    case "restored":
-      return "開機還原";
-    case "boot_default":
-      return "開機預設";
-    default:
-      return desired.source;
-  }
-}
-
 export interface Feedback {
   tone: Tone;
   title: string;
@@ -149,7 +135,7 @@ export function commandFeedback(input: {
   if (result) {
     switch (result.status) {
       case "transmitted":
-        return { tone: "ok", title: "指令已送出", body: "燈具不回報狀態，請以實際燈光為準。", lookup: false };
+        return { tone: "ok", title: "指令已送出", body: "掛燈不回報狀態，請以實際燈光為準。", lookup: false };
       case "failed":
         return { tone: "err", title: "發送失敗", body: "請稍後再試。", lookup: false };
       case "expired":

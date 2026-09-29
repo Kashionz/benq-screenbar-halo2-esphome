@@ -24,12 +24,15 @@ const snapshot = examples.find((e) => e.schema === "Snapshot")!.body as unknown 
 const ready: FlyoutState = {
   connected: true,
   online: true,
-  badge: { tone: "ok", text: "已連線" },
   lock: null,
   desired: snapshot.desired.values,
+  values: snapshot.desired.values,
+  adjusting: [],
+  sending: false,
   features: snapshot.features,
-  feedback: { tone: "idle", title: "就緒", body: "", lookup: false },
+  status: null,
   updated: "21:14:08",
+  theme: "light",
 };
 let publish!: (payload: unknown) => void;
 let ack!: (payload: unknown) => void;
@@ -50,6 +53,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 const sent = () => vi.mocked(flyout.send).mock.calls.map(([intent]) => intent as FlyoutIntent);
+const intents = () => sent().filter((i) => i.kind !== "sync");
 async function open(state: FlyoutState | null = ready) {
   render(<TrayApp />);
   await waitFor(() => expect(flyout.onState).toHaveBeenCalled());
@@ -58,63 +62,100 @@ async function open(state: FlyoutState | null = ready) {
 }
 it("stays fully disabled until the main window reports a connection", async () => {
   await open(null);
-  expect(screen.getByText("未連線", { selector: "b" })).toBeInTheDocument();
-  expect(screen.getByText("NO CLOUD")).toBeInTheDocument();
+  // Both the power line and the footer say so.
+  expect(screen.getAllByText("未連線")).toHaveLength(2);
   expect(screen.getByRole("button", { name: "開燈" })).toBeDisabled();
   for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
   expect(screen.getByLabelText("前燈亮度")).toBeDisabled();
 });
 it("sends one explicit power intent from the target, never a toggle, and never calls the bridge", async () => {
   await open();
-  expect(screen.getByText("已連線 · 目標開啟 · 後燈")).toBeInTheDocument();
-  expect(screen.getByText("同步 21:14:08")).toBeInTheDocument();
+  expect(screen.getByText("已連線 · 同步 21:14:08")).toBeInTheDocument();
+  expect(screen.getByText("按一下關燈")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "關燈" }));
-  const power = sent().filter((i) => i.kind === "power");
+  const power = intents();
   expect(power).toHaveLength(1);
   expect(power[0]).toMatchObject({ kind: "power", value: false });
-  // While waiting for the main window's answer the flyout cannot send again.
-  expect(screen.getByRole("button", { name: "關燈" })).toBeDisabled();
+  // While waiting for the main window's answer a second press is ignored.
+  await userEvent.click(screen.getByRole("button", { name: "關燈" }));
+  expect(intents()).toHaveLength(1);
   act(() => ack({ id: power[0].id, done: false }));
-  expect(screen.getByRole("button", { name: "關燈" })).toBeEnabled();
+  await userEvent.click(screen.getByRole("button", { name: "關燈" }));
+  expect(intents()).toHaveLength(2);
 });
-it("keeps a local draft, applies only changed fields and clears after a done ack", async () => {
+it("sends slider, mode and preset changes live, with no apply row", async () => {
   await open();
+  expect(screen.queryByRole("button", { name: "套用燈光設定" })).not.toBeInTheDocument();
+  const slider = screen.getByLabelText("色溫");
+  fireEvent.change(slider, { target: { value: "5000" } });
+  expect(slider).toHaveValue("5000");
+  await userEvent.click(screen.getByRole("radio", { name: "前後燈" }));
   await userEvent.click(screen.getByRole("button", { name: "帶入情境 夜晚" }));
-  expect(screen.getByText("2 項變更尚未套用")).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("色溫"), { target: { value: "5000" } });
-  expect(screen.getByText("3 項變更尚未套用")).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "套用燈光設定" }));
-  const apply = sent().filter((i) => i.kind === "apply");
-  expect(apply).toHaveLength(1);
-  expect(apply[0]).toMatchObject({ patch: { front_brightness: 30, back_brightness: 20, temperature_k: 5000 } });
-  act(() => ack({ id: "someone-else", done: true }));
-  expect(screen.getByText("3 項變更尚未套用")).toBeInTheDocument();
-  act(() => ack({ id: apply[0].id, done: true }));
-  expect(screen.queryByText(/項變更尚未套用/)).not.toBeInTheDocument();
+  expect(intents().map((i) => i.kind === "adjust" && i.patch)).toEqual([
+    { temperature_k: 5000 },
+    { mode: "both" },
+    { mode: "back", front_brightness: 30, back_brightness: 20, temperature_k: 3925 },
+  ]);
 });
-it("drops the draft when reopened", async () => {
+it("follows the main window after a drag ends", async () => {
   await open();
-  fireEvent.change(screen.getByLabelText("前燈亮度"), { target: { value: "70" } });
-  expect(screen.getByText("1 項變更尚未套用")).toBeInTheDocument();
-  act(() => shown());
-  expect(screen.queryByText(/項變更尚未套用/)).not.toBeInTheDocument();
-  expect(sent().filter((i) => i.kind !== "sync")).toHaveLength(0);
+  const slider = screen.getByLabelText("前燈亮度");
+  fireEvent.change(slider, { target: { value: "70" } });
+  expect(slider).toHaveValue("70");
+  fireEvent.pointerUp(slider);
+  expect(slider).toHaveValue(String(ready.values!.front_brightness));
+  act(() => publish({ ...ready, values: { ...ready.values!, front_brightness: 70 }, adjusting: ["front_brightness"] }));
+  expect(slider).toHaveValue("70");
+});
+it("keeps power and sliders usable while the main window is sending", async () => {
+  await open({ ...ready, sending: true });
+  expect(screen.getByRole("button", { name: "關燈" })).toBeEnabled();
+  expect(screen.getByLabelText("前燈亮度")).toBeEnabled();
 });
 it("locks with the main window and sends unknown outcomes to the main window for lookup", async () => {
   await open({
     ...ready,
     lock: "結果不明，請先查詢",
-    feedback: { tone: "warn", title: "結果不明", body: "請先查詢，不要重送。", lookup: true },
+    status: { tone: "warn", title: "結果不明", body: "請先查詢，不要重送。", lookup: true },
   });
   expect(screen.getByRole("button", { name: "關燈" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "帶入情境 夜晚" })).toBeDisabled();
-  expect(screen.getByRole("status")).toHaveTextContent("結果不明");
+  expect(screen.getByLabelText("前燈亮度")).toBeDisabled();
+  expect(screen.getByText("結果不明").parentElement).toHaveTextContent("結果不明，請先查詢");
   await userEvent.click(screen.getByRole("button", { name: "查詢" }));
   expect(flyout.openMain).toHaveBeenCalledOnce();
-  expect(sent().filter((i) => i.kind !== "sync")).toHaveLength(0);
+  expect(intents()).toHaveLength(0);
 });
-it("hides on Escape", async () => {
+it("drops a value under the pointer when reopened and hides on Escape", async () => {
   await open();
+  fireEvent.change(screen.getByLabelText("前燈亮度"), { target: { value: "70" } });
+  act(() => shown());
+  expect(screen.getByLabelText("前燈亮度")).toHaveValue(String(ready.values!.front_brightness));
   fireEvent.keyDown(window, { key: "Escape" });
   expect(flyout.hide).toHaveBeenCalledOnce();
+});
+it("shows the main window's command status beside power and the offline state in the footer", async () => {
+  await open({
+    ...ready,
+    lock: "處理中",
+    sending: true,
+    status: { tone: "busy", title: "處理中", body: "正在送出「關燈」", lookup: false },
+  });
+  expect(screen.getByText("處理中").parentElement).toHaveTextContent("處理中 · 正在送出「關燈」");
+  // The power button keeps its look while its command is in flight, but a press sends nothing.
+  const power = screen.getByRole("button", { name: "關燈" });
+  expect(power).toBeEnabled();
+  expect(power).toHaveAttribute("aria-disabled", "true");
+  await userEvent.click(power);
+  expect(intents()).toHaveLength(0);
+  act(() => publish({ ...ready, online: false, lock: "已斷線" }));
+  expect(screen.getByText("已斷線")).toBeInTheDocument();
+  expect(screen.getByText("已斷線 · 重試中 · 最後同步 21:14:08")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "關燈" })).toBeDisabled();
+});
+it("follows the theme the main window publishes", async () => {
+  await open({ ...ready, theme: "dark" });
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  act(() => publish({ ...ready, theme: "light" }));
+  expect(document.documentElement.dataset.theme).toBe("light");
 });

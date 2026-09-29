@@ -29,7 +29,7 @@ API 使用獨立 ESP-IDF HTTP server，避免 ESPHome 原有 handler 在認證�
 - 去重比較解析後的完整 request；JSON key 排序或空白不影響結果。
 - 命令只由 ESPHome 主迴圈發射。設定欄位用 `0x03`，有 power 欄位再送 `0x02`。
 - 遠端操作覆蓋 pending 目標時，尚未開始的命令會終結為 superseded。
-- 發射失敗保留 desired 及診斷，不自動重送、回滾或宣稱實體燈具已確認。
+- 發射失敗保留 desired 及診斷，不自動重送、回滾或宣稱實體掛燈已確認。
 - packet engine 等待 TX_DS／MAX_RT 最多 250 ms。發射前啟用並等待 XCLK，清除 FIFO 後短暫輪詢狀態；若仍未清空，最多執行一次 RC1.RSTLL 內部邏輯重置並重建 packet 設定。恢復後才送出本次命令，不重播先前失敗的命令。仍無法清空時回報 not_attempted，並鎖定 radio_status=fault，直到重新開機或明確建立新的維護情境。
 - UUID 身分與 RF 配對使用不同 preference key；命令紀錄只保存在 RAM。
 
@@ -52,7 +52,7 @@ python tools/halo2_client.py --host 192.168.0.99 set '{"power":true}'
 python tools/halo2_client.py --host 192.168.0.99 set '{"power":false}'
 ```
 
-客戶端預設只允許 verified 能力；其他已列為 experimental 的欄位需要 `--experimental`。POST 網路逾時顯示結果不明及 command_id/boot_id，不重新產生另一筆控制命令；可用 `lookup <command_id> <boot_id>` 查詢。結果 `transmitted` 仍須由人觀察燈具效果。
+客戶端預設只允許 verified 能力；其他已列為 experimental 的欄位需要 `--experimental`。POST 網路逾時顯示結果不明及 command_id/boot_id，不重新產生另一筆控制命令；可用 `lookup <command_id> <boot_id>` 查詢。結果 `transmitted` 仍須由人觀察掛燈效果。
 
 ## 檢查
 

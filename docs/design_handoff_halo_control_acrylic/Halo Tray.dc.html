@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<script src="./halo-model.js"></script>
+<style>
+html,body{margin:0;background:transparent;}
+*{box-sizing:border-box;}
+button,input{font:inherit;}
+button:focus-visible,input:focus-visible{outline:2px solid #0a74e8;outline-offset:2px;}
+a{color:#0a74e8;}
+a:hover{color:#1d1d1f;}
+@keyframes ht-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</helmet>
+<div style="width:340px; border-radius:{{ radius }}; background:rgba(246,247,249,0.62); backdrop-filter:blur(24px) saturate(170%); -webkit-backdrop-filter:blur(24px) saturate(170%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 0 0 4px rgba(255,255,255,0.16), 0 0 0 0.5px rgba(40,50,70,0.2), 0 24px 48px -12px rgba(30,40,60,0.32); color:#1d1d1f; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI Variable','PingFang TC','Noto Sans TC',sans-serif; line-height:1.45; -webkit-font-smoothing:antialiased; overflow:hidden;">
+
+  <div style="display:flex; align-items:center; gap:10px; padding:14px 16px 10px;">
+    <div style="flex:1; min-width:0;">
+      <div style="font-size:14px; font-weight:600;">ScreenBar Halo 2</div>
+      <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:#6e6e73;"><span style="width:6px; height:6px; border-radius:50%; background:{{ badgeDot }}; animation:{{ badgeAnim }};"></span><span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ badge.text }} · 目標{{ targetPower }} · {{ targetMode }}</span></div>
+    </div>
+    <button onClick="{{ openMain }}" style="flex:none; white-space:nowrap; min-height:30px; padding:2px 12px; border-radius:99px; border:0; background:rgba(118,118,128,0.12); color:#1d1d1f; font-size:12.5px; cursor:pointer;">開啟 Halo 2 Control</button>
+  </div>
+
+  <sc-if value="{{ showStatus }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="display:flex; align-items:center; gap:10px; margin:0 12px 10px; padding:8px 10px 8px 12px; border-radius:12px; background:{{ stBg }}; color:{{ stInk }}; font-size:12.5px;">
+      <span style="flex:none; width:7px; height:7px; border-radius:50%; background:{{ stDot }}; animation:{{ stAnim }};"></span>
+      <span style="flex:1; min-width:0; text-wrap:pretty;"><b style="font-weight:600;">{{ stTitle }}</b> {{ stBody }}</span>
+      <sc-if value="{{ fb.hasLookup }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ openMain }}" style="flex:none; white-space:nowrap; min-height:28px; padding:2px 10px; border-radius:99px; border:0; background:rgba(255,255,255,0.8); color:#8a5a00; font-size:12px; font-weight:600; cursor:pointer;">查詢</button>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <div style="margin:0 12px; border-radius:14px; background:rgba(255,255,255,0.42); border:1px solid rgba(255,255,255,0.85); box-shadow:inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 0.5px rgba(40,50,70,0.1); overflow:hidden;">
+    <div style="display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:0.5px solid rgba(60,60,67,0.14);">
+      <button onClick="{{ powerPress }}" disabled="{{ locked }}" aria-label="{{ powerNext }}" title="{{ powerNext }}" style="flex:none; width:44px; height:44px; border-radius:50%; display:grid; place-items:center; border:0; background:{{ pwBg }}; color:{{ pwInk }}; box-shadow:{{ pwShadow }}; cursor:{{ lockCursor }}; opacity:{{ lockOpacity }};"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2v7.6"></path><path d="M7.1 6.1a7.6 7.6 0 1 0 9.8 0"></path></svg></button>
+      <div style="flex:1; min-width:0;"><div style="font-size:14px; font-weight:600;">{{ targetPower }}</div><div style="font-size:11.5px; color:#8e8e93;">按一下{{ powerNext }}</div></div>
+    </div>
+    <div style="opacity:{{ setOpacity }};">
+      <div style="padding:8px 10px; border-bottom:0.5px solid rgba(60,60,67,0.14);">
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:2px; padding:2px; border-radius:9px; background:rgba(118,118,128,0.12);">
+          <sc-for list="{{ modesT }}" as="m" hint-placeholder-count="3">
+            <button onClick="{{ m.onPick }}" disabled="{{ settingsDisabled }}" style="min-height:28px; border-radius:7px; border:1px solid {{ m.line }}; background:{{ m.bg }}; color:{{ m.ink }}; font-size:12.5px; cursor:{{ setCursor }}; white-space:nowrap; box-shadow:{{ m.shadow }};">{{ m.label }}<span style="display:{{ m.dot }}; width:4px; height:4px; margin-left:4px; vertical-align:middle; border-radius:50%; background:#0a74e8;"></span></button>
+          </sc-for>
+        </div>
+      </div>
+      <sc-for list="{{ slidersT }}" as="s" hint-placeholder-count="3">
+        <div style="display:flex; align-items:center; gap:10px; padding:6px 12px; border-bottom:{{ s.sep }};">
+          <span style="flex:none; width:40px; display:flex; align-items:center; gap:4px; font-size:12.5px; color:#6e6e73;">{{ s.label }}<span style="width:5px; height:5px; border-radius:50%; background:#0a74e8; display:{{ s.dotDisplay }};"></span></span>
+          <div style="flex:1; position:relative; height:26px;">
+            <div style="position:absolute; left:0; right:0; top:11px; height:4px; border-radius:2px; background:rgba(118,118,128,0.2);"></div>
+            <div style="position:absolute; left:0; top:11px; height:4px; border-radius:2px; width:{{ s.valuePct }}; background:{{ s.fill }};"></div>
+            <div style="position:absolute; top:8px; width:10px; height:10px; margin-left:-5px; left:{{ s.targetPct }}; border-radius:50%; background:#f4f5f7; box-shadow:0 0 0 1.5px rgba(60,60,67,0.35); display:{{ s.tickDisplay }};"></div>
+            <div style="position:absolute; top:2px; width:22px; height:22px; margin-left:-11px; left:{{ s.valuePct }}; border-radius:50%; background:{{ s.knobBg }}; border:0.5px solid rgba(0,0,0,0.06); box-shadow:{{ s.knobShadow }};"></div>
+            <input type="range" min="{{ s.min }}" max="{{ s.max }}" step="{{ s.step }}" value="{{ s.value }}" onChange="{{ s.onChange }}" disabled="{{ settingsDisabled }}" aria-label="{{ s.label }}" style="position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:{{ setCursor }};">
+          </div>
+          <span style="flex:none; width:58px; text-align:right; font-size:12.5px; font-variant-numeric:tabular-nums; color:{{ s.valueInk }}; white-space:nowrap;">{{ s.valueText }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <sc-if value="{{ hasDraft }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; align-items:center; gap:6px; padding:8px 8px 8px 12px; border-top:0.5px solid rgba(60,60,67,0.14); background:rgba(10,116,232,0.06);">
+        <span style="flex:1; min-width:0; font-size:12.5px; color:#1d1d1f;">{{ applyText }}</span>
+        <button onClick="{{ cancelDraft }}" style="flex:none; white-space:nowrap; min-height:30px; padding:2px 10px; border-radius:99px; border:0; background:transparent; color:#0a74e8; font-size:12.5px; cursor:pointer;">取消調整</button>
+        <button onClick="{{ applyDraft }}" disabled="{{ noApply }}" style="flex:none; white-space:nowrap; min-height:30px; padding:2px 12px; border-radius:99px; border:0; background:#0a74e8; color:#ffffff; font-size:12.5px; font-weight:600; cursor:pointer; opacity:{{ applyOpacity }};">套用燈光設定</button>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="padding:12px 12px 4px;">
+    <div style="padding:0 4px 6px; font-size:11.5px; color:#8e8e93;">情境</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+      <sc-for list="{{ presetsT }}" as="p" hint-placeholder-count="3">
+        <button onClick="{{ p.onLoad }}" disabled="{{ settingsDisabled }}" style="flex:none; white-space:nowrap; min-height:30px; padding:2px 12px; border-radius:99px; border:1px solid {{ p.line }}; background:{{ p.bg }}; color:#1d1d1f; font-size:12.5px; cursor:{{ setCursor }}; opacity:{{ setOpacity }};">{{ p.name }}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex; align-items:center; gap:8px; margin-top:8px; padding:8px 12px 10px 16px; border-top:0.5px solid rgba(60,60,67,0.14); font-size:11.5px; color:#8e8e93;">
+    <span style="flex:1; min-width:0;">{{ footNote }}</span>
+    <button onClick="{{ quit }}" style="flex:none; white-space:nowrap; min-height:28px; padding:2px 10px; border:0; border-radius:8px; background:none; color:#1d1d1f; font-size:12.5px; cursor:pointer;">結束</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:380,&quot;height&quot;:620},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;ready&quot;,&quot;options&quot;:[&quot;first&quot;,&quot;searching&quot;,&quot;noresults&quot;,&quot;connecting&quot;,&quot;ready&quot;,&quot;executing&quot;,&quot;transmitted&quot;,&quot;failed&quot;,&quot;unknown&quot;,&quot;reconnect&quot;,&quot;boot&quot;,&quot;experimental&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;os&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;windows&quot;,&quot;options&quot;:[&quot;windows&quot;,&quot;macos&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = {};
+  componentDidMount() { this.boot(); }
+  boot() { if (window.HaloModel) this.h = window.HaloModel.attach(this); else this.bt = setTimeout(() => this.boot(), 60); }
+  componentDidUpdate(p) { this.h && this.h.update(p); }
+  componentWillUnmount() { clearTimeout(this.bt); this.h && this.h.dispose(); }
+  renderVals() {
+    const v = this.__halo && this.__halo.view();
+    const mac = this.props.os === 'macos';
+    if (!v) return { radius: mac ? '14px' : '10px', badge: { text: '' }, fb: {} };
+    const dis = v.settingsDisabled;
+    const K = { ok: ['rgba(52,168,83,0.12)', '#1f7a3a', '#34a853'], warn: ['rgba(255,170,0,0.16)', '#8a5a00', '#f0a000'], err: ['rgba(217,54,43,0.1)', '#b3261e', '#d9362b'], busy: ['rgba(118,118,128,0.12)', '#1d1d1f', '#0a74e8'], idle: ['rgba(118,118,128,0.12)', '#6e6e73', '#aeaeb2'] };
+    let st;
+    if (!v.connected) st = { k: 'idle', title: '未連線', body: '' };
+    else if (v.lock === 'offline') st = { k: 'warn', title: '已斷線，重試中', body: `最後同步 ${v.lastSync}` };
+    else if (v.fb.kind === 'idle') st = null;
+    else st = { k: v.fb.kind, title: v.fb.title, body: v.fb.kind === 'warn' ? '' : v.fb.body };
+    const c = st ? K[st.k] || K.idle : K.idle;
+    const pulse = 'ht-pulse 1.2s ease-in-out infinite';
+    const bk = v.badge.kind;
+    return {
+      ...v,
+      radius: mac ? '14px' : '10px',
+      targetPower: v.connected ? v.targetPower : '—', targetMode: v.connected ? v.targetMode : '—',
+      badgeDot: bk === 'ok' ? '#34a853' : bk === 'warn' ? '#f0a000' : bk === 'pending' ? '#0a74e8' : '#aeaeb2', badgeAnim: bk === 'warn' || bk === 'pending' ? pulse : 'none',
+      showStatus: !!st, stBg: c[0], stInk: c[1], stDot: c[2], stAnim: st && (st.k === 'busy' || st.k === 'warn') ? pulse : 'none', stTitle: st ? st.title : '', stBody: st ? st.body : '',
+      locked: v.locked || !v.connected, lockOpacity: v.locked || !v.connected ? 0.35 : 1, lockCursor: v.locked || !v.connected ? 'not-allowed' : 'pointer', pwBg: v.lit && v.connected ? '#0a74e8' : 'rgba(255,255,255,0.7)', pwInk: v.lit && v.connected ? '#ffffff' : '#1d1d1f', pwShadow: v.lit && v.connected ? 'inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px rgba(10,80,180,0.25)' : 'inset 0 1px 0 #ffffff, 0 0 0 0.5px rgba(40,50,70,0.18), 0 1px 3px rgba(0,0,0,0.08)',
+      settingsDisabled: dis || !v.connected, setOpacity: dis || !v.connected ? 0.4 : 1, setCursor: dis || !v.connected ? 'not-allowed' : 'pointer',
+      expBg: v.experimental ? 'transparent' : 'rgba(255,170,0,0.1)', expTrack: v.experimental ? '#0a74e8' : 'rgba(118,118,128,0.3)', expKnob: v.experimental ? '16px' : '2px',
+      expHint: '',
+      modesT: v.modes.map((m) => ({ ...m, dot: m.drafted ? 'inline-block' : 'none', bg: m.active ? '#ffffff' : 'transparent', ink: m.drafted ? '#0a74e8' : m.active ? '#1d1d1f' : '#6e6e73', line: 'transparent', shadow: m.active ? '0 1px 2px #0002' : 'none' })),
+      slidersT: v.sliders.map((s, i) => ({ ...s, fill: s.drafted ? '#0a74e8' : '#1d1d1f', tickDisplay: s.drafted ? 'block' : 'none', dotDisplay: s.drafted ? 'inline-block' : 'none', knobShadow: s.drafted ? 'inset 0 0 0 2px #0a74e8, 0 1px 2px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.12)' : '0 1px 2px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.14)', valueInk: s.drafted ? '#0a74e8' : '#1d1d1f',
+        knobBg: s.isTemp ? window.HaloModel.tempColor(s.value) : '#ffffff', sep: i < 2 ? '0.5px solid rgba(60,60,67,0.14)' : '0' })),
+      noApply: !v.canApply, applyOpacity: v.canApply ? 1 : 0.4,
+      presetsT: v.presets.map((p) => ({ ...p, bg: p.active ? 'rgba(10,116,232,0.1)' : 'rgba(255,255,255,0.55)', line: p.active ? '#0a74e8' : 'rgba(60,60,67,0.14)' })),
+      footNote: v.connected ? `同步 ${v.lastSync}` : 'NO CLOUD',
+      openMain: () => {}, quit: () => {},
+    };
+  }
+}
+</script>
+</body>
+</html>

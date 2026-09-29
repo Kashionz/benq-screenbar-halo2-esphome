@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;-webkit-font-smoothing:antialiased}
+a{color:#0a74e8}a:hover{color:#0a5fc0}
+*{box-sizing:border-box}
+button,input{font:inherit;color:inherit}
+input[type=range]{-webkit-appearance:none;appearance:none}
+@keyframes hb-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes hb-spin{to{transform:rotate(360deg)}}
+button:focus-visible,input:focus-visible{outline:2px solid #0a74e8;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div style="{{ vars }}">
+<sc-if value="{{ isTray }}" hint-placeholder-val="{{ false }}">
+  <div style="width:340px;border-radius:12px;background:var(--tray);backdrop-filter:blur(24px) saturate(170%);border:1px solid var(--edge);box-shadow:var(--trayShadow);color:var(--ink);overflow:hidden;line-height:1.45;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI Variable','Segoe UI','PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif">
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 14px 10px 16px">
+      <div style="flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">ScreenBar Halo 2</div>
+      <button style="flex:none;min-height:30px;padding:2px 12px;border-radius:99px;border:0;background:var(--fill);font-size:12.5px;white-space:nowrap;cursor:pointer">開啟 HaloDesk</button>
+    </div>
+    <div style="margin:0 12px;border-radius:12px;background:var(--glass);border:1px solid var(--edge);box-shadow:var(--innerShadow);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 10px 10px 12px">
+        <button onClick="{{ onPower }}" aria-label="{{ powerNext }}" style="flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;border:0;background:{{ powerBg }};color:{{ powerInk }};box-shadow:{{ powerShadow }};opacity:{{ powerOpacity }};cursor:pointer;transition:background .2s"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2v7.6"></path><path d="M7.1 6.1a7.6 7.6 0 1 0 9.8 0"></path></svg></button>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:600">{{ powerText }}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:{{ trayHintInk }};min-width:0">
+            <sc-if value="{{ statusBusy }}" hint-placeholder-val="{{ false }}"><span style="flex:none;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--track);border-top-color:var(--accent);animation:hb-spin .8s linear infinite"></span></sc-if>
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b style="font-weight:600">{{ trayHintTitle }}</b>{{ trayHintBody }}</span>
+          </div>
+        </div>
+        <sc-if value="{{ trayLookup }}" hint-placeholder-val="{{ false }}"><button style="flex:none;min-height:28px;padding:2px 12px;border-radius:99px;border:0;background:var(--fill);color:{{ trayHintInk }};font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer">查詢</button></sc-if>
+      </div>
+      <div style="opacity:{{ ctlOpacity }};transition:opacity .2s">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin:0 10px 8px;padding:2px;border-radius:9px;background:var(--fill)">
+          <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.onClick }}" style="min-height:28px;border-radius:7px;border:0;background:{{ m.bg }};color:{{ m.ink }};box-shadow:{{ m.shadow }};font-size:12.5px;cursor:pointer">{{ m.label }}</button></sc-for>
+        </div>
+        <sc-for list="{{ sliders }}" as="s" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 12px;border-top:.5px solid var(--sep)">
+            <span style="flex:none;width:34px;font-size:12.5px;color:var(--ink2)">{{ s.label }}</span>
+            <div style="flex:1;position:relative;height:26px">
+              <div style="position:absolute;left:0;right:0;top:11px;height:4px;border-radius:2px;background:var(--track)"></div>
+              <div style="position:absolute;left:0;top:11px;height:4px;border-radius:2px;background:var(--ink);width:{{ s.pct }}"></div>
+              <div style="position:absolute;top:2px;left:{{ s.pct }};width:22px;height:22px;margin-left:-11px;border-radius:50%;background:{{ s.knob }};box-shadow:0 1px 2px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.16);pointer-events:none"></div>
+              <input type="range" min="{{ s.min }}" max="{{ s.max }}" step="{{ s.step }}" value="{{ s.val }}" onChange="{{ s.onChange }}" aria-label="{{ s.name }}" style="position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer">
+            </div>
+            <span style="flex:none;width:54px;text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums">{{ s.text }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="padding:10px 12px 2px;opacity:{{ ctlOpacity }}">
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">
+        <sc-for list="{{ presets }}" as="p" hint-placeholder-count="4"><button onClick="{{ p.onClick }}" title="{{ p.summary }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:52px;padding:6px 4px;border-radius:10px;border:0;background:{{ p.bg }};box-shadow:{{ p.ring }};cursor:pointer;min-width:0"><span style="width:14px;height:14px;border-radius:4px;background:{{ p.dot }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span><span style="font-size:12px;font-weight:600;color:{{ p.ink }};max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span></button></sc-for>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 12px 10px 16px;border-top:.5px solid var(--sep);font-size:11.5px;color:var(--ink3)"><span style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-size:12px;color:{{ headerSubInk }};font-variant-numeric:tabular-nums"><span style="flex:none;width:6px;height:6px;border-radius:50%;background:{{ badgeDot }};animation:{{ badgePulse }}"></span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ headerSub }}</span></span><button style="min-height:28px;padding:2px 10px;border:0;border-radius:8px;background:none;color:var(--ink);font-size:12.5px">結束</button></div>
+  </div>
+</sc-if>
+<sc-if value="{{ isWindow }}" hint-placeholder-val="{{ true }}">
+<div style="width:{{ w }};height:{{ h }};border-radius:{{ radius }};display:flex;flex-direction:column;overflow:hidden;position:relative;background:var(--bg);color:var(--ink);line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI Variable','Segoe UI','PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;transition:background .3s">
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;height:50px;display:flex;align-items:flex-end;padding:0 34px 6px;font-size:15px;font-weight:600">21:14</div>
+  </sc-if>
+  <header style="flex:none;display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 14px 8px 18px;position:relative;z-index:2;background:var(--header);backdrop-filter:blur(14px) saturate(160%);border-bottom:1px solid var(--edge);box-shadow:var(--headerShadow)">
+    <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;min-width:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px">
+        <button onClick="{{ goMain }}" style="justify-self:start;display:flex;align-items:center;gap:4px;min-height:34px;padding:2px 14px 2px 10px;border-radius:99px;border:0;background:var(--pill);backdrop-filter:blur(20px);box-shadow:0 0 0 .5px var(--sep);color:var(--ink);font-size:13px;white-space:nowrap;cursor:pointer"><span style="font-size:16px;line-height:1;color:var(--ink2)">‹</span>燈光</button>
+        <div style="display:flex;flex-direction:column;align-items:center;line-height:1.3;min-width:0">
+          <div style="font-size:15px;font-weight:700;white-space:nowrap">設定</div>
+        </div>
+        <span></span>
+      </div>
+    </sc-if>
+    <sc-if value="{{ notSettings }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;min-width:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px">
+      <span></span>
+      <div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;line-height:1.3">{{ title }}</div>
+      <div style="justify-self:end;display:flex">
+    <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}"><button onClick="{{ goSettings }}" style="flex:none;min-height:34px;padding:2px 14px;border-radius:99px;border:0;background:var(--pill);backdrop-filter:blur(20px);box-shadow:0 0 0 .5px var(--sep);font-size:13px;white-space:nowrap;cursor:pointer">設定</button></sc-if>
+      </div>
+    </div>
+    </sc-if>
+  </header>
+  <main style="flex:1;min-height:0;overflow:auto;padding:{{ pad }};display:flex;flex-direction:column;gap:14px;scrollbar-width:none">
+    <sc-if value="{{ hasBanner }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 12px 10px 14px;border-radius:12px;background:{{ bannerBg }};color:{{ bannerInk }};border:1px solid var(--edge)">
+        <span style="flex:none;width:8px;height:8px;border-radius:50%;background:{{ bannerDot }};animation:{{ bannerPulse }}"></span>
+        <div style="flex:1 1 200px;min-width:0;font-size:13px"><b style="font-weight:700">{{ bannerTitle }}</b>　{{ bannerBody }}</div>
+        <sc-if value="{{ bannerHasAction }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onBannerAction }}" style="flex:none;min-height:34px;padding:2px 12px;border-radius:8px;border:0;background:var(--segOn);color:{{ bannerInk }};font-size:13px;box-shadow:0 0 0 .5px rgba(0,0,0,.12);cursor:pointer">{{ bannerAction }}</button></sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1 0 auto;display:flex;flex-wrap:wrap;gap:18px;align-items:stretch">
+      <div style="flex:1.1 1 420px;min-width:0;display:flex;flex-direction:column;gap:16px"><div style="flex:1 0 auto;min-height:{{ heroH }};position:relative;border-radius:22px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden;opacity:{{ previewOpacity }};transition:opacity .4s">
+        <div style="position:absolute;inset:0;background:var(--stage)"></div>
+        <div style="position:absolute;right:4.8%;top:0;bottom:18%;width:2px;background:var(--line)"></div>
+        <div style="position:absolute;left:38%;right:0;bottom:18%;height:2px;background:var(--line)"></div>
+        <div style="position:absolute;inset:0;clip-path:polygon(76% 27%,78.4% 27%,58% 82%,43.6% 82%);background:{{ beamColor }};opacity:{{ beamF }};transition:opacity .4s,background .3s"></div>
+        <div style="position:absolute;inset:0;clip-path:polygon(78.4% 22%,79.6% 26%,95.2% 44%,95.2% 2%);background:{{ beamColor }};opacity:{{ beamB }};transition:opacity .4s,background .3s"></div>
+        <div style="position:absolute;left:43.6%;width:14.4%;bottom:18%;height:3px;background:{{ tempCol }};opacity:{{ beamF }};transition:opacity .4s"></div>
+        <div style="position:absolute;right:4.8%;top:2%;height:42%;width:3px;background:{{ tempCol }};opacity:{{ beamB }};transition:opacity .4s"></div>
+        <div style="position:absolute;left:77.8%;top:26%;width:6px;height:44%;border-radius:3px;background:var(--lamp)"></div>
+        <div style="position:absolute;left:78.4%;top:70%;width:2px;height:12%;background:var(--lamp)"></div>
+        <div style="position:absolute;left:74.8%;top:81%;width:7.2%;height:3px;border-radius:2px;background:var(--lamp)"></div>
+        <div style="position:absolute;left:74.6%;top:calc(24% - 5px);width:7%;height:10px;border-radius:5px;background:var(--lamp);box-shadow:{{ barGlow }};transition:box-shadow .3s"></div>
+        <span style="position:absolute;left:47%;top:55%;font-size:12px;background:var(--tag);padding:1px 7px;border-radius:5px;font-variant-numeric:tabular-nums">前 {{ frontText }}</span>
+        <span style="position:absolute;left:84%;top:9%;font-size:12px;background:var(--tag);padding:1px 7px;border-radius:5px;font-variant-numeric:tabular-nums">後 {{ backText }}</span>
+        <span style="position:absolute;right:14px;bottom:10px;font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums">{{ tempText }}</span>
+        <div style="position:absolute;left:0;top:0;bottom:0;width:40%;display:flex;flex-direction:column;justify-content:space-between;padding:18px 0 18px 20px">
+          <span style="font-size:11.5px;color:var(--ink2);white-space:nowrap">目標示意</span>
+          <div style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+            <button onClick="{{ onPower }}" aria-label="{{ powerNext }}" title="{{ powerNext }}" style="width:64px;height:64px;border-radius:50%;display:grid;place-items:center;border:0;background:{{ powerBg }};color:{{ powerInk }};box-shadow:{{ powerShadow }};opacity:{{ powerOpacity }};cursor:pointer;transition:background .2s,box-shadow .2s"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2v7.6"></path><path d="M7.1 6.1a7.6 7.6 0 1 0 9.8 0"></path></svg></button>
+            <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+              <div style="font-size:22px;font-weight:600;letter-spacing:-.2px">{{ powerText }}</div>
+              <div style="font-size:13px;color:var(--ink2)">{{ modeLabel }}</div>
+              <div style="font-size:12px;color:{{ statusInk }};display:flex;align-items:center;gap:6px;min-height:18px;text-wrap:pretty">
+                <sc-if value="{{ statusBusy }}" hint-placeholder-val="{{ false }}"><span style="flex:none;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--track);border-top-color:var(--accent);animation:hb-spin .8s linear infinite"></span></sc-if>
+                <span><b style="font-weight:600">{{ statusTitle }}</b>{{ statusBody }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+<sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+        <section style="position:relative">
+          <div style="display:flex;align-items:center;gap:8px;height:24px;margin-bottom:6px;padding:0 14px;font-size:12px;color:var(--ink3);letter-spacing:.2px"><span style="flex:1">情境<span style="font-variant-numeric:tabular-nums"> · {{ countText }}</span></span><sc-if value="{{ hasUndo }}" hint-placeholder-val="{{ false }}"><span style="flex:none;font-size:12.5px;color:var(--ink2);white-space:nowrap">已刪除「{{ undoName }}」</span><button onClick="{{ onUndo }}" style="flex:none;border:0;background:none;padding:0 4px;color:var(--accent);font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer">復原</button></sc-if><sc-if value="{{ noUndo }}" hint-placeholder-val="{{ true }}"><button onClick="{{ onAdd }}" title="{{ addTitle }}" style="flex:none;border:0;background:none;padding:0 4px;color:var(--accent);font-size:12.5px;white-space:nowrap;opacity:{{ addOpacity }};cursor:pointer">＋ 新增</button></sc-if><span style="flex:none;width:.5px;height:12px;background:var(--sep)"></span><button onClick="{{ onEdit }}" style="flex:none;border:0;background:none;padding:0;color:var(--accent);font-size:12.5px;white-space:nowrap;font-weight:{{ editWeight }};opacity:{{ editOpacity }};cursor:pointer">{{ editLabel }}</button></div>
+          <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden;padding:10px">
+            <div style="display:grid;grid-template-columns:{{ tileCols }};gap:8px;padding:3px;margin:-3px;opacity:{{ ctlOpacity }}">
+              <sc-for list="{{ presets }}" as="p" hint-placeholder-count="4">
+                <div style="position:relative;scroll-snap-align:start;min-width:0">
+                  <sc-if value="{{ p.normal }}" hint-placeholder-val="{{ true }}">
+                    <button onClick="{{ p.onClick }}" title="{{ p.summary }}" style="width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:6px;height:84px;padding:10px 12px;border-radius:12px;border:0;background:{{ p.bg }};box-shadow:{{ p.ring }};outline:{{ p.outline }};outline-offset:-1px;text-align:left;cursor:{{ p.cursor }};min-width:0;transition:box-shadow .15s">
+                      <span style="flex:none;width:20px;height:20px;border-radius:6px;background:{{ p.dot }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span>
+                      <span style="display:flex;flex-direction:column;min-width:0;max-width:100%"><span style="font-size:14px;font-weight:600;color:{{ p.ink }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span><span style="font-size:11px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.tiny }}</span></span>
+                    </button>
+                    <sc-if value="{{ p.showBadge }}" hint-placeholder-val="{{ false }}"><button onClick="{{ p.onDelete }}" aria-label="刪除 {{ p.name }}" title="刪除" style="position:absolute;right:8px;top:8px;width:24px;height:24px;border-radius:50%;border:0;background:var(--segOn);color:var(--danger);font-size:17px;font-weight:600;line-height:1;display:grid;place-items:center;box-shadow:0 0 0 .5px var(--sep),0 1px 3px rgba(0,0,0,.14);cursor:pointer">−</button></sc-if>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ adding }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;inset:0;z-index:3;border-radius:16px;background:var(--sheet);backdrop-filter:blur(20px) saturate(170%);border:1px solid var(--edge);box-shadow:var(--shadow);padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-size:13.5px;font-weight:600">新增情境</span><span style="font-size:12px;color:var(--ink3)">以目前的燈光設定保存</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span style="flex:none;width:22px;height:22px;border-radius:7px;background:{{ tempCol }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span><input value="{{ draftName }}" onChange="{{ onName }}" maxlength="40" placeholder="名稱" style="flex:1;min-width:0;height:34px;padding:0 10px;border-radius:9px;border:0;background:var(--fill);font-size:14px;outline:none"></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0;font-size:11.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums">{{ addSummary }}</span><button onClick="{{ onCancelAdd }}" style="flex:none;min-height:30px;padding:2px 12px;border-radius:99px;border:0;background:transparent;color:var(--accent);font-size:13px;cursor:pointer">取消</button><button onClick="{{ onSave }}" style="flex:none;min-height:30px;padding:2px 16px;border-radius:99px;border:0;background:var(--accent);color:#fff;font-size:13px;font-weight:600;opacity:{{ saveOpacity }};cursor:pointer">保存</button></div>
+            </div>
+          </sc-if>
+        </section>
+        </sc-if>
+      </div>
+      <div style="flex:1 1 330px;min-width:0;display:flex;flex-direction:column;gap:16px">
+        <section style="flex:1;display:flex;flex-direction:column">
+          <div style="display:flex;gap:8px;padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px"><span style="flex:1">燈光</span><span style="color:{{ lockInk }}">{{ lockText }}</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+            <div style="flex:1;display:flex;flex-direction:column;opacity:{{ ctlOpacity }};transition:opacity .2s">
+              <div style="padding:12px 14px">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:2px;border-radius:10px;background:var(--fill)">
+                  <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.onClick }}" style="min-height:34px;border-radius:8px;border:0;background:{{ m.bg }};color:{{ m.ink }};box-shadow:{{ m.shadow }};font-size:13px;cursor:pointer;transition:background .15s">{{ m.label }}</button></sc-for>
+                </div>
+              </div>
+              <sc-for list="{{ sliders }}" as="s" hint-placeholder-count="3">
+                <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:10px 14px 10px;border-top:.5px solid var(--sep)">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="flex:1">{{ s.label }}</span><span style="font-variant-numeric:tabular-nums">{{ s.text }}</span></div>
+                  <div style="position:relative;height:28px;margin-top:4px">
+                    <div style="position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:var(--track)"></div>
+                    <div style="position:absolute;left:0;top:12px;height:4px;border-radius:2px;background:var(--ink);width:{{ s.pct }}"></div>
+                    <div style="position:absolute;top:1px;left:{{ s.pct }};width:26px;height:26px;margin-left:-13px;border-radius:50%;background:{{ s.knob }};box-shadow:0 1px 2px rgba(0,0,0,.14),0 3px 8px rgba(0,0,0,.16);pointer-events:none"></div>
+                    <input type="range" min="{{ s.min }}" max="{{ s.max }}" step="{{ s.step }}" value="{{ s.val }}" onChange="{{ s.onChange }}" aria-label="{{ s.name }}" style="position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer">
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+        <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+        <section style="position:relative">
+          <div style="display:flex;align-items:center;gap:8px;height:24px;margin-bottom:6px;padding:0 14px;font-size:12px;color:var(--ink3);letter-spacing:.2px"><span style="flex:1">情境<span style="font-variant-numeric:tabular-nums"> · {{ countText }}</span></span><sc-if value="{{ hasUndo }}" hint-placeholder-val="{{ false }}"><span style="flex:none;font-size:12.5px;color:var(--ink2);white-space:nowrap">已刪除「{{ undoName }}」</span><button onClick="{{ onUndo }}" style="flex:none;border:0;background:none;padding:0 4px;color:var(--accent);font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer">復原</button></sc-if><sc-if value="{{ noUndo }}" hint-placeholder-val="{{ true }}"><button onClick="{{ onAdd }}" title="{{ addTitle }}" style="flex:none;border:0;background:none;padding:0 4px;color:var(--accent);font-size:12.5px;white-space:nowrap;opacity:{{ addOpacity }};cursor:pointer">＋ 新增</button></sc-if><span style="flex:none;width:.5px;height:12px;background:var(--sep)"></span><button onClick="{{ onEdit }}" style="flex:none;border:0;background:none;padding:0;color:var(--accent);font-size:12.5px;white-space:nowrap;font-weight:{{ editWeight }};opacity:{{ editOpacity }};cursor:pointer">{{ editLabel }}</button></div>
+          <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden;padding:10px">
+            <div style="display:grid;grid-template-columns:{{ tileCols }};gap:8px;padding:3px;margin:-3px;opacity:{{ ctlOpacity }}">
+              <sc-for list="{{ presets }}" as="p" hint-placeholder-count="4">
+                <div style="position:relative;scroll-snap-align:start;min-width:0">
+                  <sc-if value="{{ p.normal }}" hint-placeholder-val="{{ true }}">
+                    <button onClick="{{ p.onClick }}" title="{{ p.summary }}" style="width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:6px;height:84px;padding:10px 12px;border-radius:12px;border:0;background:{{ p.bg }};box-shadow:{{ p.ring }};outline:{{ p.outline }};outline-offset:-1px;text-align:left;cursor:{{ p.cursor }};min-width:0;transition:box-shadow .15s">
+                      <span style="flex:none;width:20px;height:20px;border-radius:6px;background:{{ p.dot }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span>
+                      <span style="display:flex;flex-direction:column;min-width:0;max-width:100%"><span style="font-size:14px;font-weight:600;color:{{ p.ink }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span><span style="font-size:11px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.tiny }}</span></span>
+                    </button>
+                    <sc-if value="{{ p.showBadge }}" hint-placeholder-val="{{ false }}"><button onClick="{{ p.onDelete }}" aria-label="刪除 {{ p.name }}" title="刪除" style="position:absolute;right:8px;top:8px;width:24px;height:24px;border-radius:50%;border:0;background:var(--segOn);color:var(--danger);font-size:17px;font-weight:600;line-height:1;display:grid;place-items:center;box-shadow:0 0 0 .5px var(--sep),0 1px 3px rgba(0,0,0,.14);cursor:pointer">−</button></sc-if>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ adding }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;inset:0;z-index:3;border-radius:16px;background:var(--sheet);backdrop-filter:blur(20px) saturate(170%);border:1px solid var(--edge);box-shadow:var(--shadow);padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-size:13.5px;font-weight:600">新增情境</span><span style="font-size:12px;color:var(--ink3)">以目前的燈光設定保存</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span style="flex:none;width:22px;height:22px;border-radius:7px;background:{{ tempCol }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span><input value="{{ draftName }}" onChange="{{ onName }}" maxlength="40" placeholder="名稱" style="flex:1;min-width:0;height:34px;padding:0 10px;border-radius:9px;border:0;background:var(--fill);font-size:14px;outline:none"></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0;font-size:11.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums">{{ addSummary }}</span><button onClick="{{ onCancelAdd }}" style="flex:none;min-height:30px;padding:2px 12px;border-radius:99px;border:0;background:transparent;color:var(--accent);font-size:13px;cursor:pointer">取消</button><button onClick="{{ onSave }}" style="flex:none;min-height:30px;padding:2px 16px;border-radius:99px;border:0;background:var(--accent);color:#fff;font-size:13px;font-weight:600;opacity:{{ saveOpacity }};cursor:pointer">保存</button></div>
+            </div>
+          </sc-if>
+        </section>
+        </sc-if>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+    <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;min-height:0;display:flex;gap:22px">
+      <nav style="flex:none;width:196px;display:flex;flex-direction:column;gap:2px;padding-top:2px">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3"><button onClick="{{ t.onClick }}" style="display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border-radius:10px;border:0;background:{{ t.bg }};box-shadow:{{ t.shadow }};color:var(--ink);font-size:14px;text-align:left;cursor:pointer"><span style="flex:1;font-weight:{{ t.weight }}">{{ t.label }}</span><span style="font-size:12px;color:{{ t.metaInk }}">{{ t.meta }}</span></button></sc-for>
+      </nav>
+      <div style="flex:1;min-width:0;min-height:0;overflow:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:18px;padding:0 8px 36px;margin:0 -8px">
+        <sc-if value="{{ tabDevice }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-direction:column;gap:18px">
+          <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:14px;padding:16px">
+              <div style="flex:none;width:44px;height:44px;border-radius:12px;background:var(--fill);display:grid;place-items:center"><span style="width:24px;height:6px;border-radius:3px;background:var(--ink);box-shadow:0 0 10px {{ tempCol }}"></span></div>
+              <div style="flex:1;min-width:0"><div style="font-size:17px;font-weight:700">ScreenBar Halo 2</div><div style="font-size:12.5px;color:var(--ink2);font-family:ui-monospace,Menlo,Consolas,monospace">screenbar-halo2.local:8080</div></div>
+              <span style="flex:none;display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;background:{{ badgeBg }};color:{{ badgeInk }};font-size:12px;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:{{ badgeDot }};animation:{{ badgePulse }}"></span>{{ badgeText }}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:.5px solid var(--sep)">
+              <div style="padding:10px 16px;border-right:.5px solid var(--sep)"><div style="font-size:12px;color:var(--ink2)">無線模組</div><div style="font-size:15px;font-weight:600;color:{{ radioInk }}">{{ radioText }}</div></div>
+              <div style="padding:10px 16px;border-right:.5px solid var(--sep)"><div style="font-size:12px;color:var(--ink2)">配對</div><div style="font-size:15px;font-weight:600">已保存</div></div>
+              <div style="padding:10px 16px"><div style="font-size:12px;color:var(--ink2)">最後同步</div><div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">{{ syncTime }}</div></div>
+            </div>
+          </div>
+          <section>
+            <div style="padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px">連線</div>
+            <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px;border-bottom:.5px solid var(--sep)"><div style="flex:1;min-width:0"><div style="font-size:14px">重新整理</div><div style="font-size:12px;color:var(--ink2);text-wrap:pretty">立即向控制盒讀取最新狀態。</div></div><button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--accent);font-size:13px;white-space:nowrap;cursor:pointer">重新整理</button></div>
+              <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px;border-bottom:.5px solid var(--sep)"><div style="flex:1;min-width:0"><div style="font-size:14px">更換裝置</div><div style="font-size:12px;color:var(--ink2);text-wrap:pretty">中斷目前連線，回到連線畫面。</div></div><button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--accent);font-size:13px;white-space:nowrap;cursor:pointer">中斷連線</button></div>
+              <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px;"><div style="flex:1;min-width:0"><div style="font-size:14px">已保存的連線</div><div style="font-size:12px;color:var(--ink2);text-wrap:pretty">密碼存於 Windows 認證管理員。</div></div><button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--danger);font-size:13px;white-space:nowrap;cursor:pointer">忘記</button></div>
+            </div>
+          </section>
+        </div></sc-if>
+        <sc-if value="{{ tabLook }}" hint-placeholder-val="{{ false }}"><section>
+          <div style="padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px">主題</div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ themes }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.onClick }}" style="display:flex;flex-direction:column;gap:8px;padding:8px 8px 10px;border-radius:16px;border:0;background:var(--glass);box-shadow:{{ t.ring }};color:var(--ink);cursor:pointer;text-align:left">
+                <div style="position:relative;height:78px;border-radius:10px;overflow:hidden;display:flex;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)">
+                  <div style="flex:1;background:{{ t.bgA }}"></div><div style="flex:{{ t.splitFlex }};background:{{ t.bgB }}"></div>
+                  <div style="position:absolute;left:10px;right:10px;top:10px;height:10px;border-radius:5px;background:{{ t.bar }}"></div>
+                  <div style="position:absolute;left:10px;top:28px;width:44%;bottom:10px;border-radius:7px;background:{{ t.card }}"></div>
+                  <div style="position:absolute;right:10px;top:28px;width:36%;bottom:10px;border-radius:7px;background:{{ t.card }}"></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding:0 4px"><span style="flex:none;width:16px;height:16px;border-radius:50%;box-shadow:{{ t.radio }}"></span><span style="font-size:13.5px;font-weight:{{ t.weight }}">{{ t.label }}</span></div>
+              </button>
+            </sc-for>
+          </div>
+        </section></sc-if>
+        <sc-if value="{{ tabDiag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:18px">
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ counts }}" as="c" hint-placeholder-count="3">
+              <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden;padding:12px 14px"><div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2)"><span style="width:7px;height:7px;border-radius:50%;background:{{ c.dot }}"></span>{{ c.label }}</div><div style="font-size:24px;font-weight:600;font-variant-numeric:tabular-nums">{{ c.n }}</div></div>
+            </sc-for>
+          </div>
+          <section>
+            <div style="display:flex;align-items:center;gap:10px;padding:0 4px 8px 14px">
+              <span style="flex:1;font-size:12px;color:var(--ink3)">最近 5 筆 · 保留最近 200 筆</span>
+              <button onClick="{{ onRaw }}" style="display:flex;align-items:center;gap:8px;border:0;background:none;padding:0;font-size:12.5px;color:var(--ink2);cursor:pointer">原始資料<span style="position:relative;width:34px;height:20px;border-radius:99px;background:{{ rawTrack }};transition:background .15s"><span style="position:absolute;top:2px;left:{{ rawKnob }};width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s"></span></span></button>
+            </div>
+            <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+              <sc-for list="{{ events }}" as="e" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 14px;border-bottom:.5px solid var(--sep);font-size:13.5px">
+                  <span style="flex:none;width:7px;height:7px;border-radius:50%;background:{{ e.dot }}"></span>
+                  <span style="flex:1;min-width:0">{{ e.title }}<span style="color:var(--ink2)"> · {{ e.status }}</span><sc-if value="{{ e.showRaw }}" hint-placeholder-val="{{ false }}"><span style="display:block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--ink2)">{{ e.raw }}</span></sc-if></span>
+                  <span style="flex:none;font-size:12px;color:var(--ink3);font-variant-numeric:tabular-nums">{{ e.time }}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ raw }}" hint-placeholder-val="{{ false }}"><pre style="margin:0;padding:12px 14px;border-bottom:.5px solid var(--sep);background:var(--fill);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.6;white-space:pre-wrap">{{ rawJson }}</pre></sc-if>
+              <div style="display:flex;align-items:center;gap:8px;padding:10px 14px">
+                <span style="flex:1;font-size:12px;color:var(--ink2)">匯出檔不含帳號、IP 與密碼。</span>
+                <button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--accent);font-size:13px;white-space:nowrap;cursor:pointer">匯出 JSON</button>
+                <button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--danger);font-size:13px;white-space:nowrap;cursor:pointer">清除紀錄</button>
+              </div>
+            </div>
+          </section>
+        </div></sc-if>
+      </div>
+    </div>
+    </sc-if>
+    <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:22px">
+      <section><div style="padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px">裝置與連線</div><div style="display:flex;flex-direction:column;gap:18px">
+          <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:14px;padding:16px">
+              <div style="flex:none;width:44px;height:44px;border-radius:12px;background:var(--fill);display:grid;place-items:center"><span style="width:24px;height:6px;border-radius:3px;background:var(--ink);box-shadow:0 0 10px {{ tempCol }}"></span></div>
+              <div style="flex:1;min-width:0"><div style="font-size:17px;font-weight:700">ScreenBar Halo 2</div><div style="font-size:12.5px;color:var(--ink2);font-family:ui-monospace,Menlo,Consolas,monospace">screenbar-halo2.local:8080</div></div>
+              <span style="flex:none;display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;background:{{ badgeBg }};color:{{ badgeInk }};font-size:12px;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:{{ badgeDot }};animation:{{ badgePulse }}"></span>{{ badgeText }}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:.5px solid var(--sep)">
+              <div style="padding:10px 16px;border-right:.5px solid var(--sep)"><div style="font-size:12px;color:var(--ink2)">無線模組</div><div style="font-size:15px;font-weight:600;color:{{ radioInk }}">{{ radioText }}</div></div>
+              <div style="padding:10px 16px;border-right:.5px solid var(--sep)"><div style="font-size:12px;color:var(--ink2)">配對</div><div style="font-size:15px;font-weight:600">已保存</div></div>
+              <div style="padding:10px 16px"><div style="font-size:12px;color:var(--ink2)">最後同步</div><div style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">{{ syncTime }}</div></div>
+            </div>
+          </div>
+          <section>
+            <div style="padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px">連線</div>
+            <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px;border-bottom:.5px solid var(--sep)"><div style="flex:1;min-width:0"><div style="font-size:14px">重新整理</div><div style="font-size:12px;color:var(--ink2);text-wrap:pretty">立即向控制盒讀取最新狀態。</div></div><button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--accent);font-size:13px;white-space:nowrap;cursor:pointer">重新整理</button></div>
+              <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px;border-bottom:.5px solid var(--sep)"><div style="flex:1;min-width:0"><div style="font-size:14px">更換裝置</div><div style="font-size:12px;color:var(--ink2);text-wrap:pretty">中斷目前連線，回到連線畫面。</div></div><button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--accent);font-size:13px;white-space:nowrap;cursor:pointer">中斷連線</button></div>
+              <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px;"><div style="flex:1;min-width:0"><div style="font-size:14px">已保存的連線</div><div style="font-size:12px;color:var(--ink2);text-wrap:pretty">密碼存於 Windows 認證管理員。</div></div><button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--danger);font-size:13px;white-space:nowrap;cursor:pointer">忘記</button></div>
+            </div>
+          </section>
+        </div></section>
+      <section>
+          <div style="padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px">主題</div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ themes }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.onClick }}" style="display:flex;flex-direction:column;gap:8px;padding:8px 8px 10px;border-radius:16px;border:0;background:var(--glass);box-shadow:{{ t.ring }};color:var(--ink);cursor:pointer;text-align:left">
+                <div style="position:relative;height:78px;border-radius:10px;overflow:hidden;display:flex;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)">
+                  <div style="flex:1;background:{{ t.bgA }}"></div><div style="flex:{{ t.splitFlex }};background:{{ t.bgB }}"></div>
+                  <div style="position:absolute;left:10px;right:10px;top:10px;height:10px;border-radius:5px;background:{{ t.bar }}"></div>
+                  <div style="position:absolute;left:10px;top:28px;width:44%;bottom:10px;border-radius:7px;background:{{ t.card }}"></div>
+                  <div style="position:absolute;right:10px;top:28px;width:36%;bottom:10px;border-radius:7px;background:{{ t.card }}"></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding:0 4px"><span style="flex:none;width:16px;height:16px;border-radius:50%;box-shadow:{{ t.radio }}"></span><span style="font-size:13.5px;font-weight:{{ t.weight }}">{{ t.label }}</span></div>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+      <section><div style="padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px">診斷紀錄</div><div style="display:flex;flex-direction:column;gap:18px">
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ counts }}" as="c" hint-placeholder-count="3">
+              <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden;padding:12px 14px"><div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2)"><span style="width:7px;height:7px;border-radius:50%;background:{{ c.dot }}"></span>{{ c.label }}</div><div style="font-size:24px;font-weight:600;font-variant-numeric:tabular-nums">{{ c.n }}</div></div>
+            </sc-for>
+          </div>
+          <section>
+            <div style="display:flex;align-items:center;gap:10px;padding:0 4px 8px 14px">
+              <span style="flex:1;font-size:12px;color:var(--ink3)">最近 5 筆 · 保留最近 200 筆</span>
+              <button onClick="{{ onRaw }}" style="display:flex;align-items:center;gap:8px;border:0;background:none;padding:0;font-size:12.5px;color:var(--ink2);cursor:pointer">原始資料<span style="position:relative;width:34px;height:20px;border-radius:99px;background:{{ rawTrack }};transition:background .15s"><span style="position:absolute;top:2px;left:{{ rawKnob }};width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s"></span></span></button>
+            </div>
+            <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+              <sc-for list="{{ events }}" as="e" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 14px;border-bottom:.5px solid var(--sep);font-size:13.5px">
+                  <span style="flex:none;width:7px;height:7px;border-radius:50%;background:{{ e.dot }}"></span>
+                  <span style="flex:1;min-width:0">{{ e.title }}<span style="color:var(--ink2)"> · {{ e.status }}</span><sc-if value="{{ e.showRaw }}" hint-placeholder-val="{{ false }}"><span style="display:block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--ink2)">{{ e.raw }}</span></sc-if></span>
+                  <span style="flex:none;font-size:12px;color:var(--ink3);font-variant-numeric:tabular-nums">{{ e.time }}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ raw }}" hint-placeholder-val="{{ false }}"><pre style="margin:0;padding:12px 14px;border-bottom:.5px solid var(--sep);background:var(--fill);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.6;white-space:pre-wrap">{{ rawJson }}</pre></sc-if>
+              <div style="display:flex;align-items:center;gap:8px;padding:10px 14px">
+                <span style="flex:1;font-size:12px;color:var(--ink2)">匯出檔不含帳號、IP 與密碼。</span>
+                <button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--accent);font-size:13px;white-space:nowrap;cursor:pointer">匯出 JSON</button>
+                <button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--danger);font-size:13px;white-space:nowrap;cursor:pointer">清除紀錄</button>
+              </div>
+            </div>
+          </section>
+        </div></section>
+    </div>
+    </sc-if>
+    </sc-if>
+
+    <sc-if value="{{ isConnect }}" hint-placeholder-val="{{ false }}">
+    <div style="width:100%;max-width:{{ connectMax }};margin:auto;display:grid;grid-template-columns:{{ connectCols }};gap:14px 24px;align-items:start">
+      <div style="grid-column:1 / -1;display:flex;flex-direction:column;gap:2px;padding:0 4px"><h1 style="margin:0;font-size:24px;font-weight:700;letter-spacing:-.2px">連接掛燈</h1><div style="font-size:13px;color:var(--ink2)">本機連線，不經雲端。</div></div>
+      <section>
+        <div style="padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px">區域網路</div>
+        <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px;border-bottom:.5px solid var(--sep)">
+            <div style="flex:1;min-width:0"><div style="font-size:14px">搜尋區域網路</div><div style="font-size:12px;color:var(--ink2)">約 5 秒，選取後只會填入位址。</div></div>
+            <button style="flex:none;min-height:32px;padding:2px 14px;border-radius:99px;border:0;background:var(--fill);color:var(--accent);font-size:13px;white-space:nowrap;cursor:pointer">搜尋</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 14px;background:var(--accentWash)">
+            <span style="flex:none;width:32px;height:32px;border-radius:9px;background:var(--fill);display:grid;place-items:center"><span style="width:18px;height:5px;border-radius:3px;background:var(--ink)"></span></span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:600">ScreenBar Halo 2</span><span style="display:block;font-size:12px;color:var(--ink2);font-family:ui-monospace,Menlo,Consolas,monospace">192.168.1.42:8080</span></span>
+            <span style="flex:none;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:12px">✓</span>
+          </div>
+        </div>
+        <p style="margin:0;padding:6px 14px 0;font-size:12px;color:var(--ink2)">已填入，請輸入密碼。</p>
+      </section>
+      <section>
+        <div style="padding:0 14px 6px;font-size:12px;color:var(--ink3);letter-spacing:.2px">登入</div>
+        <div style="border-radius:16px;background:var(--glass);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--edge);box-shadow:var(--shadow);overflow:hidden">
+          <label style="display:flex;align-items:center;gap:12px;min-height:48px;padding:0 14px;border-bottom:.5px solid var(--sep);font-size:14px"><span style="flex:none;width:72px;color:var(--ink2)">主機</span><input value="192.168.1.42" style="flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px;text-align:right"></label>
+          <label style="display:flex;align-items:center;gap:12px;min-height:48px;padding:0 14px;border-bottom:.5px solid var(--sep);font-size:14px"><span style="flex:none;width:72px;color:var(--ink2)">連接埠</span><input value="8080" style="flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px;text-align:right"></label>
+          <label style="display:flex;align-items:center;gap:12px;min-height:48px;padding:0 14px;border-bottom:.5px solid var(--sep);font-size:14px"><span style="flex:none;width:72px;color:var(--ink2)">帳號</span><input placeholder="必填" style="flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px;text-align:right"></label>
+          <label style="display:flex;align-items:center;gap:12px;min-height:48px;padding:0 14px;border-bottom:.5px solid var(--sep);font-size:14px"><span style="flex:none;width:72px;color:var(--ink2)">密碼</span><input type="password" placeholder="必填" style="flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px;text-align:right"></label>
+          <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 14px">
+            <div style="flex:1;min-width:0"><div style="font-size:14px">記住此連線與帳密</div><div style="font-size:12px;color:var(--ink2)">密碼存於 Windows 認證管理員。</div></div>
+            <span style="flex:none;position:relative;width:40px;height:24px;border-radius:99px;background:var(--accent)"><span style="position:absolute;top:2px;left:18px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)"></span></span>
+          </div>
+        </div>
+      </section>
+      <button style="grid-column:{{ connectBtnCol }};min-height:46px;border-radius:99px;border:0;background:var(--accent);color:#fff;font-size:15px;font-weight:600;box-shadow:var(--onShadow);cursor:pointer">連線</button>
+    </div>
+    </sc-if>
+
+    <footer style="flex:none;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 16px;margin-top:auto;padding-top:8px;font-size:11px;letter-spacing:1px;color:var(--ink3)"><span style="display:flex;align-items:center;gap:6px;letter-spacing:.2px;font-size:12px;color:{{ headerSubInk }};font-variant-numeric:tabular-nums"><span style="flex:none;width:6px;height:6px;border-radius:50%;background:{{ badgeDot }};animation:{{ badgePulse }}"></span>{{ headerSub }}</span><span>開發版 0.1.0</span></footer>
+  </main>
+  <sc-if value="{{ hasConfirm }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCancelDelete }}" style="position:absolute;inset:0;z-index:20;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:24px">
+      <div role="dialog" aria-modal="true" onClick="{{ stop }}" style="width:100%;max-width:340px;border-radius:20px;background:var(--sheet);backdrop-filter:blur(24px) saturate(170%);border:1px solid var(--edge);box-shadow:0 28px 64px -14px rgba(0,0,0,.38),0 0 0 .5px rgba(0,0,0,.12);padding:18px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:16px;font-weight:700">刪除這個情境？</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--fill)">
+          <span style="flex:none;width:28px;height:28px;border-radius:8px;background:{{ confirmDot }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <span style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ confirmName }}</span>
+            <span style="font-size:11.5px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ confirmSummary }}</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button onClick="{{ onCancelDelete }}" style="min-height:36px;padding:2px 18px;border-radius:99px;border:0;background:var(--fill);color:var(--ink);font-size:13.5px;cursor:pointer">取消</button>
+          <button onClick="{{ onConfirmDelete }}" style="min-height:36px;padding:2px 18px;border-radius:99px;border:0;background:var(--danger);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer">刪除</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:var(--ink);opacity:.85"></div></sc-if>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:880,&quot;height&quot;:580},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light'|'dark'&quot;},&quot;platform&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;iphone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;'desktop'|'iphone'&quot;},&quot;screen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;main&quot;,&quot;settings&quot;,&quot;connect&quot;,&quot;tray&quot;],&quot;default&quot;:&quot;main&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ready&quot;,&quot;executing&quot;,&quot;transmitted&quot;,&quot;failed&quot;,&quot;unknown&quot;,&quot;offline&quot;,&quot;radio&quot;,&quot;boot&quot;],&quot;default&quot;:&quot;ready&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const MODES=[['front','前燈'],['back','後燈'],['both','前後燈']];
+const MODE_LABEL={front:'前燈',back:'後燈',both:'前後燈'};
+const PRESETS=[
+ {name:'閱讀',mode:'both',front:70,back:30,temp:4300},
+ {name:'工作',mode:'both',front:60,back:35,temp:4000},
+ {name:'夜間',mode:'back',front:20,back:40,temp:2700},
+ {name:'會議',mode:'front',front:80,back:20,temp:5000}];
+const EVENTS=[
+ {tone:'ok',title:'命令',status:'已送出',time:'21:14:02',raw:'TX 12/12 · IRQ 20 · FIFO 3'},
+ {tone:'ok',title:'命令',status:'已送出',time:'21:12:40',raw:'TX 12/12 · IRQ 20 · FIFO 2'},
+ {tone:'ok',title:'狀態同步',status:'就緒',time:'21:10:05',raw:'—'},
+ {tone:'warn',title:'命令',status:'結果不明',time:'20:58:11',raw:'UNKNOWN_OUTCOME · TX 7/12 · IRQ 20 · FIFO 3'},
+ {tone:'err',title:'命令',status:'發送失敗',time:'20:41:37',raw:'RADIO_UNAVAILABLE · TX 0/12 · IRQ — · FIFO —'}];
+const SC={
+ ready:{},
+ executing:{lock:'處理中',status:['busy','處理中',' · 正在送出「關燈」']},
+ transmitted:{status:['ok','指令已送出',' · 請以實際燈光為準']},
+ failed:{status:['err','發送失敗',' · 請稍後再試。']},
+ unknown:{lock:'結果不明，請先查詢',lookup:true,banner:['warn','上一筆結果不明','請先查詢「關燈」的結果。','查詢命令結果'],status:['warn','結果不明',' · 請先查詢，不要重送。']},
+ offline:{lock:'已斷線',offline:true,banner:['warn','已斷線，重試中','最後同步 21:13:52。不會重送先前的操作。','立即重試']},
+ radio:{lock:'無線模組未就緒',radio:true,banner:['warn','無線模組未就緒','控制已暫停，模組就緒後即可操作。','']},
+ boot:{banner:['info','裝置已重新開機','已重新同步，先前的命令結果無法查詢。','知道了']}};
+const TOKENS={
+ light:{bg:'#e6e8ec',ink:'#1d1d1f',ink2:'#6e6e73',ink3:'#8e8e93',glass:'rgba(255,255,255,.4)',edge:'rgba(255,255,255,.9)',
+  shadow:'inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.5),inset 1px 0 0 rgba(255,255,255,.6),inset -1px 0 0 rgba(255,255,255,.6),inset 0 0 0 4px rgba(255,255,255,.18),0 0 0 .5px rgba(40,50,70,.14),0 2px 3px rgba(30,40,60,.05),0 18px 36px -12px rgba(30,40,60,.16)',
+  innerShadow:'inset 0 1px 0 rgba(255,255,255,.9),0 0 0 .5px rgba(40,50,70,.1)',
+  header:'rgba(255,255,255,.3)',headerShadow:'inset 0 1px 0 rgba(255,255,255,.9),0 .5px 0 rgba(40,50,70,.14),0 8px 20px -10px rgba(30,40,60,.12)',
+  pill:'rgba(255,255,255,.6)',sep:'rgba(60,60,67,.14)',fill:'rgba(118,118,128,.12)',track:'rgba(118,118,128,.2)',accent:'#0a74e8',danger:'#d9362b',
+  segOn:'#ffffff',stage:'transparent',lamp:'#1d1d1f',line:'rgba(60,60,67,.2)',tag:'rgba(255,255,255,.75)',dangerSoft:'rgba(217,54,43,.1)',sheet:'rgba(250,250,252,.9)',scrim:'rgba(30,34,42,.28)',accentWash:'rgba(10,116,232,.06)',
+  tray:'rgba(246,247,249,.62)',trayShadow:'inset 0 1px 0 rgba(255,255,255,.95),inset 0 0 0 4px rgba(255,255,255,.16),0 0 0 .5px rgba(40,50,70,.2),0 24px 48px -12px rgba(30,40,60,.32)',
+  offBg:'rgba(255,255,255,.7)',offInk:'#1d1d1f',offShadow:'inset 0 1px 0 #fff,0 0 0 .5px rgba(40,50,70,.18),0 1px 3px rgba(0,0,0,.08)',onShadow:'inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(10,80,180,.25),0 6px 16px -6px rgba(10,116,232,.5)'},
+ dark:{bg:'#111317',ink:'#f2f2f5',ink2:'#a3a3ab',ink3:'#7d7d86',glass:'rgba(255,255,255,.055)',edge:'rgba(255,255,255,.09)',
+  shadow:'inset 0 1px 0 rgba(255,255,255,.07),0 0 0 .5px rgba(0,0,0,.5),0 18px 36px -12px rgba(0,0,0,.55)',
+  innerShadow:'inset 0 1px 0 rgba(255,255,255,.06),0 0 0 .5px rgba(0,0,0,.4)',
+  header:'rgba(24,26,31,.6)',headerShadow:'inset 0 -.5px 0 rgba(255,255,255,.06),0 8px 20px -10px rgba(0,0,0,.5)',
+  pill:'rgba(255,255,255,.1)',sep:'rgba(255,255,255,.08)',fill:'rgba(118,118,128,.24)',track:'rgba(118,118,128,.36)',accent:'#3b8cf6',danger:'#ff6259',
+  segOn:'#56575d',stage:'transparent',lamp:'#c9c9ce',line:'rgba(255,255,255,.14)',tag:'rgba(40,42,48,.8)',dangerSoft:'rgba(255,69,58,.16)',sheet:'rgba(38,40,46,.92)',scrim:'rgba(0,0,0,.5)',accentWash:'rgba(59,140,246,.12)',
+  tray:'rgba(36,38,44,.72)',trayShadow:'inset 0 1px 0 rgba(255,255,255,.08),0 0 0 .5px rgba(0,0,0,.6),0 24px 48px -12px rgba(0,0,0,.6)',
+  offBg:'rgba(255,255,255,.12)',offInk:'#f2f2f5',offShadow:'inset 0 1px 0 rgba(255,255,255,.1),0 0 0 .5px rgba(0,0,0,.5)',onShadow:'inset 0 1px 0 rgba(255,255,255,.2),0 6px 18px -6px rgba(59,140,246,.6)'}};
+const TONES={
+ light:{ok:['rgba(52,168,83,.12)','#1f7a3a','#34a853'],warn:['rgba(255,170,0,.14)','#8a5a00','#f0a000'],err:['rgba(217,54,43,.1)','#b3261e','#d9362b'],info:['rgba(255,255,255,.55)','#1d1d1f','#8e8e93'],busy:['rgba(255,255,255,.55)','#0a74e8','#0a74e8']},
+ dark:{ok:['rgba(52,199,89,.16)','#6ad588','#34c759'],warn:['rgba(255,176,0,.15)','#ffc861','#ffb000'],err:['rgba(255,69,58,.16)','#ff8a80','#ff453a'],info:['rgba(255,255,255,.08)','#f2f2f5','#8e8e93'],busy:['rgba(255,255,255,.08)','#6aa8ff','#3b8cf6']}};
+const mix=(a,b,t)=>a.map((c,i)=>Math.round(c+(b[i]-c)*t));
+const clampK=k=>Math.max(2700,Math.min(6500,k));
+const tempColor=k=>`rgb(${mix([255,196,102],[224,236,255],(clampK(k)-2700)/3800)})`;
+const beamRGB=k=>{const t=clampK(k);return t<=4600?mix([255,164,60],[255,214,140],(t-2700)/1900):mix([255,214,140],[96,160,255],(t-4600)/1900);};
+
+class Component extends DCLogic {
+  componentDidMount(){this._esc=e=>{if(e.key!=='Escape')return;if(this.state.confirm>=0)this.setState({confirm:-1});else if(this.state.adding)this.setState({adding:false});};window.addEventListener('keydown',this._esc);}
+  componentWillUnmount(){clearTimeout(this._undoT);window.removeEventListener('keydown',this._esc);}
+  state={list:PRESETS.slice(),adding:false,draftName:'',confirm:-1,power:true,mode:'both',front:60,back:35,temp:4000,theme:null,view:null,editing:false,raw:false,bannerHidden:false};
+  renderVals(){
+    const P=this.props,S=this.state;
+    const theme=S.theme||P.theme||'light';
+    const platform=P.platform||'desktop';
+    const screen=S.view||P.screen||'main';
+    const sc=SC[P.scenario||'ready']||{};
+    const T=TOKENS[theme]||TOKENS.light,TN=TONES[theme]||TONES.light;
+    const vars={};
+    for(const k in T) vars['--'+k]=T[k];
+    const tone=t=>({bg:TN[t][0],ink:TN[t][1],dot:TN[t][2]});
+    const lock=sc.lock||null,locked=!!lock;
+    const set=patch=>{if(!locked) this.setState(patch);};
+    const pct=(v,a,b)=>((v-a)/(b-a)*100).toFixed(1)+'%';
+    const litF=S.power&&S.mode!=='back',litB=S.power&&S.mode!=='front';
+    const rgb=beamRGB(S.temp),tc=tempColor(S.temp);
+    const pulse='hb-pulse 1.2s ease-in-out infinite';
+    const badge=sc.offline?{text:'已斷線 · 重試中',...tone('warn'),pulse}:{text:'已連線',...tone('ok'),pulse:'none'};
+    const b=sc.banner&&!S.bannerHidden?sc.banner:null;
+    const bt=b?tone(b[0]):tone('info');
+    const st=sc.status;
+    const stTone=st?tone(st[0]):null;
+    const same=p=>p.mode===S.mode&&p.front===S.front&&p.back===S.back&&p.temp===S.temp;
+    const modeSeg=(key)=>({bg:S.mode===key?'var(--segOn)':'transparent',ink:S.mode===key?'var(--ink)':'var(--ink2)',shadow:S.mode===key?'0 1px 2px rgba(0,0,0,.14)':'none'});
+    const sliders=[
+      {key:'front',label:'前燈',name:'前燈亮度',min:1,max:100,step:1,val:S.front,text:S.front+'%',pct:pct(S.front,1,100),knob:'var(--knob,#fff)'},
+      {key:'back',label:'後燈',name:'後燈亮度',min:1,max:100,step:1,val:S.back,text:S.back+'%',pct:pct(S.back,1,100),knob:'var(--knob,#fff)'},
+      {key:'temp',label:'色溫',name:'色溫',min:2700,max:6500,step:25,val:S.temp,text:S.temp+' K',pct:pct(S.temp,2700,6500),knob:tc}
+    ].map(s=>({...s,knob:s.key==='temp'?tc:(theme==='dark'?'#f2f2f5':'#fff'),onChange:e=>set({[s.key]:Number(e.target.value)})}));
+    const trayStatus=sc.offline?['warn','已斷線，重試中','最後同步 21:13:52']:sc.radio?['warn','無線模組未就緒','']:st?[st[0],st[1],st[0]==='warn'?'':st[2].replace(' · ','')]:null;
+    const tts=trayStatus?tone(trayStatus[0]):tone('info');
+    const dim=v=>locked?'.4':'1';
+    return {
+      vars,
+      isTray:screen==='tray',isWindow:screen!=='tray',
+      isPhone:platform==='iphone',
+      w:platform==='iphone'?'390px':'880px',h:platform==='iphone'?'844px':'580px',
+      radius:platform==='iphone'?'48px':'12px',
+      pad:platform==='iphone'?'16px 16px 28px':'20px 20px 18px',
+      heroH:platform==='iphone'?'250px':'196px',isDesktop:platform!=='iphone',
+      connectMax:platform==='iphone'?'460px':'780px',connectBtnCol:platform==='iphone'?'auto':'2',connectCols:platform==='iphone'?'minmax(0,1fr)':'minmax(0,1fr) minmax(0,1fr)',
+      isMain:screen==='main',isSettings:screen==='settings',isConnect:screen==='connect',
+      title:screen==='settings'?'設定':screen==='connect'?'HaloDesk':'ScreenBar Halo 2',
+      headerSub:screen==='connect'?'未連線':sc.offline?'已斷線 · 重試中 · 最後同步 21:13:52':'已連線 · 同步 21:14:08',
+      headerSubInk:sc.offline&&screen!=='connect'?badge.ink:'var(--ink2)',
+      notSettings:screen!=='settings',
+      tabDevice:(S.tab||'device')==='device',tabLook:S.tab==='look',tabDiag:S.tab==='diag',
+      tabs:[['device','裝置與連線',sc.radio?'未就緒':'就緒'],['look','外觀',theme==='dark'?'深色':'淺色'],['diag','診斷紀錄','5 筆']].map(([k,l,m])=>{const a=(S.tab||'device')===k;return {label:l,meta:m,bg:a?'var(--glass)':'transparent',shadow:a?'var(--shadow)':'none',weight:a?'600':'400',metaInk:k==='device'&&sc.radio?'var(--danger)':'var(--ink3)',onClick:()=>this.setState({tab:k})};}),
+      goSettings:()=>this.setState({view:'settings'}),goMain:()=>this.setState({view:'main'}),
+      badgeText:screen==='connect'?'未連線':badge.text,badgeBg:screen==='connect'?'var(--fill)':badge.bg,badgeInk:screen==='connect'?'var(--ink2)':badge.ink,badgeDot:screen==='connect'?'#aeaeb2':badge.dot,badgePulse:badge.pulse,
+      hasBanner:!!b&&screen!=='connect',bannerBg:bt.bg,bannerInk:bt.ink,bannerDot:bt.dot,bannerPulse:b&&b[0]==='warn'?pulse:'none',
+      bannerTitle:b?b[1]:'',bannerBody:b?b[2]:'',bannerHasAction:!!(b&&b[3]),bannerAction:b?b[3]:'',
+      onBannerAction:()=>{if(P.scenario==='boot') this.setState({bannerHidden:true});},
+      powerText:S.power?'開啟':'關閉',powerNext:S.power?'關燈':'開燈',
+      powerHint:'按一下'+(S.power?'關燈':'開燈'),
+      powerBg:S.power?'var(--accent)':'var(--offBg)',powerInk:S.power?'#fff':'var(--offInk)',powerShadow:S.power?'var(--onShadow)':'var(--offShadow)',
+      powerOpacity:locked&&P.scenario!=='executing'?'.35':'1',
+      onPower:()=>set({power:!S.power}),
+      modeLabel:S.power?`${MODE_LABEL[S.mode]} · ${S.temp} K`:'燈已關閉',
+      statusBusy:!!st&&st[0]==='busy',
+      statusTitle:st?st[1]:'',statusBody:st?st[2]:'按一下'+(S.power?'關燈':'開燈'),statusInk:stTone?stTone.ink:'var(--ink3)',
+      lockText:lock?'已停用：'+lock:'',lockInk:'var(--ink2)',ctlOpacity:dim(),
+      modes:MODES.map(([k,l])=>({label:l,...modeSeg(k),onClick:()=>set({mode:k})})),
+      sliders,
+      frontText:litF?S.front+'%':'—',backText:litB?S.back+'%':'—',tempText:S.temp+' K',
+      beamColor:`rgba(${rgb},.55)`,beamF:litF?(0.3+0.7*S.front/100).toFixed(3):'0',beamB:litB?(0.3+0.7*S.back/100).toFixed(3):'0',
+      barGlow:S.power?`0 0 18px ${tc}, 0 0 4px ${tc}`:'none',tempCol:tc,swatchOpacity:S.power?'1':'.3',
+      previewOpacity:sc.offline?'.5':'1',
+      presets:S.list.map((p,i)=>{const a=same(p);const conf=S.confirm===i;return {name:p.name,short:`${MODE_LABEL[p.mode]} · ${p.front}/${p.back}% · ${p.temp}K`,tiny:`${p.temp} K · ${p.front}/${p.back}%`,summary:`${MODE_LABEL[p.mode]} · 前 ${p.front}% · 後 ${p.back}% · ${p.temp} K`,dot:tempColor(p.temp),
+        bg:a&&!S.editing?'var(--segOn)':'var(--fill)',ink:a&&!S.editing?'var(--accent)':'var(--ink)',ring:a&&!S.editing?'0 0 0 1.5px var(--accent)':'none',cursor:S.editing?'default':'pointer',
+        normal:true,showBadge:S.editing,outline:S.editing?'1px dashed var(--track)':'none',
+        onClick:()=>{if(!S.editing) set({mode:p.mode,front:p.front,back:p.back,temp:p.temp});},
+        onDelete:()=>this.setState({confirm:i})};}),
+      hasConfirm:S.confirm>=0&&!!S.list[S.confirm],
+      confirmName:S.list[S.confirm]?S.list[S.confirm].name:'',
+      confirmDot:S.list[S.confirm]?tempColor(S.list[S.confirm].temp):'transparent',
+      confirmSummary:S.list[S.confirm]?(p=>`${MODE_LABEL[p.mode]} · 前 ${p.front}% · 後 ${p.back}% · ${p.temp} K`)(S.list[S.confirm]):'',
+      stop:e=>e.stopPropagation(),
+      onCancelDelete:()=>this.setState({confirm:-1}),
+      onConfirmDelete:()=>{const i=S.confirm,p=S.list[i];if(!p)return;clearTimeout(this._undoT);this.setState(s=>({list:s.list.filter((_,j)=>j!==i),undo:{p,i},confirm:-1,editing:s.list.length>1}));this._undoT=setTimeout(()=>this.setState({undo:null}),6000);},
+      hasUndo:!!S.undo,noUndo:!S.undo,undoName:S.undo?S.undo.p.name:'',
+      onUndo:()=>{clearTimeout(this._undoT);this.setState(s=>{if(!s.undo)return null;const l=s.list.slice();l.splice(s.undo.i,0,s.undo.p);return {list:l,undo:null};});},
+      tileCols:platform==='iphone'?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',
+      countText:`${S.list.length}/4`,
+      emptySlots:Array.from({length:Math.max(0,4-S.list.length)},(_,k)=>({key:k,onClick:()=>{if(!locked) this.setState({adding:true,draftName:'',confirm:-1,editing:false});}})),
+      canAddTile:S.list.length<4,addOpacity:S.list.length<4&&!locked?'1':'.4',addTitle:S.list.length<4?'以目前設定新增情境':'最多 4 組情境',
+      adding:S.adding&&!locked,draftName:S.draftName,
+      onAdd:()=>{if(!locked&&S.list.length<4) this.setState({adding:true,draftName:'',confirm:-1,editing:false});},
+      onName:e=>this.setState({draftName:e.target.value.slice(0,40)}),
+      onCancelAdd:()=>this.setState({adding:false}),
+      onSave:()=>{const n=S.draftName.trim();if(!n||S.list.length>=4)return;this.setState(s=>({adding:false,draftName:'',list:[...s.list,{name:n,mode:s.mode,front:s.front,back:s.back,temp:s.temp}]}));},
+      saveOpacity:S.draftName.trim()?'1':'.4',
+      addSummary:`${MODE_LABEL[S.mode]} · 前 ${S.front}% · 後 ${S.back}% · ${S.temp} K`,
+      editOpacity:S.list.length?'1':'.4',
+      _unmount:null,
+      editing:S.editing,editVis:S.editing?'visible':'hidden',editWeight:S.editing?'600':'400',editLabel:S.editing?'完成':'編輯',onEdit:()=>{if(S.list.length||S.editing) this.setState({editing:!S.editing,adding:false,undo:S.editing?null:S.undo});},
+      themes:[['light','淺色'],['dark','深色'],['system','跟隨系統']].map(([k,l])=>{const a=k===theme;const L={bg:'#e6e8ec',bar:'#ffffff',card:'#ffffff'},D={bg:'#111317',bar:'#2a2c31',card:'#2a2c31'};const sel=a||(k==='system'&&false);return {label:l,bgA:k==='dark'?D.bg:L.bg,bgB:k==='system'?D.bg:(k==='dark'?D.bg:L.bg),splitFlex:k==='system'?'1':'0',bar:k==='dark'?D.bar:L.bar,card:k==='dark'?D.card:(k==='system'?'rgba(128,130,138,.45)':L.card),ring:sel?'0 0 0 2px var(--accent), var(--shadow)':'var(--shadow)',radio:sel?'inset 0 0 0 5px var(--accent)':'inset 0 0 0 1.5px var(--track)',weight:sel?'600':'400',bg:a?'var(--segOn)':'transparent',ink:a?'var(--ink)':'var(--ink2)',shadow:a?'0 1px 2px rgba(0,0,0,.14)':'none',onClick:()=>this.setState({theme:k==='system'?(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):k})};}),
+      radioText:sc.radio?'未就緒':'就緒',radioInk:sc.radio?'var(--danger)':'var(--ink)',syncTime:sc.offline?'21:13:52':'21:14:08',
+      raw:S.raw,rawTrack:S.raw?'var(--accent)':'var(--track)',rawKnob:S.raw?'16px':'2px',
+      rawJson:JSON.stringify({device_id:'halo2-7f3a9c',boot_id:'b-20260928-2104',radio:sc.radio?'unavailable':'ready',last_command:{command_id:'c-1f42',status:sc.lookup?'unknown':'transmitted'}},null,2),
+      counts:[['ok','成功',3],['warn','結果不明',1],['err','失敗',1]].map(([t,l,n])=>({label:l,n,dot:tone(t).dot})),
+      events:EVENTS.map(e=>({...e,dot:tone(e.tone).dot,showRaw:S.raw})),
+      rawLabel:S.raw?'隱藏原始資料':'顯示原始資料',onRaw:()=>this.setState({raw:!S.raw}),
+      traySub:`${badge.text} · 目標${S.power?'開啟':'關閉'} · ${MODE_LABEL[S.mode]}`,
+      trayHintTitle:st?st[1]:(lock?lock:''),
+      trayHintBody:st?(st[0]==='warn'?'，請先查詢':st[2]):(lock?'':'按一下'+(S.power?'關燈':'開燈')),
+      trayHintInk:stTone?stTone.ink:(lock?tone('warn').ink:'var(--ink3)'),
+      hasTrayStatus:!!trayStatus,trayStatusTitle:trayStatus?trayStatus[1]:'',trayStatusBody:trayStatus?trayStatus[2]:'',
+      trayStatusBg:tts.bg,trayStatusInk:tts.ink,trayStatusDot:tts.dot,trayLookup:!!sc.lookup,
+      trayFoot:sc.offline?'最後同步 21:13:52':'同步 21:14:08'
+    };
+  }
+}
+</script>
+</body>
+</html>

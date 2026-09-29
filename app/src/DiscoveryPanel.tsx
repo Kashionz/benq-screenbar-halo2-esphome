@@ -41,7 +41,7 @@ export function DiscoveryPanel({ disabled, dimmed = false, current, platform, se
       const found = await bridge.discover();
       if (!mounted.current) return;
       setResults(found);
-      setMessage(found.length ? null : { kind: "empty", text: "找不到橋接器，可直接輸入 IP。" });
+      setMessage(found.length ? null : { kind: "empty", text: "找不到裝置，可直接輸入 IP。" });
     } catch (error) {
       if (mounted.current) setMessage({ kind: "error", text: failure(error).message });
     } finally {
@@ -56,12 +56,19 @@ export function DiscoveryPanel({ disabled, dimmed = false, current, platform, se
   return (
     <section aria-label="區域網路">
       <div className="group-label">區域網路</div>
-      <div className={`group${dimmed ? " dimmed" : ""}`}>
-        <button type="button" className="list-button search-row" disabled={disabled || searching}
-          aria-busy={searching} onClick={() => void search()}>
-          <span>{searching ? "搜尋中…約 5 秒" : "搜尋區域網路"}</span>
+      <div className={`glass${dimmed ? " dimmed" : ""}`}>
+        <div className="action-row">
+          <div className="action-text">
+            <div className="action-title">搜尋區域網路</div>
+            <div className="action-desc">{searching ? "搜尋中…約 5 秒" : "約 5 秒，選取後只會填入位址。"}</div>
+          </div>
           {searching && <span className="spinner" aria-hidden="true" />}
-        </button>
+          <button type="button" className="pill-button" disabled={disabled || searching}
+            aria-label={searching ? "搜尋中…約 5 秒" : "搜尋區域網路"} aria-busy={searching}
+            onClick={() => void search()}>
+            搜尋
+          </button>
+        </div>
         {results.map((candidate) => {
           const address = `${candidate.host}:${candidate.port}`;
           const picked = current === address;
@@ -72,17 +79,18 @@ export function DiscoveryPanel({ disabled, dimmed = false, current, platform, se
                 select(candidate);
                 setMessage({ kind: "picked", text: "已填入，請輸入密碼。" });
               }}>
+              <span className="result-icon" aria-hidden="true"><span /></span>
               <span className="result-text">
                 <span className="result-name">{candidate.name}</span>
                 <span className="result-address">{address}</span>
               </span>
-              <span className="result-check" aria-hidden="true">{picked ? "✓" : ""}</span>
+              {picked && <span className="result-check" aria-hidden="true">✓</span>}
             </button>
           );
         })}
       </div>
       {message && (
-        <p role="status" className={`group-note${message.kind === "picked" ? " muted-2" : " warn"}`}>
+        <p role="status" className={`group-note${message.kind === "picked" ? "" : " warn"}`}>
           {message.text}
           {message.kind === "empty" && hint && ` ${hint}`}
         </p>

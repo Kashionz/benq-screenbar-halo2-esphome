@@ -166,7 +166,7 @@ pub fn open_main(app: &tauri::AppHandle) {
 
 fn flyout_window(app: &tauri::App) -> tauri::Result<WebviewWindow> {
     let builder = WebviewWindowBuilder::new(app, FLYOUT, WebviewUrl::App("tray.html".into()))
-        .title("Halo 2 快速控制")
+        .title("HaloDesk 快速控制")
         .inner_size(WIDTH, 480.0)
         .resizable(false)
         .maximizable(false)
@@ -197,11 +197,11 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     if let Err(error) = flyout_window(app) {
         eprintln!("tray flyout unavailable: {error}");
     }
-    let show_item = MenuItem::with_id(app, "halo-show", "開啟 Halo 2 Control", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "halo-quit", "結束 Halo 2 Control", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "halo-show", "開啟 HaloDesk", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "halo-quit", "結束 HaloDesk", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &quit])?;
     let mut builder = TrayIconBuilder::with_id("halo-control")
-        .tooltip("Halo 2 Control")
+        .tooltip("HaloDesk")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -220,9 +220,9 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
                 toggle(tray.app_handle(), &rect);
             }
         });
-    if let Some(icon) = app.default_window_icon() {
-        builder = builder.icon(icon.clone());
-    }
+    // The small icon (icons/tray.png, from the design's app-icon-small.svg)
+    // stays legible at 16–32 px, unlike the full App icon.
+    builder = builder.icon(tauri::include_image!("icons/tray.png"));
     builder.build(app)?;
     Ok(())
 }

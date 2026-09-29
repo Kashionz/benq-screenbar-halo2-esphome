@@ -1,5 +1,7 @@
 import type { LightState } from "./bridge";
-import type { Draft, Feedback, LockReason, Tone } from "./controlState";
+import type { Draft, Feedback, LightKey, LockReason } from "./controlState";
+import type { Line } from "./StatusCards";
+import type { Theme } from "./theme";
 
 /**
  * Tray flyout protocol. The main window stays the only command coordinator:
@@ -9,26 +11,30 @@ import type { Draft, Feedback, LockReason, Tone } from "./controlState";
 export interface FlyoutState {
   connected: boolean;
   online: boolean;
-  badge: { tone: Tone; text: string };
   lock: LockReason | null;
   desired: LightState | null;
+  /** desired ⊕ transmitted ⊕ unsent values, as the main window shows them. */
+  values: LightState | null;
+  adjusting: LightKey[];
+  /** A command is in flight; power waits, lighting input is coalesced. */
+  sending: boolean;
   features: Record<string, string>;
-  feedback: Feedback;
+  /** The main window's power status line (sending, result, failure), or null when idle. */
+  status: Feedback | null;
   updated: string;
+  theme: Theme;
 }
 
 export type FlyoutIntent =
   | { id: string; kind: "power"; value: boolean }
-  | { id: string; kind: "apply"; patch: Draft }
+  | { id: string; kind: "adjust"; patch: Draft }
   | { id: string; kind: "sync" };
 
-/** done: the flyout may drop its draft (sent and transmitted, or nothing to send). */
+/** done: power was transmitted, or an adjustment was accepted for live sending. */
 export interface FlyoutAck {
   id: string;
   done: boolean;
 }
-
-export const OFFLINE_FEEDBACK: Feedback = { tone: "idle", title: "等待連線", body: "", lookup: false };
 
 const isInt = (v: unknown, min: number, max: number, step = 1): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= min && v <= max && (v - min) % step === 0;
@@ -40,7 +46,7 @@ export function parseIntent(payload: unknown): FlyoutIntent | null {
   if (typeof p.id !== "string" || !p.id || p.id.length > 64) return null;
   if (p.kind === "sync") return { id: p.id, kind: "sync" };
   if (p.kind === "power") return typeof p.value === "boolean" ? { id: p.id, kind: "power", value: p.value } : null;
-  if (p.kind !== "apply" || !p.patch || typeof p.patch !== "object") return null;
+  if (p.kind !== "adjust" || !p.patch || typeof p.patch !== "object") return null;
   const patch: Draft = {};
   for (const [key, value] of Object.entries(p.patch as Record<string, unknown>)) {
     if (key === "mode" && (value === "front" || value === "back" || value === "both")) patch.mode = value;
@@ -48,34 +54,30 @@ export function parseIntent(payload: unknown): FlyoutIntent | null {
     else if (key === "temperature_k" && isInt(value, 2700, 6500, 25)) patch.temperature_k = value;
     else return null;
   }
-  return Object.keys(patch).length ? { id: p.id, kind: "apply", patch } : null;
+  return Object.keys(patch).length ? { id: p.id, kind: "adjust", patch } : null;
 }
 
 export function parseState(payload: unknown): FlyoutState | null {
   if (!payload || typeof payload !== "object") return null;
   const s = payload as FlyoutState;
-  return typeof s.connected === "boolean" && s.badge && s.feedback ? s : null;
+  return typeof s.connected === "boolean" && typeof s.updated === "string" ? s : null;
 }
 
-export interface FlyoutStatus {
-  tone: Tone;
-  title: string;
-  body: string;
-  lookup: boolean;
-}
-
-/** The flyout's status row; null while ready with nothing to report. */
-export function flyoutStatus(state: FlyoutState | null): FlyoutStatus | null {
-  if (!state?.connected) return { tone: "idle", title: "未連線", body: "", lookup: false };
-  if (state.lock === "已斷線")
-    return { tone: "warn", title: "已斷線，重試中", body: `最後同步 ${state.updated}`, lookup: false };
-  if (state.lock === "無線模組未就緒") return { tone: "warn", title: "無線模組未就緒", body: "", lookup: false };
-  const { feedback } = state;
-  if (feedback.tone === "idle") return null;
+/**
+ * The flyout's status line beside its power button. Offline and radio locks
+ * come first; an unknown outcome sends the user to the main window to look up.
+ */
+export function trayLine(state: FlyoutState | null, next: string): Line & { lookup: boolean } {
+  if (!state?.connected) return { tone: "idle", body: "未連線", lookup: false };
+  if (state.lock === "已斷線" || state.lock === "無線模組未就緒")
+    return { tone: "warn", title: state.lock, body: "", lookup: false };
+  const { status } = state;
+  if (!status) return { tone: "idle", body: `按一下${next}`, lookup: false };
+  if (status.lookup) return { tone: "warn", title: status.title, body: "，請先查詢", lookup: true };
   return {
-    tone: feedback.tone,
-    title: feedback.title,
-    body: feedback.tone === "warn" ? "" : feedback.body,
-    lookup: feedback.lookup,
+    tone: status.tone,
+    title: status.title,
+    body: status.body ? ` · ${status.body}` : "",
+    lookup: false,
   };
 }

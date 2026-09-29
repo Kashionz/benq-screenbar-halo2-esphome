@@ -1,5 +1,4 @@
-import type { Snapshot } from "./bridge";
-import { levelSummary, modeLabel, type Feedback, type Tone } from "./controlState";
+import type { Feedback, Tone } from "./controlState";
 
 export interface BannerSpec {
   tone: Tone;
@@ -11,7 +10,7 @@ export interface BannerSpec {
 export function Banner({ banner }: { banner: BannerSpec }) {
   return (
     <div role="alert" className={`banner tone-${banner.tone}`}>
-      <span className="dot" />
+      <span className={`dot${banner.tone === "warn" ? " pulse" : ""}`} />
       <div className="banner-text">
         <b>{banner.title}</b>
         {banner.body && `　${banner.body}`}
@@ -25,84 +24,51 @@ export function Banner({ banner }: { banner: BannerSpec }) {
   );
 }
 
-export function TargetList({
-  snapshot,
-  online,
-  updated,
-  source,
-}: {
-  snapshot: Snapshot;
-  online: boolean;
-  updated: string;
-  source: string;
-}) {
-  const desired = snapshot.desired.values;
+/** One status line: a bold title followed by plain text, or a plain hint. */
+export interface Line {
+  tone: Tone;
+  title?: string;
+  body: string;
+}
+
+/** Status beside the power button; the hint names the next explicit action. */
+export function powerLine(status: Feedback | null, next: string): Line {
+  if (!status) return { tone: "idle", body: `按一下${next}` };
+  return { tone: status.tone, title: status.title, body: status.body ? ` · ${status.body}` : "" };
+}
+
+export function StatusLine({ line, className = "" }: { line: Line; className?: string }) {
   return (
-    <section aria-label="目標">
-      <div className="group-label">{online ? "目標" : `最後已知目標 · ${updated}`}</div>
-      <div className="group list">
-        <div className="kv">
-          <span>電源</span>
-          <strong>{desired.power ? "開啟" : "關閉"}</strong>
-        </div>
-        <div className="kv">
-          <span>模式</span>
-          <span>{modeLabel(desired.mode)}</span>
-        </div>
-        <div className="kv">
-          <span>亮度與色溫</span>
-          <span className="num">{levelSummary(desired)}</span>
-        </div>
-        <div className="kv">
-          <span>來源</span>
-          <span>{source}</span>
-        </div>
-      </div>
-    </section>
+    <div className={`status-line tone-${line.tone} ${className}`.trim()} aria-live="polite">
+      {line.tone === "busy" && <span className="spinner small" aria-hidden="true" />}
+      <span>
+        {line.title && <b>{line.title}</b>}
+        {line.body}
+      </span>
+    </div>
   );
 }
 
-export function RecentCommand({
-  feedback,
-  snapshot,
-  lookup,
-  lookupDisabled,
+/** Footer connection status, shared by the main window and the tray flyout. */
+export function ConnectionStatus({
+  connected,
+  online,
+  updated,
 }: {
-  feedback: Feedback;
-  snapshot: Snapshot;
-  lookup: () => void;
-  lookupDisabled: boolean;
+  connected: boolean;
+  online: boolean;
+  updated: string;
 }) {
-  const remote = snapshot.observed_remote;
+  const tone: Tone = !connected ? "idle" : online ? "ok" : "warn";
+  const text = !connected
+    ? "未連線"
+    : online
+      ? `已連線 · 同步 ${updated}`
+      : `已斷線 · 重試中 · 最後同步 ${updated}`;
   return (
-    <section aria-label="最近命令">
-      <div className="group-label">最近命令</div>
-      <div className="group recent" aria-live="polite">
-        <div className={`recent-main tone-${feedback.tone}`}>
-          <span className="dot" />
-          <div className="recent-text">
-            <div className="recent-title">{feedback.title}</div>
-            {feedback.body && <div className="recent-body">{feedback.body}</div>}
-          </div>
-          {feedback.lookup && (
-            <button type="button" className="solid-small" disabled={lookupDisabled} onClick={lookup}>
-              查詢命令結果
-            </button>
-          )}
-        </div>
-        {remote && (
-          <div className="recent-remote">
-            <span>
-              原廠控制器：{remote.values.power ? "開燈" : "關燈"} · {modeLabel(remote.values.mode)} ·{" "}
-              {remote.values.front_brightness}% / {remote.values.back_brightness}% ·{" "}
-              {remote.values.temperature_k} K
-            </span>
-            <span className="muted">
-              約 {Math.max(0, Math.round((snapshot.uptime_ms - remote.received_at_uptime_ms) / 1000))} 秒前
-            </span>
-          </div>
-        )}
-      </div>
-    </section>
+    <span className={`connection-status tone-${tone}`}>
+      <span className={`dot${tone === "warn" ? " pulse" : ""}`} />
+      <span>{text}</span>
+    </span>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { bridge, failure, type DiagnosticReport } from "./bridge";
 import type { Tone } from "./controlState";
 
@@ -72,9 +72,41 @@ function time(unixMs: number) {
     : `${date.getMonth() + 1}/${date.getDate()} ${clock}`;
 }
 
-export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: string }) {
-  const iphone = /iPhone|iPod/.test(navigator.userAgent);
+/**
+ * The local diagnostics history, read only while the panel is shown. Reading
+ * it never contacts the bridge; it is reloaded whenever reloadKey (the last
+ * sync time) changes.
+ */
+function useDiagnostics(reloadKey: string) {
   const [report, setReport] = useState<DiagnosticReport | null>(null);
+  const [error, setError] = useState("");
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const reload = useCallback(async () => {
+    try {
+      const next = await bridge.diagnostics();
+      if (mounted.current && next) {
+        setReport(next);
+        setError("");
+      }
+    } catch (e) {
+      if (mounted.current) setError(failure(e).message);
+    }
+  }, []);
+  useEffect(() => {
+    void reload();
+  }, [reloadKey, reload]);
+  return { report, error, reload };
+}
+
+export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: string }) {
+  const { report, error, reload } = useDiagnostics(reloadKey);
+  const iphone = /iPhone|iPod/.test(navigator.userAgent);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
@@ -85,17 +117,6 @@ export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: 
       mounted.current = false;
     };
   }, []);
-  // Reading the local history never contacts the bridge.
-  useEffect(() => {
-    bridge
-      .diagnostics()
-      .then((next) => {
-        if (mounted.current && next) setReport(next);
-      })
-      .catch((e) => {
-        if (mounted.current) setMessage(failure(e).message);
-      });
-  }, [reloadKey]);
   async function action(kind: "export" | "clear") {
     setBusy(true);
     setMessage("");
@@ -108,68 +129,98 @@ export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: 
         const path = await bridge.exportDiagnostics();
         if (mounted.current) setMessage(`已匯出：${path}`);
       }
-      const next = await bridge.diagnostics();
-      if (mounted.current) setReport(next);
+      await reload();
     } catch (e) {
       if (mounted.current) setMessage(failure(e).message);
     } finally {
       if (mounted.current) setBusy(false);
     }
   }
-  const events = (report?.events ?? []).slice().reverse();
-  const rows = events.map((event) => ({ event, ...describeEvent(event) }));
+  const rows = (report?.events ?? [])
+    .slice()
+    .reverse()
+    .map((event) => ({ event, ...describeEvent(event) }));
   const count = (tone: Tone) => rows.filter((row) => row.tone === tone).length;
-  const summary = events.length
-    ? `最近 ${events.length} 筆：${count("ok")} 成功 · ${count("warn")} 結果不明 · ${count("err")} 失敗`
-    : "沒有紀錄";
+  const counts: Array<[Tone, string]> = [
+    ["ok", "成功"],
+    ["warn", "結果不明"],
+    ["err", "失敗"],
+  ];
   return (
-    <section aria-label="診斷">
-      <div className="group-label">診斷 · {summary}</div>
-      <div className="group">
-        {rows.length > 0 && (
-          <ol className="diagnostic-events">
-            {rows.map(({ event, title, status, tone }, index) => {
-              const line = showRaw ? rawLine(event) : "";
-              return (
-                <li key={`${event.unix_ms}/${index}`} className={`event tone-${tone}`}>
-                  <span className="dot" />
-                  <span className="event-text">
-                    {title}
-                    <span className="event-status"> · {status}</span>
-                    {line && <span className="event-raw">{line}</span>}
-                  </span>
-                  <time className="event-time">{time(event.unix_ms)}</time>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-        {showRaw && <pre className="raw-json">{JSON.stringify(raw, null, 2)}</pre>}
-        <button type="button" className="list-button" aria-expanded={showRaw}
-          onClick={() => setShowRaw((value) => !value)}>
-          {showRaw ? "隱藏原始資料" : "顯示原始資料"}
-        </button>
-        <button type="button" className="list-button" disabled={busy} onClick={() => void action("export")}>
-          匯出診斷 JSON
-        </button>
-        <button type="button" className="list-button danger" disabled={busy} onClick={() => void action("clear")}>
-          清除歷史紀錄
-        </button>
+    <div className="stack">
+      <div className="counts">
+        {counts.map(([tone, label]) => (
+          <div key={tone} className={`glass count-card tone-${tone}`}>
+            <div className="count-label">
+              <span className="dot" />
+              {label}
+            </div>
+            <div className="count-value">{count(tone)}</div>
+          </div>
+        ))}
       </div>
-      <p className="group-note">保留最近 200 筆</p>
-      {report?.warning && (
-        <p role="alert" className="group-note warn">
-          {report.warning.message}
-        </p>
-      )}
-      {message && (
-        <div role="status" className="group-note strong">
-          {message}
-          {iphone && message.startsWith("已匯出：") && (
-            <div className="muted-2">到「檔案」→「我的 iPhone」→「Halo 2 Control」→「Halo2Control」取用。</div>
-          )}
+      <section aria-label="事件">
+        <div className="diag-toolbar">
+          <span>最近 {rows.length} 筆 · 保留最近 200 筆</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showRaw}
+            className="raw-toggle"
+            onClick={() => setShowRaw((value) => !value)}
+          >
+            原始資料
+            <span className={`switch small${showRaw ? " on" : ""}`} aria-hidden="true">
+              <span />
+            </span>
+          </button>
         </div>
-      )}
-    </section>
+        <div className="glass">
+          {rows.length > 0 ? (
+            <ol className="diagnostic-events">
+              {rows.map(({ event, title, status, tone }, index) => {
+                const line = showRaw ? rawLine(event) : "";
+                return (
+                  <li key={`${event.unix_ms}/${index}`} className={`event tone-${tone}`}>
+                    <span className="dot" />
+                    <span className="event-text">
+                      {title}
+                      <span className="event-status"> · {status}</span>
+                      {line && <span className="event-raw">{line}</span>}
+                    </span>
+                    <time className="event-time">{time(event.unix_ms)}</time>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <div className="event-empty">沒有紀錄</div>
+          )}
+          {showRaw && <pre className="raw-json">{JSON.stringify(raw, null, 2)}</pre>}
+          <div className="diag-foot">
+            <span>匯出檔不含帳號、IP 與密碼。</span>
+            <button type="button" className="pill-button" disabled={busy} onClick={() => void action("export")}>
+              匯出 JSON
+            </button>
+            <button type="button" className="pill-button danger" disabled={busy} onClick={() => void action("clear")}>
+              清除紀錄
+            </button>
+          </div>
+        </div>
+        {(error || report?.warning) && (
+          <p role="alert" className="group-note warn">
+            {error || report?.warning?.message}
+          </p>
+        )}
+        {message && (
+          <div role="status" className="group-note">
+            {message}
+            {iphone && message.startsWith("已匯出：") && (
+              <div>到「檔案」→「我的 iPhone」→「HaloDesk」→「HaloDesk」取用。</div>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }

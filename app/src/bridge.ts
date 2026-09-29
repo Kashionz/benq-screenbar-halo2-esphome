@@ -91,6 +91,10 @@ export const bridge = {
   presets: () => invoke<Preset[]>("list_presets"),
   savePreset: (name: string, values: PresetValues) => invoke<Preset[]>("save_preset", { name, values }),
   deletePreset: (id: string) => invoke<Preset[]>("delete_preset", { id }),
+  /** Put a just-deleted preset back at its old position (undo). */
+  restorePreset: (preset: Preset, index: number) => invoke<Preset[]>("restore_preset", { preset, index }),
+  /** Match the native title bar to the App theme; main window only. */
+  windowTheme: (dark: boolean) => invoke<void>("set_window_theme", { dark }),
   saved: () => invoke<SavedConnection | null>("saved_connection"),
   remember: () => invoke<SavedConnection>("remember_connection"),
   forget: () => invoke<void>("forget_connection"),

@@ -10,6 +10,36 @@ use tokio::sync::Mutex;
 #[cfg(desktop)]
 mod tray;
 
+/// Match the Windows 11 title bar to the App background: #e6e8ec with dark
+/// text, or #111317 with light text in the dark theme. Older Windows ignores
+/// these attributes and keeps the system title bar.
+#[cfg(windows)]
+fn match_title_bar(window: &tauri::WebviewWindow, dark: bool) {
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR,
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    // COLORREF is 0x00BBGGRR.
+    let (caption, text) = if dark {
+        (0x0017_1311u32, 0x00F5_F2F2u32)
+    } else {
+        (0x00EC_E8E6u32, 0x001F_1D1Du32)
+    };
+    for (attribute, color) in [(DWMWA_CAPTION_COLOR, caption), (DWMWA_TEXT_COLOR, text)] {
+        // SAFETY: hwnd is this App's live window; the value is a 4-byte COLORREF.
+        let _ = unsafe {
+            DwmSetWindowAttribute(
+                hwnd,
+                attribute,
+                &color as *const u32 as *const core::ffi::c_void,
+                std::mem::size_of::<u32>() as u32,
+            )
+        };
+    }
+}
+
 #[tauri::command]
 async fn discover_bridges() -> Result<Vec<halo2_app_support::discovery::Candidate>, Fault> {
     tauri::async_runtime::spawn_blocking(halo2_app_support::discovery::discover)
@@ -43,6 +73,20 @@ fn flyout_resize(app: tauri::AppHandle, height: f64) {
 #[tauri::command]
 fn flyout_quit(app: tauri::AppHandle) {
     app.exit(0);
+}
+/// The App's light or dark theme for the main window's native title bar.
+#[tauri::command]
+fn set_window_theme(window: tauri::WebviewWindow, dark: bool) {
+    #[cfg(desktop)]
+    let _ = window.set_theme(Some(if dark {
+        tauri::Theme::Dark
+    } else {
+        tauri::Theme::Light
+    }));
+    #[cfg(windows)]
+    match_title_bar(&window, dark);
+    #[cfg(mobile)]
+    let _ = (window, dark);
 }
 
 #[derive(Default)]
@@ -82,6 +126,18 @@ async fn save_preset(
         .map_err(|_| halo2_app_support::storage_error())?
         .presets
         .save(name, values)
+}
+#[tauri::command]
+async fn restore_preset(
+    preset: Preset,
+    index: usize,
+    support: State<'_, SupportState>,
+) -> Result<Vec<Preset>, Fault> {
+    support
+        .lock()
+        .map_err(|_| halo2_app_support::storage_error())?
+        .presets
+        .restore(preset, index)
 }
 #[tauri::command]
 async fn delete_preset(id: String, support: State<'_, SupportState>) -> Result<Vec<Preset>, Fault> {
@@ -207,7 +263,7 @@ async fn connect_saved(
     if bridge.device_id != profile.device_id {
         let error = Fault::new(
             "DEVICE_CHANGED",
-            "此位址的橋接器識別已改變，請重新輸入帳密連線。 ",
+            "此位址的裝置識別已改變，請重新輸入帳密連線。",
         );
         log(&support, Event::fault(Some(&profile.device_id), &error));
         return Err(error);
@@ -404,6 +460,10 @@ pub fn run() {
             let _ = (window, event);
         })
         .setup(|app| {
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                match_title_bar(&window, false);
+            }
             #[cfg(desktop)]
             tray::setup(app)?;
             let root = app.path().app_data_dir()?;
@@ -411,7 +471,7 @@ pub fn run() {
                 .path()
                 .document_dir()
                 .unwrap_or_else(|_| root.clone())
-                .join("Halo2Control");
+                .join("HaloDesk");
             app.manage(StdMutex::new(Support {
                 presets: Presets::new(root.join("presets.json")),
                 profiles: Profiles::new(root.join("connection.json"), NativeCredentials),
@@ -439,12 +499,14 @@ pub fn run() {
             clear_diagnostics,
             list_presets,
             save_preset,
+            restore_preset,
             delete_preset,
+            set_window_theme,
             flyout_open_main,
             flyout_hide,
             flyout_resize,
             flyout_quit
         ])
         .run(tauri::generate_context!())
-        .expect("Unable to start Halo 2 Control");
+        .expect("Unable to start HaloDesk");
 }

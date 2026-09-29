@@ -54,7 +54,7 @@ impl StatePatch {
                 _ => false,
             };
             if !allowed {
-                return Err(Fault::new("UNSUPPORTED_FIELD", "此橋接器不支援該控制項。"));
+                return Err(Fault::new("UNSUPPORTED_FIELD", "此裝置不支援該控制項。"));
             }
         }
         Ok(patch)
@@ -137,7 +137,7 @@ impl Fault {
 fn protocol() -> Fault {
     Fault::new(
         "PROTOCOL_ERROR",
-        "橋接器回應不符合 protocol v1，請確認韌體版本。",
+        "裝置回應不符合 protocol v1，請確認韌體版本。",
     )
 }
 fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, Fault> {
@@ -228,7 +228,7 @@ impl Bridge {
         bridge.info = info;
         let snapshot = bridge.snapshot().await?;
         if snapshot.boot_id != bridge.info["boot_id"] {
-            return Err(Fault::new("BOOT_CHANGED", "橋接器剛重啟，請重新連線。"));
+            return Err(Fault::new("BOOT_CHANGED", "裝置剛重新開機，請重新連線。"));
         }
         Ok((bridge, snapshot))
     }
@@ -249,7 +249,7 @@ impl Bridge {
         let mut response = request
             .send()
             .await
-            .map_err(|_| Fault::new("NETWORK", "無法連線或連線逾時，請確認橋接器與區域網路。"))?;
+            .map_err(|_| Fault::new("NETWORK", "無法連線或連線逾時，請確認裝置與區域網路。"))?;
         let status = response.status().as_u16();
         if status == 401 {
             return Err(Fault::new("UNAUTHORIZED", "帳號或密碼不正確。"));
@@ -279,7 +279,7 @@ impl Bridge {
             let code = value["error"]["code"].as_str().ok_or_else(protocol)?;
             return Err(Fault::new(
                 code,
-                "橋接器拒絕操作，請重新整理狀態後再決定是否操作。",
+                "裝置拒絕操作，請重新整理狀態後再決定是否操作。",
             ));
         }
         Ok(value)
@@ -314,11 +314,11 @@ impl Bridge {
         if state.radio_status != "ready" || state.pairing_status != "ready" {
             return Err(Fault::new(
                 "RADIO_UNAVAILABLE",
-                "橋接器尚未就緒，或此配對的電源控制尚未驗證。",
+                "裝置尚未就緒，或此配對的電源控制尚未驗證。",
             ));
         }
         if state.active_command.is_some() {
-            return Err(Fault::new("BUSY", "橋接器正在處理其他命令。"));
+            return Err(Fault::new("BUSY", "裝置正在處理其他命令。"));
         }
         let id = Uuid::new_v4().to_string();
         let boot = state.boot_id;
