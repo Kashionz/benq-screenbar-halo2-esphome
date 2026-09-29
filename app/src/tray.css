@@ -127,6 +127,10 @@ body.flyout-body,
   padding: 6px 12px;
   border-top: 0.5px solid var(--sep);
 }
+.flyout-slider:has(input:disabled) .flyout-slider-label,
+.flyout-slider:has(input:disabled) .flyout-slider-value {
+  color: var(--ink3);
+}
 .flyout-slider-label {
   flex: none;
   width: 34px;

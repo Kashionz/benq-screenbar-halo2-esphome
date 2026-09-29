@@ -101,6 +101,23 @@ fn light_patch_validates_ranges_and_capabilities() {
         "UNSUPPORTED_FIELD"
     );
     assert!(missing.validate(&json!({"power":"verified"})).is_ok());
+    let sensing = StatePatch {
+        ultrasonic_enabled: Some(true),
+        ..Default::default()
+    };
+    assert_eq!(
+        sensing
+            .validate(&json!({"ultrasonic_enabled":"experimental"}))
+            .unwrap(),
+        json!({"ultrasonic_enabled":true})
+    );
+    assert_eq!(
+        sensing
+            .validate(&json!({"ultrasonic_enabled":"unsupported"}))
+            .unwrap_err()
+            .code,
+        "UNSUPPORTED_FIELD"
+    );
     assert!(serde_json::from_value::<StatePatch>(json!({"unknown":1})).is_err());
 }
 

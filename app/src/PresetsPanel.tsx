@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { bridge, failure, type Preset, type PresetValues } from "./bridge";
-import { lightSummary, samePreset, tempColor } from "./controlState";
+import { bridge, failure, type LightState, type Preset, type PresetValues } from "./bridge";
+import { lightSummary, litLamps, presetValues, samePreset, tempColor, type LightKey } from "./controlState";
 
 export const MAX_PRESETS = 4;
 const UNDO_MS = 6000;
 
-/** 「4300 K · 70/30%」 */
-const tileSummary = (v: PresetValues) => `${v.temperature_k} K · ${v.front_brightness}/${v.back_brightness}%`;
+/** 「4300 K · 70/30%」, 「4300 K · 前 70%」, 「2700 K · 後 40%」 */
+const tileSummary = (v: PresetValues) => {
+  const lit = litLamps(v.mode);
+  const level =
+    lit.front && lit.back
+      ? `${v.front_brightness}/${v.back_brightness}%`
+      : lit.front
+        ? `前 ${v.front_brightness}%`
+        : `後 ${v.back_brightness}%`;
+  return `${v.temperature_k} K · ${level}`;
+};
 
 /**
  * Up to four local presets. Tapping one sends its lighting values once
@@ -19,7 +28,7 @@ export function PresetsPanel({
   disabled,
   select,
 }: {
-  values: PresetValues;
+  values: Pick<LightState, LightKey>;
   /** Controls are locked: tiles cannot be applied and nothing new is saved. */
   disabled: boolean;
   select: (values: PresetValues) => void;
@@ -90,9 +99,8 @@ export function PresetsPanel({
   async function save() {
     const name = draftName.trim();
     if (!name || !canAdd) return;
-    // Copy only the lighting fields; never power or credentials.
-    const { mode, front_brightness, back_brightness, temperature_k } = values;
-    const next = await run(() => bridge.savePreset(name, { mode, front_brightness, back_brightness, temperature_k }));
+    // Copy only the lighting fields of the lit lamps; never power or credentials.
+    const next = await run(() => bridge.savePreset(name, presetValues(values)));
     if (next && mounted.current) {
       setAdding(false);
       setDraftName("");
@@ -175,7 +183,7 @@ export function PresetsPanel({
                   aria-label={`帶入情境 ${preset.name}`}
                   aria-pressed={active}
                   disabled={disabled || busy || editing}
-                  onClick={() => select({ ...preset.values })}
+                  onClick={() => select(presetValues(preset.values))}
                 >
                   <span className="swatch" style={{ background: tempColor(preset.values.temperature_k) }} />
                   <span className="tile-text">

@@ -1,5 +1,5 @@
 import type { LightState, Snapshot } from "./bridge";
-import { MODES, supported, tempColor, type Draft, type LockReason } from "./controlState";
+import { MODES, adjustable, supported, tempColor, type Draft, type LockReason } from "./controlState";
 
 export type { LightPatch } from "./controlState";
 
@@ -42,12 +42,15 @@ export function SliderTrack({
 }) {
   const pct = sliderPct(slider, value);
   return (
-    <div className={`slider-track ${className}`.trim()}>
+    <div className={`slider-track ${className}${disabled ? " disabled" : ""}`.trim()}>
       <div className="track" />
       <div className="fill" style={{ width: pct }} />
       <div
         className="knob"
-        style={{ left: pct, background: slider.key === "temperature_k" ? tempColor(value) : undefined }}
+        style={{
+          left: pct,
+          background: slider.key === "temperature_k" && !disabled ? tempColor(value) : undefined,
+        }}
       />
       <input
         type="range"
@@ -66,26 +69,41 @@ export function SliderTrack({
 
 /**
  * Mode and sliders. Every change is sent live through adjust(); power lives
- * on the lamp preview.
+ * on the lamp preview. The presence switch is an explicit command instead.
  */
 export function LightControls({
   snapshot,
   values,
   lock,
   adjust,
+  sensingPending = false,
+  progressShown = false,
+  onSensing,
 }: {
   snapshot: Snapshot;
   /** desired ⊕ transmitted ⊕ unsent values, as shown on screen. */
   values: LightState;
   lock: LockReason | null;
   adjust: (patch: Draft) => void;
+  /** The presence command is in flight. */
+  sensingPending?: boolean;
+  /** Our explicit command's progress is already shown (power status or presence row). */
+  progressShown?: boolean;
+  /** Send the explicit ultrasonic_enabled value; omitted hides the switch. */
+  onSensing?: (value: boolean) => void;
 }) {
   const disabled = lock !== null;
+  // Only the bridge's target is shown; nothing flips before a fresh read.
+  const sensingOn = snapshot.desired.values.ultrasonic_enabled;
+  const sensingFeature = snapshot.features.ultrasonic_enabled;
   return (
     <section aria-label="燈光" className="light-section">
       <div className="group-label">
         <span>燈光</span>
-        {lock && <span className="group-label-end">已停用：{lock}</span>}
+        {/* Our own command already shows its progress; no second notice. */}
+        {lock && !(progressShown && lock === "處理中") && (
+          <span className="group-label-end">已停用：{lock}</span>
+        )}
       </div>
       <div className="glass light-card">
         <div className={`light-controls${disabled ? " locked" : ""}`}>
@@ -111,6 +129,8 @@ export function LightControls({
           </div>
           {SLIDERS.map((slider) => {
             const value = values[slider.key];
+            // A lamp the mode leaves unlit keeps its value but cannot be adjusted.
+            const unlit = !adjustable(values.mode, slider.key);
             return (
               <div key={slider.key} className="slider">
                 <div className="slider-head">
@@ -123,12 +143,38 @@ export function LightControls({
                 <SliderTrack
                   slider={slider}
                   value={value}
-                  disabled={disabled || !supported(snapshot, slider.key)}
+                  disabled={disabled || unlit || !supported(snapshot, slider.key)}
                   onChange={(next) => adjust({ [slider.key]: next })}
                 />
               </div>
             );
           })}
+          {onSensing && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={sensingOn}
+              aria-busy={sensingPending}
+              aria-labelledby="sensing-title"
+              aria-describedby="sensing-desc"
+              className="switch-row sensing-row"
+              disabled={disabled || !supported(snapshot, "ultrasonic_enabled")}
+              onClick={() => onSensing(!sensingOn)}
+            >
+              <span className="action-text">
+                <span id="sensing-title" className="action-title">
+                  入席感應
+                  {sensingFeature === "experimental" && <span className="feature-tag">實驗性</span>}
+                </span>
+                <span id="sensing-desc" className="action-desc">
+                  {sensingPending ? "正在送出…" : "掛燈的超音波人體感應模式"}
+                </span>
+              </span>
+              <span className={`switch${sensingOn ? " on" : ""}`} aria-hidden="true">
+                <span />
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </section>

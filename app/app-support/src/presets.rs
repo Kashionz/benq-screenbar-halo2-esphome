@@ -3,21 +3,43 @@ use halo2_bridge_core::Fault;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// A preset keeps only the brightness of the lamps its mode lights; the
+/// temperature is shared by both lamps and always kept.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Lighting {
     pub mode: String,
-    pub front_brightness: u8,
-    pub back_brightness: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub front_brightness: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub back_brightness: Option<u8>,
     pub temperature_k: u16,
 }
 impl Lighting {
+    fn lit(&self) -> (bool, bool) {
+        (self.mode != "back", self.mode != "front")
+    }
+    /// Every lit lamp has a brightness. An unlit lamp's brightness, as older
+    /// files stored it, is tolerated when in range and dropped by normalized().
     fn valid(&self) -> bool {
+        let level = |lit: bool, value: Option<u8>| match value {
+            Some(v) => (1..=100).contains(&v),
+            None => !lit,
+        };
+        let (front, back) = self.lit();
         matches!(self.mode.as_str(), "front" | "back" | "both")
-            && (1..=100).contains(&self.front_brightness)
-            && (1..=100).contains(&self.back_brightness)
+            && level(front, self.front_brightness)
+            && level(back, self.back_brightness)
             && (2700..=6500).contains(&self.temperature_k)
             && self.temperature_k.is_multiple_of(25)
+    }
+    fn normalized(self) -> Self {
+        let (front, back) = self.lit();
+        Self {
+            front_brightness: self.front_brightness.filter(|_| front),
+            back_brightness: self.back_brightness.filter(|_| back),
+            ..self
+        }
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -63,7 +85,14 @@ impl Presets {
         {
             return Err(storage_error());
         }
-        Ok(document.presets)
+        Ok(document
+            .presets
+            .into_iter()
+            .map(|p| Preset {
+                values: p.values.normalized(),
+                ..p
+            })
+            .collect())
     }
     pub fn save(&self, name: String, values: Lighting) -> Result<Vec<Preset>, Fault> {
         let name = name.trim().to_owned();
@@ -77,7 +106,7 @@ impl Presets {
         presets.push(Preset {
             id: uuid::Uuid::new_v4().to_string(),
             name,
-            values,
+            values: values.normalized(),
         });
         self.write(presets)
     }
@@ -86,6 +115,7 @@ impl Presets {
     pub fn restore(&self, preset: Preset, index: usize) -> Result<Vec<Preset>, Fault> {
         let preset = Preset {
             name: preset.name.trim().to_owned(),
+            values: preset.values.normalized(),
             ..preset
         };
         if uuid::Uuid::parse_str(&preset.id).is_err()
@@ -128,8 +158,8 @@ mod tests {
     fn light() -> Lighting {
         Lighting {
             mode: "front".into(),
-            front_brightness: 35,
-            back_brightness: 50,
+            front_brightness: Some(35),
+            back_brightness: None,
             temperature_k: 5500,
         }
     }
@@ -144,6 +174,49 @@ mod tests {
         assert_eq!(reopened.list().unwrap()[0].name, "閱讀");
         assert_eq!(reopened.delete(&first[0].id).unwrap()[0].name, "夜晚");
         assert_eq!(reopened.list().unwrap().len(), 1);
+    }
+    #[test]
+    fn keeps_only_the_lit_lamps_brightness() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("presets.json");
+        let store = Presets::new(path.clone());
+        let mut both_levels = light();
+        both_levels.back_brightness = Some(50);
+        let saved = store.save("前燈".into(), both_levels).unwrap();
+        assert_eq!(saved[0].values.front_brightness, Some(35));
+        assert_eq!(saved[0].values.back_brightness, None);
+        let file = std::fs::read_to_string(&path).unwrap();
+        assert!(file.contains("front_brightness") && !file.contains("back_brightness"));
+        // A lit lamp needs a brightness; an unlit one may be omitted.
+        let back = Lighting {
+            mode: "back".into(),
+            front_brightness: None,
+            back_brightness: Some(20),
+            temperature_k: 3925,
+        };
+        assert!(store.save("後燈".into(), back.clone()).is_ok());
+        let missing = Lighting {
+            mode: "both".into(),
+            ..back
+        };
+        assert_eq!(
+            store.save("雙燈".into(), missing).unwrap_err().code,
+            "INVALID_PRESET"
+        );
+        // Older files stored both levels for every mode; they still load.
+        let id = uuid::Uuid::new_v4().to_string();
+        std::fs::write(
+            &path,
+            format!(
+                r#"{{"version":1,"presets":[{{"id":"{id}","name":"舊","values":{{"mode":"back","front_brightness":30,"back_brightness":20,"temperature_k":3925}}}}]}}"#
+            ),
+        )
+        .unwrap();
+        let old = &store.list().unwrap()[0].values;
+        assert_eq!(
+            (old.front_brightness, old.back_brightness),
+            (None, Some(20))
+        );
     }
     #[test]
     fn restores_a_deleted_preset_at_its_old_position_once() {

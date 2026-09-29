@@ -24,7 +24,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(bridge.presets).mockResolvedValue([preset, night]);
 });
-it("loads without selecting and sends a preset's lighting values once, never power", async () => {
+it("loads without selecting and sends a preset's lit lighting values once, never power", async () => {
   const select = vi.fn();
   render(<PresetsPanel values={values} disabled={false} select={select} />);
   const tile = await screen.findByRole("button", { name: "帶入情境 夜晚" });
@@ -32,13 +32,14 @@ it("loads without selecting and sends a preset's lighting values once, never pow
   expect(screen.getByText("· 2/4", { exact: false })).toBeInTheDocument();
   // The tile matching the shown values is marked; the summary sits in the title.
   expect(screen.getByRole("button", { name: "帶入情境 閱讀" })).toHaveAttribute("aria-pressed", "true");
-  expect(tile).toHaveAttribute("title", "後燈 · 前 30% · 後 20% · 3925 K");
-  expect(screen.getByText("3925 K · 30/20%")).toBeInTheDocument();
+  // 夜晚 is an older preset that also stored the unlit front level; it is ignored.
+  expect(tile).toHaveAttribute("title", "後燈 · 後 20% · 3925 K");
+  expect(screen.getByText("3925 K · 後 20%")).toBeInTheDocument();
   await userEvent.click(tile);
-  expect(select).toHaveBeenCalledExactlyOnceWith(night.values);
+  expect(select).toHaveBeenCalledExactlyOnceWith({ mode: "back", back_brightness: 20, temperature_k: 3925 });
   expect(select.mock.calls[0][0]).not.toHaveProperty("power");
 });
-it("saves the shown lighting fields only, from the add panel, without sending anything", async () => {
+it("saves the shown lit lighting fields only, from the add panel, without sending anything", async () => {
   const select = vi.fn();
   const user = userEvent.setup();
   vi.mocked(bridge.savePreset).mockResolvedValue([preset, night, named("工作")]);
@@ -46,11 +47,18 @@ it("saves the shown lighting fields only, from the add panel, without sending an
   await screen.findByRole("button", { name: "帶入情境 閱讀" });
   await user.click(screen.getByRole("button", { name: "＋ 新增" }));
   const panel = screen.getByRole("form", { name: "新增情境" });
-  expect(panel).toHaveTextContent("前燈 · 前 35% · 後 50% · 5500 K");
+  expect(panel).toHaveTextContent("前燈 · 前 35% · 5500 K");
   expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
   await user.type(screen.getByLabelText("情境名稱"), " 工作 ");
   await user.click(screen.getByRole("button", { name: "保存" }));
-  await waitFor(() => expect(bridge.savePreset).toHaveBeenCalledExactlyOnceWith("工作", values));
+  // Front mode keeps only the front level; the unlit back level is not saved.
+  await waitFor(() =>
+    expect(bridge.savePreset).toHaveBeenCalledExactlyOnceWith("工作", {
+      mode: "front",
+      front_brightness: 35,
+      temperature_k: 5500,
+    }),
+  );
   expect(screen.queryByRole("form", { name: "新增情境" })).not.toBeInTheDocument();
   expect(screen.getByText("· 3/4", { exact: false })).toBeInTheDocument();
   expect(select).not.toHaveBeenCalled();
@@ -82,7 +90,7 @@ it("asks before deleting and restores the preset in place within six seconds", a
   expect(screen.getByRole("button", { name: "帶入情境 閱讀" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "刪除情境 閱讀" }));
   const dialog = screen.getByRole("dialog", { name: "刪除這個情境？" });
-  expect(dialog).toHaveTextContent("前燈 · 前 35% · 後 50% · 5500 K");
+  expect(dialog).toHaveTextContent("前燈 · 前 35% · 5500 K");
   await user.click(screen.getByRole("button", { name: "取消" }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(bridge.deletePreset).not.toHaveBeenCalled();

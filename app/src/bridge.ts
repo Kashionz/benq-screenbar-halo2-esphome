@@ -11,7 +11,9 @@ export interface LightState {
   temperature_k: number;
   ultrasonic_enabled: boolean;
 }
-export type PresetValues = Pick<LightState, "mode" | "front_brightness" | "back_brightness" | "temperature_k">;
+/** Only the lit lamps' brightness is kept; temperature is shared by both. */
+export type PresetValues = Pick<LightState, "mode" | "temperature_k"> &
+  Partial<Pick<LightState, "front_brightness" | "back_brightness">>;
 export interface Preset {
   id: string;
   name: string;
@@ -102,10 +104,8 @@ export const bridge = {
   diagnostics: () => invoke<DiagnosticReport>("diagnostic_history"),
   exportDiagnostics: () => invoke<string>("export_diagnostics"),
   clearDiagnostics: () => invoke<void>("clear_diagnostics"),
-  setState: (
-    deviceId: string,
-    patch: Partial<Omit<LightState, "ultrasonic_enabled">>,
-  ) => invoke<CommandRecord>("set_light_state", { deviceId, patch }),
+  setState: (deviceId: string, patch: Partial<Omit<LightState, "power">>) =>
+    invoke<CommandRecord>("set_light_state", { deviceId, patch }),
   connect: (host: string, port: number, username: string, password: string) =>
     invoke<Snapshot>("connect_bridge", { host, port, username, password }),
   disconnect: () => invoke<void>("disconnect_bridge"),

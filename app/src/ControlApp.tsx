@@ -16,6 +16,7 @@ import { Banner, ConnectionStatus, type BannerSpec } from "./StatusCards";
 import {
   LIGHT_KEYS,
   commandFeedback,
+  litOnly,
   type Feedback,
   lockReason,
   pendingDraft,
@@ -33,6 +34,8 @@ import { loadTheme, saveTheme, useDocumentTheme, useResolvedTheme, type ThemePre
 // The bridge accepts one command per 500 ms; keep a small margin.
 const LIVE_INTERVAL_MS = 550;
 type Outcome = "transmitted" | "not_transmitted" | "unknown" | "skipped";
+// power and setting are explicit presses that lock every control; light is live.
+type Kind = "power" | "light" | "setting";
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function App() {
@@ -56,7 +59,9 @@ export default function App() {
   const [draft, setDraftState] = useState<Draft>({});
   const [sent, setSentState] = useState<Draft>({});
   const [panel, setPanel] = useState<"main" | "settings">("main");
-  const [sending, setSending] = useState<null | "power" | "light">(null);
+  const [sending, setSending] = useState<null | Kind>(null);
+  // Kind of the most recent command, so only power flashes its confirmation.
+  const [sentKind, setSentKind] = useState<Kind | null>(null);
   const [action, setAction] = useState("");
   const [rebooted, setRebooted] = useState(false);
   const [storeError, setStoreError] = useState(false);
@@ -75,7 +80,7 @@ export default function App() {
   const lastSend = useRef(0);
   const inflight = useRef<Promise<Outcome> | null>(null);
   const lastOutcome = useRef<Outcome | null>(null);
-  const powerRequested = useRef(false);
+  const explicitRequested = useRef(false);
   const setDraft = useCallback((next: Draft) => {
     draftRef.current = next;
     setDraftState(next);
@@ -259,27 +264,36 @@ export default function App() {
     }
   }
   /**
-   * One explicit power command. If a live lighting command is still in flight
-   * the press waits for it (live sending pauses meanwhile) and is dropped if
-   * that command's outcome is unknown. A press while power itself is in flight
-   * is ignored.
+   * One explicit command (power or a setting). If a live lighting command is
+   * still in flight the press waits for it (live sending pauses meanwhile) and
+   * is dropped if that command's outcome is unknown. A press while another
+   * explicit command is in flight is ignored.
    */
-  async function power(value: boolean) {
+  async function explicit(
+    kind: "power" | "setting",
+    label: string,
+    send: (device: string) => Promise<CommandRecord>,
+  ) {
     const device = snapshotRef.current?.device_id;
-    if (!device || powerRequested.current) return false;
-    powerRequested.current = true;
+    if (!device || explicitRequested.current) return false;
+    explicitRequested.current = true;
     try {
       while (commanding.current && inflight.current) await inflight.current;
       if (lastOutcome.current === "unknown" || lockRef.current || snapshotRef.current?.device_id !== device)
         return false;
-      const outcome = await command("power", value ? "開燈" : "關燈", () =>
-        bridge.power(device, value),
-      );
+      const outcome = await command(kind, label, () => send(device));
       return outcome === "transmitted";
     } finally {
-      powerRequested.current = false;
+      explicitRequested.current = false;
     }
   }
+  const power = (value: boolean) =>
+    explicit("power", value ? "開燈" : "關燈", (device) => bridge.power(device, value));
+  /** Explicit ultrasonic presence mode value, never a toggle of the shown one. */
+  const sensing = (value: boolean) =>
+    explicit("setting", value ? "開啟入席感應" : "關閉入席感應", (device) =>
+      bridge.setState(device, { ultrasonic_enabled: value }),
+    );
   /**
    * Stage user-changed lighting values and send them live. Returns false when
    * controls are locked. Only direct user input reaches this function.
@@ -288,9 +302,12 @@ export default function App() {
     const current = snapshotRef.current;
     if (!current || lockRef.current) return false;
     const base = { ...current.desired.values, ...sentRef.current };
-    let next = draftRef.current;
+    // Brightness of a lamp the resulting mode leaves unlit is never sent.
+    const shownMode = draftRef.current.mode ?? base.mode;
+    const lit = litOnly(patch, shownMode);
+    let next = litOnly(draftRef.current, lit.mode ?? shownMode);
     for (const key of LIGHT_KEYS)
-      if (patch[key] !== undefined) next = stageDraft(next, base, key, patch[key] as never);
+      if (lit[key] !== undefined) next = stageDraft(next, base, key, lit[key] as never);
     setDraft(next);
     void pump();
     return true;
@@ -311,7 +328,7 @@ export default function App() {
           setDraft({});
           return;
         }
-        if (commanding.current || powerRequested.current) return;
+        if (commanding.current || explicitRequested.current) return;
         const base = { ...current.desired.values, ...sentRef.current };
         const pending = pendingDraft(draftRef.current, base);
         const keys = Object.keys(pending) as LightKey[];
@@ -345,7 +362,7 @@ export default function App() {
     }
   }
   function command(
-    kind: "power" | "light",
+    kind: Kind,
     label: string,
     send: () => Promise<CommandRecord>,
   ): Promise<Outcome> {
@@ -358,16 +375,17 @@ export default function App() {
     return run;
   }
   async function transmit(
-    kind: "power" | "light",
+    kind: Kind,
     label: string,
     send: () => Promise<CommandRecord>,
   ): Promise<Outcome> {
     const token = generation.current;
     commanding.current = true;
-    // Power locks every control; live lighting keeps the sliders usable and
-    // coalesces further input until this command finishes.
-    if (kind === "power") setBusy(true);
+    // Explicit commands lock every control; live lighting keeps the sliders
+    // usable and coalesces further input until this command finishes.
+    if (kind !== "light") setBusy(true);
     setSending(kind);
+    setSentKind(kind);
     setAction(label);
     setFault(null);
     setResult(null);
@@ -388,7 +406,7 @@ export default function App() {
       commanding.current = false;
       setSending(null);
       if (token === generation.current) {
-        if (kind === "power") setBusy(false);
+        if (kind !== "light") setBusy(false);
         void refresh();
       }
     }
@@ -426,11 +444,11 @@ export default function App() {
     : [];
   const feedback = commandFeedback({ online, commanding: sending !== null, action, result, fault });
   useEffect(() => {
-    if (result?.status !== "transmitted" || action === "調整燈光") return;
+    if (result?.status !== "transmitted" || sentKind !== "power") return;
     setFlash(result.command_id);
     const timer = window.setTimeout(() => setFlash(null), 4000);
     return () => window.clearTimeout(timer);
-  }, [result, action]);
+  }, [result, sentKind]);
   // Status shown beside the power button instead of a separate card or banner.
   // Live lighting only reports problems; the sliders already show the values.
   let powerStatus: Feedback | null = null;
@@ -590,7 +608,18 @@ export default function App() {
         onPower={(value) => void power(value)}
       />
     );
-    const lights = <LightControls key="lights" snapshot={snapshot} values={shown!} lock={lock} adjust={adjust} />;
+    const lights = (
+      <LightControls
+        key="lights"
+        snapshot={snapshot}
+        values={shown!}
+        lock={lock}
+        adjust={adjust}
+        sensingPending={sending === "setting"}
+        progressShown={sending === "power" || sending === "setting"}
+        onSensing={(value) => void sensing(value)}
+      />
+    );
     const presets = (
       <PresetsPanel key="presets" values={shown!} disabled={lock !== null} select={(values) => adjust({ ...values })} />
     );
