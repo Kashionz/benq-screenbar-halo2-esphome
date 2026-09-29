@@ -1,100 +1,135 @@
-import { useState } from "react";
 import type { LightState, Snapshot } from "./bridge";
-import { PresetsPanel } from "./PresetsPanel";
+import { MODES, supported, tempColor, type Draft, type LockReason } from "./controlState";
 
-export type LightPatch = Partial<Omit<LightState, "ultrasonic_enabled">>;
+export type { LightPatch } from "./controlState";
+
+export const SLIDERS = [
+  { key: "front_brightness", label: "前燈", name: "前燈亮度", min: 1, max: 100, step: 1, unit: "%" },
+  { key: "back_brightness", label: "後燈", name: "後燈亮度", min: 1, max: 100, step: 1, unit: "%" },
+  { key: "temperature_k", label: "色溫", name: "色溫", min: 2700, max: 6500, step: 25, unit: " K" },
+] as const;
+
+export const sliderPct = (slider: (typeof SLIDERS)[number], value: number) =>
+  `${((value - slider.min) / (slider.max - slider.min)) * 100}%`;
+
+export function PowerIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3.2v7.6" />
+      <path d="M7.1 6.1a7.6 7.6 0 1 0 9.8 0" />
+    </svg>
+  );
+}
+
+/** Track, fill and knob drawn under a transparent native range input. */
+export function SliderTrack({
+  slider,
+  value,
+  disabled,
+  className = "",
+  onChange,
+  ...release
+}: {
+  slider: (typeof SLIDERS)[number];
+  value: number;
+  disabled: boolean;
+  className?: string;
+  onChange: (value: number) => void;
+  onPointerUp?: () => void;
+  onKeyUp?: () => void;
+  onBlur?: () => void;
+}) {
+  const pct = sliderPct(slider, value);
+  return (
+    <div className={`slider-track ${className}`.trim()}>
+      <div className="track" />
+      <div className="fill" style={{ width: pct }} />
+      <div
+        className="knob"
+        style={{ left: pct, background: slider.key === "temperature_k" ? tempColor(value) : undefined }}
+      />
+      <input
+        type="range"
+        aria-label={slider.name}
+        min={slider.min}
+        max={slider.max}
+        step={slider.step}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+        {...release}
+      />
+    </div>
+  );
+}
+
+/**
+ * Mode and sliders. Every change is sent live through adjust(); power lives
+ * on the lamp preview.
+ */
 export function LightControls({
   snapshot,
-  disabled,
-  send,
+  values,
+  lock,
+  adjust,
 }: {
   snapshot: Snapshot;
-  disabled: boolean;
-  send: (patch: LightPatch, experimental: boolean) => Promise<boolean>;
+  /** desired ⊕ transmitted ⊕ unsent values, as shown on screen. */
+  values: LightState;
+  lock: LockReason | null;
+  adjust: (patch: Draft) => void;
 }) {
-  const [experimental, setExperimental] = useState(false);
-  const [draft, setDraft] = useState<LightPatch>({});
-  const values = { ...snapshot.desired.values, ...draft };
-  const supported = (key: string) =>
-    snapshot.features[key] === "verified" ||
-    (experimental && snapshot.features[key] === "experimental");
-  const keys = Object.keys(draft);
+  const disabled = lock !== null;
   return (
-    <section className="light-settings">
-      <h3>前後燈與色溫</h3>
-      <PresetsPanel values={values} disabled={disabled} select={setDraft} />
-      <label className="experimental-toggle">
-        <input
-          type="checkbox"
-          checked={experimental}
-          disabled={disabled}
-          onChange={(e) => {
-            setExperimental(e.target.checked);
-            setDraft({});
-          }}
-        />
-        啟用實驗性控制（尚待實機驗證）
-      </label>
-      <label>
-        照明模式
-        <select
-          aria-label="照明模式"
-          value={values.mode}
-          disabled={disabled || !supported("mode")}
-          onChange={(e) => setDraft((d) => ({ ...d, mode: e.target.value }))}
-        >
-          <option value="front">前燈</option>
-          <option value="back">後燈</option>
-          <option value="both">前後燈</option>
-        </select>
-      </label>
-      {(["front_brightness", "back_brightness", "temperature_k"] as const).map(
-        (key) => {
-          const temperature = key === "temperature_k";
-          const label = temperature
-            ? "色溫"
-            : key === "front_brightness"
-              ? "前燈亮度"
-              : "後燈亮度";
-          return (
-            <label key={key}>
-              {label}：{values[key]} {temperature ? "K" : "%"}
-              <input
-                aria-label={label}
-                type="range"
-                min={temperature ? 2700 : 1}
-                max={temperature ? 6500 : 100}
-                step={temperature ? 25 : 1}
-                value={values[key]}
-                disabled={disabled || !supported(key)}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, [key]: Number(e.target.value) }))
-                }
-              />
-            </label>
-          );
-        },
-      )}
-      <p className="hint">
-        拖曳只預覽，按套用才發送。只修改你調整過的欄位，其餘沿用橋接器最新設定。
-      </p>
-      <div className="power-actions">
-        <button
-          className="primary"
-          disabled={disabled || !keys.length || keys.some((k) => !supported(k))}
-          onClick={async () => {
-            if (await send(draft, experimental)) setDraft({});
-          }}
-        >
-          套用燈光設定
-        </button>
-        <button
-          className="secondary"
-          disabled={disabled || !keys.length}
-          onClick={() => setDraft({})}
-        >
-          取消調整
-        </button>
+    <section aria-label="燈光" className="light-section">
+      <div className="group-label">
+        <span>燈光</span>
+        {lock && <span className="group-label-end">已停用：{lock}</span>}
+      </div>
+      <div className="glass light-card">
+        <div className={`light-controls${disabled ? " locked" : ""}`}>
+          <div className="mode-row">
+            <div className="segmented" role="radiogroup" aria-label="模式">
+              {Object.entries(MODES).map(([key, label]) => {
+                const active = values.mode === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    className={active ? "active" : ""}
+                    disabled={disabled || !supported(snapshot, "mode")}
+                    onClick={() => adjust({ mode: key })}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {SLIDERS.map((slider) => {
+            const value = values[slider.key];
+            return (
+              <div key={slider.key} className="slider">
+                <div className="slider-head">
+                  <span>{slider.label}</span>
+                  <span className="slider-value">
+                    {value}
+                    {slider.unit}
+                  </span>
+                </div>
+                <SliderTrack
+                  slider={slider}
+                  value={value}
+                  disabled={disabled || !supported(snapshot, slider.key)}
+                  onChange={(next) => adjust({ [slider.key]: next })}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

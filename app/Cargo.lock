@@ -1261,7 +1261,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "halo2-control"
+name = "halodesk"
 version = "0.1.0"
 dependencies = [
  "halo2-app-support",
@@ -1271,6 +1271,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tokio",
+ "windows",
 ]
 
 [[package]]

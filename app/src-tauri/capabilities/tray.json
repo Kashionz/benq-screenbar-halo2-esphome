@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tray-flyout",
+  "description": "Tray flyout: events to the main window, local presets and its own window commands only. No bridge, credential or diagnostics commands.",
+  "windows": [
+    "tray"
+  ],
+  "platforms": [
+    "windows",
+    "macOS",
+    "linux"
+  ],
+  "permissions": [
+    "core:event:default",
+    "allow-list-presets",
+    "allow-flyout-open-main",
+    "allow-flyout-hide",
+    "allow-flyout-resize",
+    "allow-flyout-quit"
+  ]
+}

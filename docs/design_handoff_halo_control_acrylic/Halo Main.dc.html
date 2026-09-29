@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="./halo-model.js"></script>
+<style>
+html,body{margin:0;height:100%;background:#e6e8ec;}
+x-dc{display:block;height:100%;}
+*{box-sizing:border-box;}
+button,input{font:inherit;}
+button:focus-visible,input:focus-visible{outline:2px solid #0a74e8;outline-offset:2px;}
+a{color:#0a74e8;}
+a:hover{color:#1d1d1f;}
+@keyframes hb-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes hb-spin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+<div style="position:relative; height:100%; display:flex; flex-direction:column; overflow:hidden; background:#e6e8ec; color:#1d1d1f; -webkit-font-smoothing:antialiased; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','PingFang TC','Noto Sans TC',sans-serif; line-height:1.5;">
+
+  <header style="flex:none; display:flex; align-items:center; gap:12px; min-height:52px; padding:8px 18px; position:relative; z-index:2; border-bottom:1px solid rgba(255,255,255,0.9); background:rgba(255,255,255,0.3); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); box-shadow:inset 0 1px 0 rgba(255,255,255,0.9), 0 0.5px 0 rgba(40,50,70,0.14), 0 8px 20px -10px rgba(30,40,60,0.12);">
+    <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ false }}">
+      <button onClick="{{ closePanel }}" style="flex:none; white-space:nowrap; min-height:36px; padding:2px 10px 2px 4px; border:0; background:none; color:#0a74e8; font-size:14px; cursor:pointer;">‹ 燈光</button>
+    </sc-if>
+    <div style="font-size:15px; font-weight:700; white-space:nowrap;">{{ headerTitle }}</div>
+    <span style="flex:none; display:flex; align-items:center; gap:6px; padding:2px 10px; border-radius:6px; background:{{ badgeBg }}; color:{{ badgeInk }}; font-size:12px; white-space:nowrap;"><span style="width:6px; height:6px; border-radius:50%; background:{{ badgeDot }}; animation:{{ badgeAnim }};"></span>{{ badge.text }}</span>
+    <div style="flex:1;"></div>
+    <sc-if value="{{ showDeviceBtn }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ openPanel }}" style="flex:none; white-space:nowrap; min-height:36px; padding:2px 12px; border-radius:99px; border:0; background:rgba(255,255,255,0.6); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:#1d1d1f; font-size:13px; cursor:pointer;">裝置與診斷 ›</button>
+    </sc-if>
+  </header>
+
+  <div style="position:relative; z-index:1; flex:1; min-height:0; overflow:auto; padding:20px 20px 24px;">
+    <sc-if value="{{ banner.show }}" hint-placeholder-val="{{ false }}">
+      <div role="alert" style="display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin-bottom:14px; padding:10px 12px 10px 14px; border-radius:10px; border:1px solid {{ bannerLine }}; background:{{ bannerBg }}; color:{{ bannerInk }};">
+        <span style="flex:none; width:8px; height:8px; border-radius:50%; background:{{ bannerDot }};"></span>
+        <div style="flex:1 1 240px; min-width:0; font-size:13px; text-wrap:pretty;"><b style="font-weight:700;">{{ banner.title }}</b>　{{ banner.body }}</div>
+        <sc-if value="{{ banner.hasAction }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ banner.onAction }}" style="flex:none; white-space:nowrap; min-height:34px; padding:2px 12px; border-radius:7px; border:1px solid {{ bannerLine }}; background:#ffffff; color:{{ bannerInk }}; font-size:13px; cursor:pointer;">{{ banner.action }}</button>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:18px;">
+        <div><h1 style="margin:0; font-size:22px; font-weight:700;">連線橋接器</h1><p style="margin:2px 0 0; font-size:13px; color:#6e6e73;">本機連線，不經雲端。</p></div>
+        <sc-if value="{{ hasSaved }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="padding:0 14px 6px; font-size:12px; color:#8e8e93; letter-spacing:.2px;">已保存</div>
+            <div style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden;">
+              <div style="display:flex; align-items:center; min-height:48px; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14); font-size:14px;"><span style="flex:1;">{{ savedHost }}</span></div>
+              <button onClick="{{ useSaved }}" disabled="{{ setupBusy }}" style="width:100%; min-height:46px; padding:0 14px; border:0; border-bottom:0.5px solid rgba(60,60,67,0.14); background:none; text-align:left; color:#0a74e8; font-size:14px; cursor:pointer;">使用已保存帳密連線</button>
+              <button onClick="{{ forget }}" style="width:100%; min-height:46px; padding:0 14px; border:0; background:none; text-align:left; color:#d9362b; font-size:14px; cursor:pointer;">忘記已保存連線</button>
+            </div>
+          </div>
+        </sc-if>
+        <div>
+          <div style="padding:0 14px 6px; font-size:12px; color:#8e8e93; letter-spacing:.2px;">區域網路</div>
+          <div style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden;">
+            <button onClick="{{ search }}" disabled="{{ setupBusy }}" style="width:100%; display:flex; align-items:center; gap:10px; min-height:48px; padding:0 14px; border:0; background:none; text-align:left; color:#0a74e8; font-size:14px; cursor:pointer; opacity:{{ searchOpacity }};">
+              <span style="flex:1;">{{ searchLabel }}</span>
+              <sc-if value="{{ searching }}" hint-placeholder-val="{{ false }}"><span style="width:14px; height:14px; border-radius:50%; border:2px solid rgba(60,60,67,0.18); border-top-color:#0a74e8; animation:hb-spin .8s linear infinite;"></span></sc-if>
+            </button>
+            <sc-for list="{{ results }}" as="r" hint-placeholder-count="0">
+              <button onClick="{{ r.onSelect }}" disabled="{{ setupBusy }}" style="width:100%; display:flex; align-items:center; gap:12px; min-height:52px; padding:6px 14px; border:0; border-top:0.5px solid rgba(60,60,67,0.14); background:none; text-align:left; color:#1d1d1f; cursor:pointer;">
+                <span style="flex:1; min-width:0;"><span style="display:block; font-size:14px;">{{ r.name }}</span><span style="display:block; font-size:12px; color:#6e6e73;">{{ r.addr }}</span></span>
+                <span style="flex:none; font-size:15px; color:#0a74e8; width:16px;">{{ r.check }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ hasSearchMsg }}" hint-placeholder-val="{{ false }}">
+            <div role="status" style="padding:8px 14px 0; font-size:12.5px; color:{{ searchMsgInk }}; text-wrap:pretty;">{{ searchMsg }}<sc-if value="{{ searchEmpty }}" hint-placeholder-val="{{ false }}"> {{ platformHint }}</sc-if></div>
+          </sc-if>
+        </div>
+        <div>
+          <div style="padding:0 14px 6px; font-size:12px; color:#8e8e93; letter-spacing:.2px;">手動輸入</div>
+          <div style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden;">
+            <label style="display:flex; align-items:center; gap:12px; min-height:48px; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14); font-size:14px;"><span style="flex:none; width:96px;">主機</span><input value="{{ host }}" onChange="{{ onHost }}" disabled="{{ setupBusy }}" spellcheck="false" style="flex:1; min-width:0; border:0; background:none; text-align:right; color:#1d1d1f; font-size:14px; outline:none;"></label>
+            <label style="display:flex; align-items:center; gap:12px; min-height:48px; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14); font-size:14px;"><span style="flex:none; width:96px;">連接埠</span><input value="{{ port }}" onChange="{{ onPort }}" disabled="{{ setupBusy }}" inputmode="numeric" style="flex:1; min-width:0; border:0; background:none; text-align:right; color:#1d1d1f; font-size:14px; outline:none;"></label>
+            <label style="display:flex; align-items:center; gap:12px; min-height:48px; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14); font-size:14px;"><span style="flex:none; width:96px;">帳號</span><input value="{{ user }}" onChange="{{ onUser }}" disabled="{{ setupBusy }}" placeholder="必填" style="flex:1; min-width:0; border:0; background:none; text-align:right; color:#1d1d1f; font-size:14px; outline:none;"></label>
+            <label style="display:flex; align-items:center; gap:12px; min-height:48px; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14); font-size:14px;"><span style="flex:none; width:96px;">密碼</span><input type="password" value="{{ pass }}" onChange="{{ onPass }}" disabled="{{ setupBusy }}" placeholder="必填" style="flex:1; min-width:0; border:0; background:none; text-align:right; color:#1d1d1f; font-size:14px; outline:none;"></label>
+            <button onClick="{{ toggleRemember }}" disabled="{{ setupBusy }}" style="width:100%; display:flex; align-items:center; gap:12px; min-height:48px; padding:0 14px; border:0; background:none; text-align:left; color:#1d1d1f; font-size:14px; cursor:pointer;">
+              <span style="flex:1;">記住此連線與帳密</span>
+              <span style="flex:none; position:relative; width:40px; height:24px; border-radius:99px; background:{{ rememberTrack }};"><span style="position:absolute; top:2px; left:{{ rememberKnob }}; width:20px; height:20px; border-radius:50%; background:#ffffff; box-shadow:0 1px 2px #0003; transition:left .15s;"></span></span>
+            </button>
+          </div>
+          <div style="padding:6px 14px 0; font-size:12px; color:#8e8e93; text-wrap:pretty;">{{ keychainHint }}</div>
+        </div>
+        <button onClick="{{ connect }}" disabled="{{ setupBusy }}" style="min-height:46px; display:flex; align-items:center; justify-content:center; gap:10px; border-radius:14px; border:0; background:#0a74e8; color:#ffffff; font-size:15px; font-weight:600; cursor:pointer; opacity:{{ connectOpacity }};">
+          <sc-if value="{{ connecting }}" hint-placeholder-val="{{ false }}"><span style="width:14px; height:14px; border-radius:50%; border:2px solid #ffffff44; border-top-color:#ffffff; animation:hb-spin .8s linear infinite;"></span></sc-if>{{ connectLabel }}
+        </button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showMain }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap:{{ gridGap }}; align-items:start;">
+        <div style="display:{{ colDisplay }}; flex-direction:column; gap:14px;">
+          <div style="order:1; position:relative; height:{{ diagramH }}; border-radius:20px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden; opacity:{{ stageOpacity }};">
+            <div style="position:absolute; right:8%; top:0; bottom:18%; width:2px; background:rgba(60,60,67,0.2);"></div>
+            <div style="position:absolute; left:0; right:0; bottom:18%; height:2px; background:rgba(60,60,67,0.2);"></div>
+            <div style="position:absolute; inset:0; clip-path:polygon(60% 27%, 64% 27%, 30% 82%, 6% 82%); background:{{ glowA }}; opacity:{{ frontLevel }}; transition:opacity .4s;"></div>
+            <div style="position:absolute; inset:0; clip-path:polygon(64% 22%, 66% 26%, 92% 44%, 92% 2%); background:{{ glowA }}; opacity:{{ backLevel }}; transition:opacity .4s;"></div>
+            <div style="position:absolute; left:63%; top:26%; width:6px; height:44%; border-radius:3px; background:#1d1d1f;"></div>
+            <div style="position:absolute; left:64%; top:70%; width:2px; height:12%; background:#1d1d1f;"></div>
+            <div style="position:absolute; left:58%; top:81%; width:12%; height:3px; border-radius:2px; background:#1d1d1f;"></div>
+            <div style="position:absolute; left:59%; top:21%; width:9%; height:6%; border-radius:4px; background:#1d1d1f; box-shadow:{{ barShadow }};"></div>
+            <span style="position:absolute; left:14%; top:52%; font-size:12px; color:#1d1d1f; background:rgba(255,255,255,0.72); padding:1px 6px; border-radius:4px;">前 {{ frontLabel }}</span>
+            <span style="position:absolute; left:74%; top:10%; font-size:12px; color:#1d1d1f; background:rgba(255,255,255,0.72); padding:1px 6px; border-radius:4px;">後 {{ backLabel }}</span>
+            <span style="position:absolute; left:10px; top:8px; white-space:nowrap; font-size:11.5px; color:#6e6e73;">{{ diagramLabel }}</span>
+            <span style="position:absolute; right:10px; bottom:6px; font-size:11.5px; color:#6e6e73;">{{ previewTemp }} K</span>
+          </div>
+
+          <div style="order:3;">
+            <div style="padding:0 14px 6px; font-size:12px; color:#8e8e93; letter-spacing:.2px;">{{ targetEyebrow }}</div>
+            <div style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden; font-size:14px;">
+              <div style="display:flex; align-items:center; min-height:44px; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14);"><span style="flex:1; color:#6e6e73;">電源</span><span style="font-weight:700;">{{ targetPower }}</span></div>
+              <div style="display:flex; align-items:center; min-height:44px; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14);"><span style="flex:1; color:#6e6e73;">模式</span><span>{{ targetMode }}</span></div>
+              <div style="display:flex; align-items:center; min-height:44px; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14);"><span style="flex:1; color:#6e6e73;">亮度與色溫</span><span>{{ targetDetail }}</span></div>
+              <div style="display:flex; align-items:center; min-height:44px; padding:0 14px;"><span style="flex:1; color:#6e6e73;">來源</span><span>{{ sourceLabel }}</span></div>
+            </div>
+          </div>
+
+          <div style="order:4;">
+            <div style="padding:0 14px 6px; font-size:12px; color:#8e8e93; letter-spacing:.2px;">最近命令</div>
+            <div aria-live="polite" style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden;">
+              <div style="display:flex; align-items:flex-start; gap:10px; padding:12px 14px;">
+                <span style="flex:none; margin-top:6px; width:8px; height:8px; border-radius:50%; background:{{ fbDot }}; animation:{{ fbAnim }};"></span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:14px; font-weight:700; color:{{ fbInk }};">{{ fb.title }}</div>
+                  <div style="font-size:12.5px; color:#6e6e73; text-wrap:pretty;">{{ fb.body }}</div>
+                </div>
+                <sc-if value="{{ fb.hasLookup }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ lookup }}" style="flex:none; white-space:nowrap; min-height:34px; padding:2px 12px; border-radius:7px; border:0; background:#0a74e8; color:#ffffff; font-size:13px; font-weight:600; cursor:pointer;">查詢命令結果</button>
+                </sc-if>
+              </div>
+              <sc-if value="{{ hasRemote }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:0.5px solid rgba(60,60,67,0.14); font-size:12.5px; color:#6e6e73;">
+                  <span style="flex:1; min-width:0;">原廠控制器：{{ remote.power }} · {{ remote.detail }}</span><span style="flex:none; white-space:nowrap; color:#8e8e93;">{{ remote.ago }} 秒前</span>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:{{ colDisplay }}; flex-direction:column; gap:18px;">
+          <div style="order:2;">
+            <div style="display:flex; gap:8px; padding:0 14px 6px; font-size:12px; color:#8e8e93; letter-spacing:.2px;"><sc-if value="{{ locked }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto;">已停用：{{ lockShort }}</span></sc-if></div>
+            <div style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; border-bottom:0.5px solid rgba(60,60,67,0.14);">
+                <button onClick="{{ powerPress }}" disabled="{{ locked }}" aria-label="{{ powerNext }}" title="{{ powerNext }}" style="flex:none; width:56px; height:56px; border-radius:50%; display:grid; place-items:center; border:0; background:{{ pwBg }}; color:{{ pwInk }}; box-shadow:{{ pwShadow }}; cursor:{{ lockCursor }}; opacity:{{ lockOpacity }}; transition:background .2s, box-shadow .2s;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2v7.6"></path><path d="M7.1 6.1a7.6 7.6 0 1 0 9.8 0"></path></svg></button>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:17px; font-weight:600;">{{ targetPower }}</div>
+                  <div style="font-size:12px; color:#8e8e93; letter-spacing:.2px;">按一下{{ powerNext }}</div>
+                </div>
+              </div>
+              <div style="opacity:{{ setOpacity }};">
+                <div style="display:flex; align-items:center; gap:12px; min-height:52px; padding:6px 14px; border-bottom:0.5px solid rgba(60,60,67,0.14);">
+                  <span style="flex:1; display:flex; align-items:center; gap:6px; font-size:14px;">模式<span style="width:6px; height:6px; border-radius:50%; background:#0a74e8; display:{{ modeDot }};"></span></span>
+                  <div style="flex:none; display:flex; gap:2px; padding:2px; border-radius:9px; background:rgba(118,118,128,0.12);">
+                    <sc-for list="{{ modesB }}" as="m" hint-placeholder-count="3">
+                      <button onClick="{{ m.onPick }}" disabled="{{ settingsDisabled }}" style="min-height:32px; padding:2px 12px; border-radius:6px; border:1px solid {{ m.line }}; background:{{ m.bg }}; color:{{ m.ink }}; font-size:13px; cursor:{{ setCursor }}; white-space:nowrap; box-shadow:{{ m.shadow }};">{{ m.label }}</button>
+                    </sc-for>
+                  </div>
+                </div>
+                <sc-for list="{{ slidersB }}" as="s" hint-placeholder-count="3">
+                  <div style="padding:12px 14px 10px; border-bottom:0.5px solid rgba(60,60,67,0.14);">
+                    <div style="display:flex; align-items:center; gap:8px; font-size:14px;">
+                      <span style="flex:1; display:flex; align-items:center; gap:6px;">{{ s.label }}<span style="width:6px; height:6px; border-radius:50%; background:#0a74e8; display:{{ s.dotDisplay }};"></span></span>
+                      
+                      <span style="white-space:nowrap; color:{{ s.valueInk }}; font-variant-numeric:tabular-nums;">{{ s.valueText }}</span>
+                    </div>
+                    <div style="position:relative; height:28px; margin-top:4px;">
+                      <div style="position:absolute; left:0; right:0; top:12px; height:4px; border-radius:2px; background:{{ s.track }};"></div>
+                      <div style="position:absolute; left:0; top:12px; height:4px; border-radius:2px; width:{{ s.valuePct }}; background:{{ s.fill }}; display:{{ s.fillDisplay }};"></div>
+                      <div title="目前目標" style="position:absolute; top:9px; width:10px; height:10px; margin-left:-5px; left:{{ s.targetPct }}; border-radius:50%; background:#f4f5f7; box-shadow:0 0 0 1.5px rgba(60,60,67,0.35); display:{{ s.tickDisplay }};"></div>
+                      <div style="position:absolute; top:1px; width:26px; height:26px; margin-left:-13px; left:{{ s.valuePct }}; border-radius:50%; background:{{ s.knobBg }}; border:0.5px solid rgba(0,0,0,0.06); box-shadow:{{ s.knobShadow }}; transition:box-shadow .2s;"></div>
+                      <input type="range" min="{{ s.min }}" max="{{ s.max }}" step="{{ s.step }}" value="{{ s.value }}" onChange="{{ s.onChange }}" disabled="{{ settingsDisabled }}" aria-label="{{ s.label }}" style="position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:{{ setCursor }};">
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding:10px 14px 12px; border-bottom:0.5px solid rgba(60,60,67,0.14);">
+                <div style="display:flex; align-items:center; gap:8px; font-size:14px;"><span style="flex:1;">情境</span><button onClick="{{ togglePresets }}" style="flex:none; white-space:nowrap; min-height:28px; padding:2px 4px; border:0; background:none; color:#0a74e8; font-size:13px; cursor:pointer;">{{ presetManageLabel }}</button></div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+                  <sc-for list="{{ presetsD }}" as="p" hint-placeholder-count="3">
+                    <button onClick="{{ p.onLoad }}" disabled="{{ settingsDisabled }}" title="{{ p.summary }}" style="flex:none; white-space:nowrap; min-height:32px; padding:2px 14px; border-radius:99px; border:0; background:{{ p.bg }}; color:{{ p.ink }}; box-shadow:{{ p.shadow }}; font-size:13px; cursor:{{ setCursor }}; opacity:{{ setOpacity }};">{{ p.name }}</button>
+                  </sc-for>
+                  <sc-if value="{{ noPresets }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px; color:#8e8e93;">尚未保存情境</span></sc-if>
+                </div>
+                <sc-if value="{{ presetsOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:10px; border-radius:12px; background:rgba(118,118,128,0.08); overflow:hidden;">
+                    <sc-for list="{{ presets }}" as="p" hint-placeholder-count="3">
+                      <div style="display:flex; align-items:center; gap:8px; min-height:44px; padding:4px 6px 4px 12px; border-bottom:0.5px solid rgba(60,60,67,0.14);">
+                        <span style="flex:1; min-width:0;"><span style="display:block; font-size:13.5px;">{{ p.name }}</span><span style="display:block; font-size:11.5px; color:#6e6e73;">{{ p.summary }}</span></span>
+                        <button onClick="{{ p.onDelete }}" style="flex:none; white-space:nowrap; min-height:32px; padding:2px 8px; border:0; background:none; color:#d9362b; font-size:13px; cursor:pointer;">刪除</button>
+                      </div>
+                    </sc-for>
+                    <div style="display:flex; align-items:center; gap:8px; min-height:44px; padding:4px 6px 4px 12px;">
+                      <input value="{{ presetName }}" onChange="{{ onPresetName }}" maxlength="40" placeholder="以目前設定新增情境" style="flex:1; min-width:0; border:0; background:none; font-size:13.5px; color:#1d1d1f; outline:none;">
+                      <button onClick="{{ savePreset }}" style="flex:none; white-space:nowrap; min-height:32px; padding:2px 8px; border:0; background:none; color:#0a74e8; font-size:13px; cursor:pointer;">保存</button>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ hasPresetMsg }}" hint-placeholder-val="{{ false }}"><div role="status" style="margin-top:6px; font-size:12px; color:#6e6e73;">{{ presetMsg }}</div></sc-if>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; min-height:52px; padding:8px 10px 8px 14px; background:{{ applyBg }}; transition:background .2s;">
+                <span style="flex:1; min-width:0; font-size:13px; color:{{ applyInk }};">{{ applyText }}</span>
+                <button onClick="{{ cancelDraft }}" disabled="{{ noApply }}" style="flex:none; white-space:nowrap; min-height:34px; padding:2px 12px; border-radius:99px; border:0; background:transparent; color:#0a74e8; font-size:13px; cursor:pointer; opacity:{{ applyOpacity }};">取消調整</button>
+                <button onClick="{{ applyDraft }}" disabled="{{ noApply }}" style="flex:none; white-space:nowrap; min-height:34px; padding:2px 16px; border-radius:99px; border:0; background:#0a74e8; color:#ffffff; font-size:13px; font-weight:600; cursor:pointer; box-shadow:{{ applyShadow }}; opacity:{{ applyOpacity }};">套用燈光設定</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:560px; margin:0 auto; display:flex; flex-direction:column; gap:18px;">
+        <div>
+          <div style="padding:0 14px 6px; font-size:12px; color:#8e8e93; letter-spacing:.2px;">橋接器</div>
+          <div style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden; font-size:14px;">
+            <div style="padding:12px 14px; border-bottom:0.5px solid rgba(60,60,67,0.14);"><div style="font-weight:700;">{{ deviceName }}</div><div style="font-size:12.5px; color:#6e6e73;">{{ hostPort }}</div></div>
+            <div style="display:flex; min-height:44px; align-items:center; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14);"><span style="flex:1; color:#6e6e73;">無線模組</span>{{ radioText }}</div>
+            <div style="display:flex; min-height:44px; align-items:center; padding:0 14px; border-bottom:0.5px solid rgba(60,60,67,0.14);"><span style="flex:1; color:#6e6e73;">配對</span>{{ pairingText }}</div>
+            <div style="display:flex; min-height:44px; align-items:center; padding:0 14px;"><span style="flex:1; color:#6e6e73;">最後同步</span>{{ lastSync }}</div>
+          </div>
+        </div>
+        <div style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden;">
+          <button onClick="{{ refresh }}" style="width:100%; min-height:46px; padding:0 14px; border:0; border-bottom:0.5px solid rgba(60,60,67,0.14); background:none; text-align:left; color:#0a74e8; font-size:14px; cursor:pointer;">重新整理</button>
+          <button onClick="{{ disconnect }}" style="width:100%; min-height:46px; padding:0 14px; border:0; border-bottom:0.5px solid rgba(60,60,67,0.14); background:none; text-align:left; color:#0a74e8; font-size:14px; cursor:pointer;">中斷連線／更換裝置</button>
+          <button onClick="{{ forget }}" style="width:100%; min-height:46px; padding:0 14px; border:0; background:none; text-align:left; color:#d9362b; font-size:14px; cursor:pointer;">忘記已保存連線</button>
+        </div>
+        <sc-if value="{{ hasSettingsMsg }}" hint-placeholder-val="{{ false }}"><div role="status" style="margin-top:-10px; padding:0 14px; font-size:12px; color:#6e6e73;">{{ settingsMsg }}</div></sc-if>
+        <div>
+          <div style="padding:0 14px 6px; font-size:12px; color:#8e8e93; letter-spacing:.2px;">診斷 · {{ diagSummary }}</div>
+          <div style="border-radius:16px; background:rgba(255,255,255,0.34); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.5), inset 1px 0 0 rgba(255,255,255,0.6), inset -1px 0 0 rgba(255,255,255,0.6), inset 0 0 0 4px rgba(255,255,255,0.18), 0 0 0 0.5px rgba(40,50,70,0.14), 0 2px 3px rgba(30,40,60,0.05), 0 18px 36px -12px rgba(30,40,60,0.16); overflow:hidden;">
+            <sc-for list="{{ eventsB }}" as="e" hint-placeholder-count="4">
+              <div style="display:flex; align-items:center; gap:10px; min-height:46px; padding:6px 14px; border-bottom:0.5px solid rgba(60,60,67,0.14); font-size:13.5px;">
+                <span style="flex:none; width:7px; height:7px; border-radius:50%; background:{{ e.dot }};"></span>
+                <span style="flex:1; min-width:0;">{{ e.title }}<span style="color:#6e6e73;"> · {{ e.status }}</span><span style="display:{{ e.rawDisplay }}; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; color:#6e6e73;">{{ e.raw }}</span></span>
+                <span style="flex:none; font-size:12px; color:#8e8e93; font-variant-numeric:tabular-nums;">{{ e.time }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ showRaw }}" hint-placeholder-val="{{ false }}">
+              <pre style="margin:0; padding:12px 14px; border-bottom:0.5px solid rgba(60,60,67,0.14); background:#f6f7f9; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere;">{{ diagJson }}</pre>
+            </sc-if>
+            <button onClick="{{ toggleRaw }}" style="width:100%; min-height:46px; padding:0 14px; border:0; border-bottom:0.5px solid rgba(60,60,67,0.14); background:none; text-align:left; color:#0a74e8; font-size:14px; cursor:pointer;">{{ rawLabel }}</button>
+            <button onClick="{{ exportDiag }}" style="width:100%; min-height:46px; padding:0 14px; border:0; border-bottom:0.5px solid rgba(60,60,67,0.14); background:none; text-align:left; color:#0a74e8; font-size:14px; cursor:pointer;">匯出診斷 JSON</button>
+            <button onClick="{{ clearDiag }}" style="width:100%; min-height:46px; padding:0 14px; border:0; background:none; text-align:left; color:#d9362b; font-size:14px; cursor:pointer;">清除歷史紀錄</button>
+          </div>
+          <div style="padding:6px 14px 0; font-size:12px; color:#8e8e93; letter-spacing:.2px;">保留最近 200 筆</div>
+          <sc-if value="{{ hasDiagMsg }}" hint-placeholder-val="{{ false }}"><div role="status" style="padding:6px 14px 0; font-size:12px; color:#1d1d1f; overflow-wrap:anywhere;">{{ diagMsg }}<sc-if value="{{ showFilesHint }}" hint-placeholder-val="{{ false }}"><div style="color:#6e6e73;">到 {{ filesHint }} 取用。</div></sc-if></div></sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <footer style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; margin-top:22px; font-size:11px; letter-spacing:1px; color:#8e8e93;">
+      <span>LOCAL CONNECTION · NO CLOUD</span><span>非 BenQ 官方軟體 · 開發版 0.1.0</span>
+    </footer>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;ready&quot;,&quot;options&quot;:[&quot;first&quot;,&quot;searching&quot;,&quot;noresults&quot;,&quot;connecting&quot;,&quot;ready&quot;,&quot;executing&quot;,&quot;transmitted&quot;,&quot;failed&quot;,&quot;unknown&quot;,&quot;reconnect&quot;,&quot;boot&quot;,&quot;experimental&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;platform&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;windows&quot;,&quot;options&quot;:[&quot;windows&quot;,&quot;macos&quot;,&quot;ios&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+const KB = {
+  ok: { bg: 'rgba(52,168,83,0.12)', ink: '#1f7a3a', dot: '#34a853', line: 'rgba(52,168,83,0.2)' },
+  warn: { bg: 'rgba(255,170,0,0.14)', ink: '#8a5a00', dot: '#f0a000', line: 'rgba(255,170,0,0.28)' },
+  err: { bg: 'rgba(217,54,43,0.1)', ink: '#b3261e', dot: '#d9362b', line: 'rgba(217,54,43,0.22)' },
+  info: { bg: 'rgba(255,255,255,0.55)', ink: '#1d1d1f', dot: '#8e8e93', line: 'rgba(255,255,255,0.75)' },
+  busy: { bg: 'rgba(255,255,255,0.55)', ink: '#1d1d1f', dot: '#0a74e8', line: 'rgba(255,255,255,0.75)' },
+  pending: { bg: 'rgba(118,118,128,0.12)', ink: '#6e6e73', dot: '#0a74e8', line: 'transparent' },
+  idle: { bg: 'rgba(118,118,128,0.12)', ink: '#6e6e73', dot: '#aeaeb2', line: 'transparent' },
+};
+function beamColor(k) {
+  const stops = [[2700, [255, 164, 60]], [4600, [255, 214, 140]], [6500, [96, 160, 255]]];
+  const t = Math.max(2700, Math.min(6500, k));
+  const i = t <= 4600 ? 0 : 1;
+  const [k0, c0] = stops[i], [k1, c1] = stops[i + 1];
+  const p = (t - k0) / (k1 - k0);
+  const c = c0.map((v, j) => Math.round(v + (c1[j] - v) * p));
+  return `rgba(${c[0]},${c[1]},${c[2]},0.55)`;
+}
+class Component extends DCLogic {
+  state = {};
+  componentDidMount() { this.boot(); }
+  boot() { if (window.HaloModel) this.h = window.HaloModel.attach(this); else this.bt = setTimeout(() => this.boot(), 60); }
+  componentDidUpdate(p) { this.h && this.h.update(p); }
+  componentWillUnmount() { clearTimeout(this.bt); this.h && this.h.dispose(); }
+  renderVals() {
+    const v = this.__halo && this.__halo.view();
+    if (!v) return { ambA: '#ffd9a0', ambOp: 0.5, headerTitle: 'Halo 2 Control', badge: { text: '' }, banner: {}, fb: {}, remote: {}, desired: {} };
+    const k = (x) => KB[x] || KB.idle;
+    const dis = v.settingsDisabled;
+    const anim = (x) => (x === 'busy' || x === 'pending' || x === 'warn') ? 'hb-pulse 1.2s ease-in-out infinite' : 'none';
+    return {
+      ...v,
+      headerTitle: v.panelOpen ? '裝置與診斷' : 'Halo 2 Control',
+      showDeviceBtn: v.connected && !v.panelOpen, showMain: v.connected && !v.panelOpen,
+      badgeBg: k(v.badge.kind).bg, badgeInk: k(v.badge.kind).ink, badgeDot: k(v.badge.kind).dot, badgeAnim: v.badge.kind === 'ok' || v.badge.kind === 'idle' ? 'none' : anim(v.badge.kind),
+      bannerBg: k(v.banner.kind).bg, bannerInk: k(v.banner.kind).ink, bannerLine: k(v.banner.kind).line, bannerDot: k(v.banner.kind).dot,
+      fbInk: k(v.fb.kind).ink, fbDot: k(v.fb.kind).dot, fbAnim: v.fb.kind === 'busy' ? anim('busy') : 'none',
+      searchOpacity: v.connecting ? 0.4 : 1, connectOpacity: v.searching ? 0.4 : 1,
+      results: v.results.map((r) => ({ ...r, check: r.picked ? '✓' : '' })),
+      searchMsgInk: v.searchEmpty ? '#8a5a00' : '#6e6e73',
+      rememberTrack: v.remember ? '#0a74e8' : 'rgba(60,60,67,0.18)', rememberKnob: v.remember ? '18px' : '2px',
+      diagramH: v.mobile ? '170px' : '200px', colDisplay: v.mobile ? 'contents' : 'flex', gridGap: v.mobile ? '16px' : '18px', stageOpacity: v.online ? 1 : 0.5,
+      glowA: beamColor(v.preview.temp), diagramLabel: v.hasDraft ? '預覽 · 尚未套用' : '目標示意', previewTemp: v.preview.temp, ambA: v.glow, ambOp: v.lit && v.online ? (0.45 + 0.4 * Math.max(v.frontLevel, v.backLevel)).toFixed(2) : 0.12,
+      frontLevel: v.previewFront.toFixed(2), backLevel: v.previewBack.toFixed(2),
+      frontLabel: v.previewFront ? v.preview.front + '%' : '—', backLabel: v.previewBack ? v.preview.back + '%' : '—',
+      barShadow: v.lit ? `0 0 14px ${v.previewGlow}` : 'none',
+      lockOpacity: v.locked ? 0.35 : 1, pwBg: v.lit ? '#0a74e8' : 'rgba(255,255,255,0.7)', pwInk: v.lit ? '#ffffff' : '#1d1d1f', pwShadow: v.lit ? 'inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px rgba(10,80,180,0.25)' : 'inset 0 1px 0 #ffffff, 0 0 0 0.5px rgba(40,50,70,0.18), 0 1px 3px rgba(0,0,0,0.08)', lockCursor: v.locked ? 'not-allowed' : 'pointer',
+      setOpacity: dis ? 0.4 : 1, setCursor: dis ? 'not-allowed' : 'pointer',
+      modesB: v.modes.map((m) => ({ ...m, bg: m.active ? '#ffffff' : 'transparent', ink: m.drafted ? '#0a74e8' : m.active ? '#1d1d1f' : '#6e6e73', line: 'transparent', shadow: m.active ? '0 1px 2px #0002' : 'none' })),
+      slidersB: v.sliders.map((s) => ({ ...s,
+        track: 'rgba(118,118,128,0.2)',
+        fill: s.drafted ? '#0a74e8' : '#1d1d1f', fillDisplay: 'block', knobBg: s.isTemp ? window.HaloModel.tempColor(s.value) : '#ffffff',
+        tickDisplay: s.drafted ? 'block' : 'none', dotDisplay: s.drafted ? 'inline-block' : 'none', knobShadow: s.drafted ? 'inset 0 0 0 2px #0a74e8, 0 1px 2px rgba(0,0,0,0.12), 0 3px 8px rgba(0,0,0,0.12)' : '0 1px 2px rgba(0,0,0,0.12), 0 3px 8px rgba(0,0,0,0.14)', knobLine: s.drafted ? '#0a74e8' : '#1d1d1f', valueInk: s.drafted ? '#0a74e8' : '#1d1d1f',
+        valueText: s.valueText })),
+      applyBg: v.canApply ? 'rgba(10,116,232,0.06)' : 'transparent', applyInk: v.canApply ? '#1d1d1f' : '#8e8e93', applyShadow: 'none', modeDot: v.modes.some((m) => m.drafted) ? 'inline-block' : 'none', presetManageLabel: v.presetsOpen ? '完成' : '編輯', presetsD: v.presets.map((p) => ({ ...p, bg: p.active ? '#ffffff' : 'rgba(118,118,128,0.12)', ink: p.active ? '#0a74e8' : '#1d1d1f', shadow: p.active ? '0 0 0 1px rgba(10,116,232,0.5), 0 1px 2px rgba(0,0,0,0.08)' : 'none' })),
+      noApply: !v.canApply, applyOpacity: v.canApply ? 1 : 0.4,
+      eventsB: v.events.map((e) => ({ ...e, dot: k(e.kind).dot, rawDisplay: v.showRaw && (e.code || e.tx) ? 'block' : 'none', raw: [e.code, e.tx].filter(Boolean).join(' · ') })),
+    };
+  }
+}
+</script>
+</body>
+</html>

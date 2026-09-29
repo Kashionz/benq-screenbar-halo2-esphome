@@ -24,7 +24,7 @@
 | A18 | SSE 連線建立時狀態改變，或慢客戶端落後 | 初始快照與後續版本有序；合併最新值或斷線重同步；記憶體有界 |
 | A19 | SSE reconnect 帶舊 Last-Event-ID | 先推目前完整快照；不保證中間事件重播，特定命令結果用 GET 查 |
 | A20 | HTTP 舊 session 回應晚於新 SSE／新 boot 抵達 | generation + boot/version 過濾；不使畫面倒退或誤報自己命令成功 |
-| A21 | SSE 30 秒無資料但 GET 正常 | 顯示串流重連／改用輪詢；不把燈具判為離線 |
+| A21 | SSE 30 秒無資料但 GET 正常 | 顯示串流重連／改用輪詢；不把掛燈判為離線 |
 | A22 | iPhone 進背景再返回 | 取得新快照後恢復操作；不自動送出背景前的 slider/power request |
 | A23 | 空 patch、null、錯型別、未知欄位、重複 JSON key | 400 或依規格 422；沒有 partial apply／NVS／RF 副作用 |
 | A24 | brightness=0/101、temperature=3926、unsupported 欄位 | 422；不 clamp、不把 0 當關燈、不自動忽略不支援欄位 |
@@ -34,4 +34,4 @@
 | A28 | 未知 response 欄位／status／error code | 額外欄位可忽略；未知狀態與錯誤不映射成功，保留診斷 |
 | A29 | 24 小時操作、兩 SSE、網頁、原廠控制器交錯、Wi-Fi 斷線 | 無無界記憶體成長、沒有過期命令回放；RF 失敗與本機連線狀態可分辨 |
 
-建議依 A01–A17 完成 dispatcher 測試，A18–A28 完成網路及客戶端測試，再以實體 ESP32／燈具完成 A29 及所有發射效果驗證。
+建議依 A01–A17 完成 dispatcher 測試，A18–A28 完成網路及客戶端測試，再以實體 ESP32／掛燈完成 A29 及所有發射效果驗證。

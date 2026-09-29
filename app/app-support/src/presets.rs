@@ -34,6 +34,12 @@ struct Document {
     presets: Vec<Preset>,
 }
 pub struct Presets(PathBuf);
+/// Presets the App keeps; a stored file with more is rejected like any other
+/// invalid file, and left untouched.
+pub const MAX_PRESETS: usize = 4;
+fn limit_error() -> Fault {
+    Fault::new("PRESET_LIMIT", "最多保存 4 個情境，請先刪除不需要的情境。")
+}
 fn valid_name(name: &str) -> bool {
     !name.trim().is_empty() && name.chars().count() <= 40 && !name.chars().any(char::is_control)
 }
@@ -47,7 +53,7 @@ impl Presets {
         };
         let mut ids = std::collections::HashSet::new();
         if document.version != 1
-            || document.presets.len() > 20
+            || document.presets.len() > MAX_PRESETS
             || document.presets.iter().any(|p| {
                 uuid::Uuid::parse_str(&p.id).is_err()
                     || !ids.insert(&p.id)
@@ -65,17 +71,38 @@ impl Presets {
             return Err(Fault::new("INVALID_PRESET", "情境名稱或燈光設定不合法。"));
         }
         let mut presets = self.list()?;
-        if presets.len() >= 20 {
-            return Err(Fault::new(
-                "PRESET_LIMIT",
-                "最多保存 20 個情境，請先刪除不需要的情境。",
-            ));
+        if presets.len() >= MAX_PRESETS {
+            return Err(limit_error());
         }
         presets.push(Preset {
             id: uuid::Uuid::new_v4().to_string(),
             name,
             values,
         });
+        self.write(presets)
+    }
+    /// Undo a delete: put the preset back at its old position. Only a preset
+    /// that is not already stored is accepted, so a repeated undo is refused.
+    pub fn restore(&self, preset: Preset, index: usize) -> Result<Vec<Preset>, Fault> {
+        let preset = Preset {
+            name: preset.name.trim().to_owned(),
+            ..preset
+        };
+        if uuid::Uuid::parse_str(&preset.id).is_err()
+            || !valid_name(&preset.name)
+            || !preset.values.valid()
+        {
+            return Err(Fault::new("INVALID_PRESET", "情境名稱或燈光設定不合法。"));
+        }
+        let mut presets = self.list()?;
+        if presets.iter().any(|p| p.id == preset.id) {
+            return Err(Fault::new("INVALID_PRESET", "這個情境已存在。"));
+        }
+        if presets.len() >= MAX_PRESETS {
+            return Err(limit_error());
+        }
+        let index = index.min(presets.len());
+        presets.insert(index, preset);
         self.write(presets)
     }
     pub fn delete(&self, id: &str) -> Result<Vec<Preset>, Fault> {
@@ -119,6 +146,24 @@ mod tests {
         assert_eq!(reopened.list().unwrap().len(), 1);
     }
     #[test]
+    fn restores_a_deleted_preset_at_its_old_position_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Presets::new(dir.path().join("presets.json"));
+        store.save("閱讀".into(), light()).unwrap();
+        store.save("工作".into(), light()).unwrap();
+        let all = store.save("夜間".into(), light()).unwrap();
+        let removed = all[1].clone();
+        store.delete(&removed.id).unwrap();
+        let restored = store.restore(removed.clone(), 1).unwrap();
+        let names: Vec<_> = restored.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["閱讀", "工作", "夜間"]);
+        assert_eq!(restored[1].id, removed.id);
+        assert!(store.restore(removed, 1).is_err());
+        let mut forged = all[0].clone();
+        forged.id = "not-a-uuid".into();
+        assert!(store.restore(forged, 0).is_err());
+    }
+    #[test]
     fn rejects_invalid_values_limits_and_corrupt_files_without_overwrite() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("presets.json");
@@ -127,13 +172,31 @@ mod tests {
         invalid.temperature_k = 3926;
         assert!(store.save("bad".into(), invalid).is_err());
         assert!(store.save("\n".into(), light()).is_err());
-        for _ in 0..20 {
+        for _ in 0..MAX_PRESETS {
             store.save("valid".into(), light()).unwrap();
         }
         assert_eq!(
             store.save("overflow".into(), light()).unwrap_err().code,
             "PRESET_LIMIT"
         );
+        // A file holding more than four presets is rejected, not truncated.
+        let five: Vec<_> = (0..5)
+            .map(|i| Preset {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("p{i}"),
+                values: light(),
+            })
+            .collect();
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&Document {
+                version: 1,
+                presets: five,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(store.list().is_err());
         std::fs::write(&path, br#"{"version":2,"presets":[]}"#).unwrap();
         let before = std::fs::read(&path).unwrap();
         assert!(store.save("new".into(), light()).is_err());

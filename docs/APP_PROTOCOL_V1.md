@@ -11,7 +11,7 @@
 - App 使用 Rust 通訊核心；ESP32 RF 封包格式、CRC、位址順序留在韌體。
 - v1 提供裝置資訊、狀態快照、設定命令、結果查詢；配對寫入、Wi-Fi 設定、OTA、重新啟動及 RF 測試不屬於此控制協定。
 - 命令是絕對設定，不提供 toggle、加一級、重播 RF 等相對或除錯操作。
-- `transmitted` 只代表所有預定 RF 封包達到目前驅動的本機送出條件。v1 沒有 `confirmed`，也沒有「燈具目前在線」的可靠判定。
+- `transmitted` 只代表所有預定 RF 封包達到目前驅動的本機送出條件。v1 沒有 `confirmed`，也沒有「掛燈目前在線」的可靠判定。
 - 第一版直接使用可信任區域網路及現有 HTTP Basic Auth。HTTP 不加密；Tauri 原生 HTTP 與 ESPHome native API 的加密不能改變這一點。這不是公開網際網路介面。
 
 ## 2. 傳輸、認證及版本
@@ -73,14 +73,14 @@ HTTP handler 只驗證及登錄命令，RF 工作由主迴圈執行，不在網�
 - 關燈保留模式、亮度及色溫。修改它們不隱含開燈；要開燈須明確指定 `power:true`。
 - Patch 至少一個欄位，缺少代表保留、null 不允許。不得默默 clamp 或捨入。
 
-Snapshot 的 `features` 逐欄標示 `verified | experimental | unsupported`；verified 必須根據該裝置／配對的實測，不得因 App 有 UI 就宣稱支援。第一版 App 預設隱藏或停用 experimental，開發者可明確啟用。設定 unsupported 欄位整筆拒絕。配對改變時，features 與 control_revision/state_version 在同一次修改中更新，避免新配對沿用舊配對的驗證標記；App 依最新快照呈現能力。
+Snapshot 的 `features` 逐欄標示 `verified | experimental | unsupported`；verified 必須根據該裝置／配對的實測，不得因 App 有 UI 就宣稱支援。App 自 2026-09-28 起不再要求使用者另外啟用 experimental 欄位，但這不改變橋接器回報的驗證標記，App 也不得把 experimental 顯示成已驗證。設定 unsupported 欄位整筆拒絕。配對改變時，features 與 control_revision/state_version 在同一次修改中更新，避免新配對沿用舊配對的驗證標記；App 依最新快照呈現能力。
 
 Snapshot 有兩組狀態：
 
-1. `desired`：橋接器最近採用的完整控制目標，附 `source=boot_default|restored|app|legacy|remote`、`updated_at_uptime_ms` 及 nullable `command_id`。接受命令即更新；TX 失敗保留目標及失敗結果，不能假裝它是燈具真實狀態，也不自動倒回覆蓋後來的控制。
-2. `observed_remote`：nullable，保存目前 RX 解析器判為原廠控制器請求的完整狀態與最後接收時間。這是控制器的意圖證據，不是獨立燈具回覆。開機初始必為 null，不把舊快取包裝成新接收。
+1. `desired`：橋接器最近採用的完整控制目標，附 `source=boot_default|restored|app|legacy|remote`、`updated_at_uptime_ms` 及 nullable `command_id`。接受命令即更新；TX 失敗保留目標及失敗結果，不能假裝它是掛燈真實狀態，也不自動倒回覆蓋後來的控制。
+2. `observed_remote`：nullable，保存目前 RX 解析器判為原廠控制器請求的完整狀態與最後接收時間。這是控制器的意圖證據，不是獨立掛燈回覆。開機初始必為 null，不把舊快取包裝成新接收。
 
-`lamp_confirmation` 固定 `unavailable`。`radio_status=initializing|ready|learning|fault` 描述本機無線驅動；ready 不代表燈具可達。`pairing_status=unpaired|learning|ready` 與 `pairing_persisted` 分別描述目前配對可用性及是否保存。故障欄位 `radio_error_code` 為 nullable。
+`lamp_confirmation` 固定 `unavailable`。`radio_status=initializing|ready|learning|fault` 描述本機無線驅動；ready 不代表掛燈可達。`pairing_status=unpaired|learning|ready` 與 `pairing_persisted` 分別描述目前配對可用性及是否保存。故障欄位 `radio_error_code` 為 nullable。
 
 `active_command` 是 accepted/executing 的完整紀錄或 null；`last_command` 是最近終結的完整紀錄或 null。App 必須用 ID 比對，不能把別的客戶端結果套到自己按鈕上。重啟清空這兩者；恢復的設定 source=restored，但不自動發送。
 
@@ -114,7 +114,7 @@ Request 等同性比較解碼後的所有欄位，含 deadline、revision 及 pa
 
 主迴圈開始執行前重新檢查 deadline、revision 是否仍等於 accepted_revision、配對及 radio。deadline 過期為 expired；控制目標已被原廠控制器或控制前提變更覆蓋為 superseded。RF 已開始後無法撤銷空中封包；後來的觀察可更新 desired，但不能改寫既有命令的 TX 證據。
 
-v1 的驅動對應規則：含非 power 欄位先送 0x03；含 power 欄位再送 0x02，兩者均使用同一完整 target。最多兩個 RF frame；只有 power 時只送 0x02。這是待逐項硬體驗證的 adapter 規則，複合 patch 只保證軟體狀態原子合併，**不保證燈具在 RF 層原子套用**。第二包前失敗／過期時保留部分傳送資訊，不執行回滾封包。
+v1 的驅動對應規則：含非 power 欄位先送 0x03；含 power 欄位再送 0x02，兩者均使用同一完整 target。最多兩個 RF frame；只有 power 時只送 0x02。這是待逐項硬體驗證的 adapter 規則，複合 patch 只保證軟體狀態原子合併，**不保證掛燈在 RF 層原子套用**。第二包前失敗／過期時保留部分傳送資訊，不執行回滾封包。
 
 每包送出前檢查 deadline；硬體已觸發的一包可完成其有界重傳。未開始就逾時為 expired；已送出部分封包後逾時為 failed / DEADLINE_DURING_TX。從 executing 起最多 1000 ms 完成或以 TX_TIMEOUT 終結；驅動必須有界，不能卡住主迴圈無限等待。這是故障上限，不是允許每次阻塞網路一秒。App 的 HTTP 逾時不取消已接受命令。
 
@@ -165,7 +165,7 @@ v1 基準限制（info 必須公告，App 依公告值節流）：
 
 App 同 boot 僅採用較新 state_version；相同版本可更新 uptime 估計，不覆蓋較新值。不同 boot 的舊 HTTP 回應不得直接覆蓋目前 session；發現 boot 改變就使舊 pending 結果標成 unknown，重取 info/state，再建立新串流。每次重連的非同步回呼帶本地 generation，忽略已作廢 session 的回應。
 
-30 秒無串流資料視為串流失聯；GET 成功仍可表示橋接器在線，不推論燈具在線。重連採 1、2、4、8、15 秒上限及 jitter；401 停止自動重試並要求更新憑證。SSE 不可用時前景 GET state 建議每 2 秒一次；App 回前景先取得快照，不重播背景期間的控制。
+30 秒無串流資料視為串流失聯；GET 成功仍可表示橋接器在線，不推論掛燈在線。重連採 1、2、4、8、15 秒上限及 jitter；401 停止自動重試並要求更新憑證。SSE 不可用時前景 GET state 建議每 2 秒一次；App 回前景先取得快照，不重播背景期間的控制。
 
 ## 9. 錯誤契約
 
@@ -198,7 +198,7 @@ JSON 形狀合法但業務值超界走 422；Schema 將兩者都判為不合法�
 2. 韌體新增共享 dispatcher、狀態分離與有限結果表，再加入具認證的自訂 HTTP handler；現有 ESPHome API 不會自動提供本文端點。
 3. 完成 polling 版本及命令查詢後，再加入 SSE；協定本身已定義 SSE，韌體以 info 能力標示是否啟用。
 4. 用最小 Tauri Rust client 驗證 Windows、macOS、iOS；所有寫入入口通過相同仲裁測試，才開始大量 UI。
-5. 通過 24 小時穩定性及實體燈具測試，才把本設計由「未實作」標為已支援。
+5. 通過 24 小時穩定性及實體掛燈測試，才把本設計由「未實作」標為已支援。
 
 契約檢查：先安裝 `python -m pip install -r protocol/v1/requirements-dev.txt`，再執行 `python tools/validate_app_protocol.py`。它驗證所有正向範例、非法欄位與跨欄位範例一致性；使用 `--cpp-fixtures` 亦可驗證實際編碼器的輸出。去重與命令生命週期另由 C++ dispatcher 測試涵蓋，HTTP 實機檢查使用 `tools/check_app_api.py`；SSE 尚未實作。CI 已加入契約與 C++ 檢查。
 

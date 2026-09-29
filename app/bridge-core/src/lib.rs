@@ -28,7 +28,7 @@ pub struct StatePatch {
     pub temperature_k: Option<u16>,
 }
 impl StatePatch {
-    fn validate(&self, features: &Value, experimental: bool) -> Result<Value, Fault> {
+    fn validate(&self, features: &Value) -> Result<Value, Fault> {
         let patch = serde_json::to_value(self).map_err(|_| protocol())?;
         if patch.as_object().is_none_or(|p| p.is_empty())
             || self
@@ -46,13 +46,15 @@ impl StatePatch {
             return Err(Fault::new("INVALID_VALUE", "燈光設定超出支援範圍。"));
         }
         for key in patch.as_object().ok_or_else(protocol)?.keys() {
-            match features[key].as_str() {
-                Some("verified") => (),
-                Some("experimental") if experimental => (),
-                Some("experimental") => {
-                    return Err(Fault::new("EXPERIMENTAL_DISABLED", "請先啟用實驗性控制。"))
-                }
-                _ => return Err(Fault::new("UNSUPPORTED_FIELD", "此橋接器不支援該控制項。")),
+            // Power must stay verified. Lighting fields no longer need an opt-in
+            // when the bridge reports them as experimental; unsupported still fails.
+            let allowed = match features[key].as_str() {
+                Some("verified") => true,
+                Some("experimental") => key != "power",
+                _ => false,
+            };
+            if !allowed {
+                return Err(Fault::new("UNSUPPORTED_FIELD", "此裝置不支援該控制項。"));
             }
         }
         Ok(patch)
@@ -135,7 +137,7 @@ impl Fault {
 fn protocol() -> Fault {
     Fault::new(
         "PROTOCOL_ERROR",
-        "橋接器回應不符合 protocol v1，請確認韌體版本。",
+        "裝置回應不符合 protocol v1，請確認韌體版本。",
     )
 }
 fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, Fault> {
@@ -226,7 +228,7 @@ impl Bridge {
         bridge.info = info;
         let snapshot = bridge.snapshot().await?;
         if snapshot.boot_id != bridge.info["boot_id"] {
-            return Err(Fault::new("BOOT_CHANGED", "橋接器剛重啟，請重新連線。"));
+            return Err(Fault::new("BOOT_CHANGED", "裝置剛重新開機，請重新連線。"));
         }
         Ok((bridge, snapshot))
     }
@@ -247,7 +249,7 @@ impl Bridge {
         let mut response = request
             .send()
             .await
-            .map_err(|_| Fault::new("NETWORK", "無法連線或連線逾時，請確認橋接器與區域網路。"))?;
+            .map_err(|_| Fault::new("NETWORK", "無法連線或連線逾時，請確認裝置與區域網路。"))?;
         let status = response.status().as_u16();
         if status == 401 {
             return Err(Fault::new("UNAUTHORIZED", "帳號或密碼不正確。"));
@@ -277,7 +279,7 @@ impl Bridge {
             let code = value["error"]["code"].as_str().ok_or_else(protocol)?;
             return Err(Fault::new(
                 code,
-                "橋接器拒絕操作，請重新整理狀態後再決定是否操作。",
+                "裝置拒絕操作，請重新整理狀態後再決定是否操作。",
             ));
         }
         Ok(value)
@@ -294,20 +296,13 @@ impl Bridge {
         Ok(s)
     }
     pub async fn power(&mut self, power: bool) -> Result<Record, Fault> {
-        self.set_state(
-            StatePatch {
-                power: Some(power),
-                ..Default::default()
-            },
-            false,
-        )
+        self.set_state(StatePatch {
+            power: Some(power),
+            ..Default::default()
+        })
         .await
     }
-    pub async fn set_state(
-        &mut self,
-        patch: StatePatch,
-        experimental: bool,
-    ) -> Result<Record, Fault> {
+    pub async fn set_state(&mut self, patch: StatePatch) -> Result<Record, Fault> {
         if let Some((id, boot)) = &self.pending {
             return Err(Fault::unknown(id, boot));
         }
@@ -315,15 +310,15 @@ impl Bridge {
             return Err(Fault::new("RATE_LIMITED", "請稍候再操作。"));
         }
         let state = self.snapshot().await?;
-        let patch = patch.validate(&state.features, experimental)?;
+        let patch = patch.validate(&state.features)?;
         if state.radio_status != "ready" || state.pairing_status != "ready" {
             return Err(Fault::new(
                 "RADIO_UNAVAILABLE",
-                "橋接器尚未就緒，或此配對的電源控制尚未驗證。",
+                "裝置尚未就緒，或此配對的電源控制尚未驗證。",
             ));
         }
         if state.active_command.is_some() {
-            return Err(Fault::new("BUSY", "橋接器正在處理其他命令。"));
+            return Err(Fault::new("BUSY", "裝置正在處理其他命令。"));
         }
         let id = Uuid::new_v4().to_string();
         let boot = state.boot_id;

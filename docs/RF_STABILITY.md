@@ -1,6 +1,6 @@
 # 有界 RF 穩定性測試
 
-`tools/check_rf_stability.py` 使用協定參考用戶端，重複發送目前的電源目標，不改模式、亮度或色溫。它會實際發送 RF；請在可以觀察燈具時執行。
+`tools/check_rf_stability.py` 使用協定參考用戶端，重複發送目前的電源目標，不改模式、亮度或色溫。它會實際發送 RF；請在可以觀察掛燈時執行。
 
 ```powershell
 python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --interval 30 --report rf-report.jsonl
@@ -14,7 +14,7 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 - 任一失敗、未知結果、裝置重啟、外部控制、非 ready 狀態均停止；不自動恢復或重送。
 - 摘要 `stopped_at` 指出停止階段；例如 `command` 表示送出／追蹤命令期間，`after_command_state` 表示已取得成功發送結果後的狀態查詢／驗證。後者失敗不會抹除先前已確認的 TX 結果，但仍使整組測試未完成。
 - 查詢或傳輸例外另附 `failure.category`：`timeout`、`connection`、`os_error`、`http_transport`、`http_status`、`protocol` 或 `invalid_data`。結構化 HTTP 拒絕另記數字 `http_status`；不保存例外文字、回應內容或帳密。分類是當下失敗的種類，不直接判定網路或韌體根因，也不改變停止／不重送規則。
-- `complete=true` 代表本次橋接器發送測試完成；燈具沒有獨立確認，不能代替實體觀察或原生 App UI 驗收。
+- `complete=true` 代表本次橋接器發送測試完成；掛燈沒有獨立確認，不能代替實體觀察或原生 App UI 驗收。
 
 ## 2026-09-27 首次執行
 
@@ -30,7 +30,7 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 
 實驗補丁與編譯／上傳日誌保留於本機 ignored `.esphome/vco-*`。正式程式不納入這項未通過的校準改動。
 
-已重新編譯並 OTA 刷回原韌體（config_hash `0xcc6f4828`）。API 恢復 radio=ready、pairing=ready、pairing_persisted=true；載入前燈 35%、後燈設定 50%、5500 K，desired.source=restored，last_command=null。回復後新關燈命令 `dd229778-9ec3-4b8f-a2a8-13f3ea8a0c9d` 回報 1/1 TX_DS、IRQ `2E`／FIFO `11`；使用者回覆「燈確認已熄滅」，確認這筆命令的實際燈具反應。
+已重新編譯並 OTA 刷回原韌體（config_hash `0xcc6f4828`）。API 恢復 radio=ready、pairing=ready、pairing_persisted=true；載入前燈 35%、後燈設定 50%、5500 K，desired.source=restored，last_command=null。回復後新關燈命令 `dd229778-9ec3-4b8f-a2a8-13f3ea8a0c9d` 回報 1/1 TX_DS、IRQ `2E`／FIFO `11`；使用者回覆「燈確認已熄滅」，確認這筆命令的實際掛燈反應。
 
 ## 發送前後追蹤
 
@@ -57,13 +57,13 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 - 另開第二組，前三筆成功，第四筆 `8e10d7a5-ad26-4cf5-b08a-101c01128186` 失敗。重置後 FIFO=`11`、RC1=`30`，IRQ `0E→1E`、RT2 `00→10`、TX 追蹤 11,975 μs，FIFO `11/11/01/01`；失敗後清除仍為 `01`。
 - 這項實驗未消除 MAX_RT，因此撤回每筆強制重置改動。不能將前三筆成功或六筆累計成功解讀為修復通過。
 - 原始紀錄與實驗補丁保留在本機 ignored `.esphome/logic-init-*`。後續調查需要納入接線、供電與擺放資訊；目前沒有足夠證據確定是傳送、ACK 接收或硬體狀態哪一環節造成失敗。
-- 撤回改動後重新編譯／OTA 成功，唯讀 API 確認 radio=ready、pairing=ready、pairing_persisted=true、desired.source=restored，電源目標關閉，last_command=null。未因回復自動重送燈具命令。
+- 撤回改動後重新編譯／OTA 成功，唯讀 API 確認 radio=ready、pairing=ready、pairing_persisted=true、desired.source=restored，電源目標關閉，last_command=null。未因回復自動重送掛燈命令。
 
 本輪另補上測試工具的停止階段紀錄，避免把成功發送後的唯讀錯誤與命令送出結果不明混淆；新增回歸測試後 Python 共 25 項通過。協定契約六項與 MSVC 命令派送器測試通過。這些軟體檢查不代表 RF 穩定性驗收完成。
 
 ## 硬體擺放資訊與待測條件
 
-使用者提供模組距燈具約 60 cm、模組與 ESP32 接線約 20 cm、USB 線約 2 m，後續確認 USB 另一端接電腦。尚未量測供電電壓，不能從線長判定供電不足。
+使用者提供模組距掛燈約 60 cm、模組與 ESP32 接線約 20 cm、USB 線約 2 m，後續確認 USB 另一端接電腦。尚未量測供電電壓，不能從線長判定供電不足。
 
 照片顯示整組橋接器位於電腦機殼頂部，無線模組看起來緊鄰金屬網板；照片不足以確認天線面方向、焊點品質或是否有導電接觸。依 [Holtek BC5602 射頻設計說明 AN0560](https://www.holtek.com.cn/webapi/116740/an0560scv110.pdf) 的天線佈局指引，天線附近的導體配置值得列入調查，但目前沒有證據認定機殼就是故障原因。
 
@@ -73,7 +73,7 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 
 保留原本條件式 FIFO 復原韌體，六筆關燈目標命令間隔 30 秒，約 152 秒完成，六筆皆 1/1 TX_DS，IRQ=`2E`、FIFO=`11`，沒有 MAX_RT 或裝置重啟。第一筆先經既有邏輯復原清除殘留 FIFO；後五筆發送前 FIFO 原本為空。TX 追蹤時間 3,769–4,500 μs，RT2 前後均 `00`。原始紀錄保留於本機 ignored `.esphome/off-metal-soak.jsonl`。
 
-這組結果較前面在第二或第四筆停止的測試改善，但樣本短、未做移回原位的重複對照，不能據此認定金屬機殼是唯一根因或長時間穩定性已通過。測試維持原先關燈目標，無法從燈具未亮推導每筆實際收到命令。
+這組結果較前面在第二或第四筆停止的測試改善，但樣本短、未做移回原位的重複對照，不能據此認定金屬機殼是唯一根因或長時間穩定性已通過。測試維持原先關燈目標，無法從掛燈未亮推導每筆實際收到命令。
 
 其後另外送出一次前燈 35%、5500 K 開燈命令，回報 1/1 TX_DS、IRQ=`2E`、FIFO=`11`；使用者確認「是，燈已亮起」。再送出一筆關燈也回報 1/1 TX_DS，使用者確認「是，燈已熄滅」。這輪沒有重刷、修改 RF 參數或重送失敗命令。
 
@@ -83,7 +83,7 @@ python tools/check_rf_stability.py --host 192.168.0.99 --send-rf --count 20 --in
 
 六筆的 TX 追蹤時間為 3,744–6,883 μs；前五筆 RT2 從 `00` 到 `00`，第六筆從 `00` 到 `01`，最終均成功。此輪沒有觀察到 MAX_RT，但未完成 30 分鐘驗收；目前的報告未保留例外種類，不能將停止原因直接判為 Wi-Fi 中斷或特定 HTTP 錯誤。
 
-停止後另做唯讀查核，API 已可回應、裝置未重啟、radio/pairing 均 ready、配對仍保存，最後命令仍是第六筆 transmitted，目標保持關閉。沒有因查詢恢復自動重開測試。原始串列與 API 報告位於本機 ignored `.esphome/off-metal-30min-soak.jsonl`；本輪沒有新增燈具實際反應的觀察。
+停止後另做唯讀查核，API 已可回應、裝置未重啟、radio/pairing 均 ready、配對仍保存，最後命令仍是第六筆 transmitted，目標保持關閉。沒有因查詢恢復自動重開測試。原始串列與 API 報告位於本機 ignored `.esphome/off-metal-30min-soak.jsonl`；本輪沒有新增掛燈實際反應的觀察。
 
 ### 查詢錯誤分類與唯讀對照
 
@@ -117,7 +117,7 @@ Hub 路徑仍重現 RF 故障，不能以成功筆數增加推定供電改善，
 
 同樣安排 61 筆、間隔 30 秒，第一筆 1/1 TX_DS；第二筆 `TX_MAX_RETRIES`，planned=1、attempted=1、transmitted=0、IRQ=`1E`、FIFO=`01`、MODE=2。約 30.7 秒後停止，`successful=1`、`stopped_at=tx_result`、`complete=false`，沒有自動重送。API 正常回傳 failed，沒有觀察到查詢錯誤；沒有串列資料可判定本次發送前 FIFO 或 RT2。
 
-更換電源來源未消除故障，不能單憑此測試排除供電品質、USB 線材或模組接線，也不能確定是協定或 ACK 問題。原始報告位於 ignored `.esphome/charger-30min-diagnostics.jsonl`，30 分鐘穩定性仍未通過；此輪未取得新的燈具實際反應確認。
+更換電源來源未消除故障，不能單憑此測試排除供電品質、USB 線材或模組接線，也不能確定是協定或 ACK 問題。原始報告位於 ignored `.esphome/charger-30min-diagnostics.jsonl`，30 分鐘穩定性仍未通過；此輪未取得新的掛燈實際反應確認。
 
 ### PID 與 ACK 處理檢查
 
@@ -129,7 +129,7 @@ Hub 路徑仍重現 RF 故障，不能以成功筆數增加推定供電改善，
 - DPL、CRC、ENAA、RT1 的設定與參考實作相同。參考實作在 FIFO 未空時會再次觸發 TX，並可能送出多筆狀態同步命令；本專案保留單次觸發與不自動重送語意，不能直接抄入這些行為來掩蓋失敗。
 - `0x10` 是手冊中的 PTX／PRX pipe 0 位址寫入命令，不能套用其他晶片的暫存器配置，直接斷言少寫了一個 RX 位址就是原因。
 
-目前沒有足夠證據修改正式 PID／ACK 邏輯。本輪只修正文詞，未重刷或更改 RF 設定；地址學習／CRC C++ 測試通過。另發起一次新的開燈目標回報 1/1 TX_DS，使用者確認燈已亮起；下一筆關燈也回報 1/1 TX_DS，使用者確認燈已熄滅。這兩筆未重現 MAX_RT，不能用來確定故障時的實際燈具反應。先前同目標關燈測試無法區分「命令未生效」與「燈具已收到但橋接器未取得 ACK」，需要故障當下的實際狀態變化補足證據。
+目前沒有足夠證據修改正式 PID／ACK 邏輯。本輪只修正文詞，未重刷或更改 RF 設定；地址學習／CRC C++ 測試通過。另發起一次新的開燈目標回報 1/1 TX_DS，使用者確認燈已亮起；下一筆關燈也回報 1/1 TX_DS，使用者確認燈已熄滅。這兩筆未重現 MAX_RT，不能用來確定故障時的實際掛燈反應。先前同目標關燈測試無法區分「命令未生效」與「掛燈已收到但橋接器未取得 ACK」，需要故障當下的實際狀態變化補足證據。
 
 ### 逐筆實際切換：送出前 TCP 連線逾時
 
@@ -165,7 +165,7 @@ Hub 路徑仍重現 RF 故障，不能以成功筆數增加推定供電改善，
 
 使用者逐筆確認六筆 ON／OFF／ON／OFF／ON／OFF 的實際反應，最後燈已熄滅。測試已停止並關閉日誌訂閱，沒有補送或修改韌體。原始 API 紀錄在 ignored `.esphome/observed-power-*.jsonl`，同步日誌在 `.esphome/observed-log-session.log`。
 
-這輪仍未捕捉到失敗當下的實際燈具行為。與先前同目標關燈的失敗測試相比，payload 交替、間隔與持續日誌連線均不同；不能僅以這組成功認定重複 payload 是原因或日誌連線能修復問題。30 分鐘 RF 穩定性仍未通過。
+這輪仍未捕捉到失敗當下的實際掛燈行為。與先前同目標關燈的失敗測試相比，payload 交替、間隔與持續日誌連線均不同；不能僅以這組成功認定重複 payload 是原因或日誌連線能修復問題。30 分鐘 RF 穩定性仍未通過。
 
 ## 2026-09-27 至 28 固定間隔 A/B 對照
 
@@ -178,7 +178,7 @@ Hub 路徑仍重現 RF 故障，不能以成功筆數增加推定供電改善，
 
 其餘 RT2 結束值為 `00`。全部 IRQ=`2E`、FIFO=`11`，晶片 FIFO 四個採樣點均 `11/11/01/11`；沒有 MAX_RT、HTTP 查詢錯誤、裝置重啟或日誌斷線。兩組皆遇失敗即停且不重送，本次沒有觸發停止條件；測試完成後已關閉日誌訂閱。
 
-B 組使用者整組確認「每次都有變化，最後已熄滅」，因此五次開燈、五次關燈皆有實際觀察支持。A 組從已關燈狀態重複 OFF，無法以不變的燈光證明每一筆均被燈具接收。原始資料保留於 ignored `.esphome/comparison-a.jsonl`、`.esphome/comparison-b.jsonl`、`.esphome/comparison-log-session.log`。
+B 組使用者整組確認「每次都有變化，最後已熄滅」，因此五次開燈、五次關燈皆有實際觀察支持。A 組從已關燈狀態重複 OFF，無法以不變的燈光證明每一筆均被掛燈接收。原始資料保留於 ignored `.esphome/comparison-a.jsonl`、`.esphome/comparison-b.jsonl`、`.esphome/comparison-log-session.log`。
 
 此次沒有測得兩組失敗率差異，不支持把重複 payload 直接認定為故障根因。只有一次固定 A→B 順序、每組十筆且皆帶持續日誌連線，仍可能受時間與網路活動影響；不代表排除重複封包因素或完成 30 分鐘 RF 驗收。後續若繼續調查，應保留這組基準，針對日誌訂閱有無做單一條件對照，而非直接改動 ACK／PID 邏輯。
 
@@ -224,7 +224,7 @@ Python 參考客戶端及 RF 測試工具新增安全的傳輸失敗欄位：`tr
 
 - `seq`：本次開機的 packet-engine 呼叫序號；`uptime_ms`：快照保存時間。搭配命令完成時間、CMD 與 CONTROL 比對，並非 App command UUID。
 - `stage`：guard／flush／queue／terminal，代表退出階段；terminal 也包含等待終態逾時，不保證收到 ACK。
-- `attempted`／`sent`、`irq`／`fifo`／`mode`：沿用原判定；`sent` 不等於獨立燈具狀態確認。
+- `attempted`／`sent`、`irq`／`fifo`／`mode`：沿用原判定；`sent` 不等於獨立掛燈狀態確認。
 - `fifo_steps`：初始／清理後／寫入 payload 後的 FIFO；`irq_before`、`rt2`（前／後）、`elapsed_us` 僅在 terminal 階段有效。
 - `logic_recovery`：本次是否走過既有 FIFO 卡住復原流程。
 - `config_valid` 為 true 時，`config` 依序是 CFG、RC1、MASK、PKT、RFCH、DM1、RT1、CE；`cleanup_valid` 為 true 時才解讀 `cleanup_fifo`／`cleanup_rc1`。數值均為十進位，未採樣欄位的零不能解讀成真實暫存器零值。
@@ -243,7 +243,7 @@ ESPHome 2026.9.0 編譯及 OTA 成功（config hash `0x15703ddb`），開機後 
 
 沿用快照韌體與同一次開機，從 OFF 開始規劃 62 筆交替命令，每筆完成後等待 30 秒，未訂閱持續日誌。停止後等待 1.2 秒讓文字感測器發布，再唯讀查詢 state 與兩份快照，沒有補送、重啟或改動 RF 參數。原始報告為 ignored `.esphome/acceptance-snapshots-20260928-011257.jsonl`。
 
-約 789.2 秒（13 分 9 秒）停止：前 26 筆均 1/1 TX_DS；第 27 筆 ON 為 `failed/TX_MAX_RETRIES`，frames planned/attempted/transmitted=`1/1/0`，IRQ=`1E`、FIFO=`01`、MODE=`2`。HTTP 無例外，最後 state 顯示同一次開機、radio/pairing ready、配對保存，沒有 active command，last command 為該筆發送端判定失敗的 ON。使用者確認「前26次有動作，燈目前是開啟狀態」：前十三次開燈、十三次關燈有實際觀察，停止後燈為 ON，與第 27 筆開燈目標一致，不能將此筆 MAX_RT 解讀成燈具未執行。
+約 789.2 秒（13 分 9 秒）停止：前 26 筆均 1/1 TX_DS；第 27 筆 ON 為 `failed/TX_MAX_RETRIES`，frames planned/attempted/transmitted=`1/1/0`，IRQ=`1E`、FIFO=`01`、MODE=`2`。HTTP 無例外，最後 state 顯示同一次開機、radio/pairing ready、配對保存，沒有 active command，last command 為該筆發送端判定失敗的 ON。使用者確認「前26次有動作，燈目前是開啟狀態」：前十三次開燈、十三次關燈有實際觀察，停止後燈為 ON，與第 27 筆開燈目標一致，不能將此筆 MAX_RT 解讀成掛燈未執行。
 
 last packet 與 last failure 都成功讀出相同 seq=29（本次開機先前另有兩筆驗證命令），快照 uptime 與該命令完成時間一致，CMD=`02`、CONTROL=`01`：
 
@@ -259,9 +259,9 @@ last packet 與 last failure 都成功讀出相同 seq=29（本次開機先前�
 | RFCH／DM1／RT1／CE | `05 / 82 / 72 / 00` |
 | 失敗清理後 FIFO／RC1 | `01 / 30` |
 
-發送前 FIFO 的 TX_EMPTY 位元已設、IRQ 尚無 TX_DS/MAX_RT；因此這筆不是發送前已知 FIFO 未清空或殘留 MAX_RT 旗標。發送後約 12.2 ms 進入 MAX_RT，後續清理仍未取得 TX_EMPTY。這些資料與先前日誌的失敗型態一致，但清理不成功是終態之後的觀察，不能倒推為本筆 RF 失敗原因。結合使用者觀察，本筆支持「燈具已動作，但橋接器未取得成功終態」的情境；ACK 未回傳、未收到或未被正確辨識仍只是待查方向，沒有空中封包或 ACK 捕捉可定位原因。
+發送前 FIFO 的 TX_EMPTY 位元已設、IRQ 尚無 TX_DS/MAX_RT；因此這筆不是發送前已知 FIFO 未清空或殘留 MAX_RT 旗標。發送後約 12.2 ms 進入 MAX_RT，後續清理仍未取得 TX_EMPTY。這些資料與先前日誌的失敗型態一致，但清理不成功是終態之後的觀察，不能倒推為本筆 RF 失敗原因。結合使用者觀察，本筆支持「掛燈已動作，但橋接器未取得成功終態」的情境；ACK 未回傳、未收到或未被正確辨識仍只是待查方向，沒有空中封包或 ACK 捕捉可定位原因。
 
-此觀察與上一輪第 13 筆 MAX_RT 後燈仍熄滅的結果不同，兩者都保留：MAX_RT 可能伴隨燈具動作，也可能伴隨未動作，不能一律改判成功或自動重送。協定的 `effect=unconfirmed` 仍適用，`frames_transmitted=0` 是依橋接器終態計數，不是空中未曾發送的證明。後續排查優先比對 ACK 接收／辨識與完成判定，並繼續分開記錄 TX 結果與實際燈光反應。
+此觀察與上一輪第 13 筆 MAX_RT 後燈仍熄滅的結果不同，兩者都保留：MAX_RT 可能伴隨掛燈動作，也可能伴隨未動作，不能一律改判成功或自動重送。協定的 `effect=unconfirmed` 仍適用，`frames_transmitted=0` 是依橋接器終態計數，不是空中未曾發送的證明。後續排查優先比對 ACK 接收／辨識與完成判定，並繼續分開記錄 TX 結果與實際燈光反應。
 
 已驗證無持續日誌時可在實機失敗後取回兩份 RAM 快照；成功發送後保留歷史失敗的實機情境尚未測試。30 分鐘長測仍未通過，未開始閒置驗收。
 
@@ -299,3 +299,27 @@ last packet 與 last failure 都成功讀出相同 seq=29（本次開機先前�
 已捕捉失敗當下的 ACK 設定及位址讀回，與先前成功樣本一致，未發現這些欄位設定錯誤。這是完成等待之後的採樣，不能證明空中 ACK 已收到，也不能排除期間暫態、類比 RF／供電／接線或硬體狀態問題；沒有依據調整 ACK 開關或將 MAX_RT 改判成功。HTTP 無例外、裝置未重啟，沒有補送。30 分鐘長測仍未通過，未進入閒置驗收。
 
 原始報告保留於 ignored `.esphome/acceptance-snapshots-20260928-013930.jsonl`。後續應以這份設定一致的失敗樣本為基準，進行單一硬體條件對照或空中封包量測，避免僅重複相同條件的短測。
+
+## 閒置後短暫失效的後續調查
+
+使用者補充閒置約半小時後 App／網頁控制失敗，約一分鐘內恢復；失效時網頁仍正常，但顯示 TX FAILED／MAX_RT 或燈沒有反應。因此本症狀優先調查 RF／ACK，歷史 HTTP 逾時仍是另一項待定位問題。
+
+目前快照的初始 FIFO 是重新初始化後的採樣，缺少閒置結束、初始化前的晶片狀態。本機診斷新增 `pre_init_valid`、`pre_init_mode_valid` 及 `pre_init`（CFG、RC1、IRQ、FIFO、CE、RFCH、bank-0 STA1）。只在原 bank=0 時採樣 STA1，無效時不解讀該欄位。採樣不切換 bank、不發送 RF，也不更動控制參數；額外 SPI 讀取仍會影響初始化前時序。這是待實機驗證的診斷更新，不是修復。
+
+本輪設計、驗證與限制記於 [閒置調查紀錄](evidence/idle-investigation-20260928.md)。目前尚未定位根因。
+
+### 30 分鐘唯讀閒置與單次 OFF
+
+後續部署紀錄：使用者明確授權後，初始化前診斷版 OTA 成功；唯讀確認同一裝置重新開機、
+配對保存、radio/pairing ready，兩份 RAM 快照均為空。未額外送出控制命令；新診斷欄位的
+實機發送資料仍待取得，不能將部署成功視為 MAX_RT 已修復。詳見本輪 evidence 紀錄。
+
+使用者另確認失效後是「隔一會兒重新操作才成功」，不是原失敗命令自行延遲生效。
+本輪 30 分鐘無主動查詢後，13 筆狀態 GET 全部成功，延遲 326–436 ms，開機與控制 revision 均未變。
+last packet／last failure 均保留歷史 seq=320 的 OFF MAX_RT：發送前 FIFO=`11/11/01`、終態 IRQ=`1E`／FIFO=`01`，失敗清理仍為 `01`。
+
+依本次單次關燈授權送出新的 OFF，取得 1/1 TX_DS；seq=321 的 FIFO 初始／清理後／入列後=`01/11/01`，`logic_recovery=true`，IRQ=`2E`、FIFO=`11`、RT2=`00/00`，耗時 4,372 µs。使用者確認「原本亮著，剛才確實熄滅」。成功後 last failure 仍保留 seq=320，實機驗證成功不抹除歷史失敗。
+
+兩筆 packet 快照相隔 3,467.924 秒（約 57 分 48 秒），序號只增加一。這支持下一筆新命令觸發殘留 FIFO 復原的過程，不能描述為等待一分鐘即自動修復；也不能將前一筆發送後的 FIFO 殘留倒推為 MAX_RT 的最初原因。第一筆失敗前 FIFO 原本為空，最初 RF／ACK 故障仍待定位。
+
+這輪未重刷、重送或更改 RF 參數。原始報告保留於 ignored `.esphome/idle-readonly-20260928-211637.jsonl`、`.esphome/idle-single-off-20260928-214754.jsonl`；完整數據與限制見上述調查紀錄。
