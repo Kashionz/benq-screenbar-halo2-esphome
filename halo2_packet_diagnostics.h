@@ -23,6 +23,12 @@ struct PacketTrace {
   uint8_t cleanup_fifo=0, cleanup_rc1=0;
   bool ack_config_valid=false, address_match=false;
   std::array<uint8_t,3> ack_config{}; // DPL1, DPL2, ENAA; post-terminal readback
+  // Capture the idle radio before setup_exact_pico changes mode/configuration.
+  bool pre_init_valid=false, pre_init_mode_valid=false;
+  std::array<uint8_t,7> pre_init{}; // CFG, RC1, IRQ, FIFO, CE, RFCH, bank-0 STA1
+  bool init_fifo_valid=false;
+  // First setup only: sleep, PRX, address, PTX, DPL1, DPL2, CRC, ACK/retries.
+  std::array<uint8_t,8> init_fifo{};
 };
 
 struct PacketSnapshot {
@@ -35,7 +41,7 @@ struct PacketSnapshot {
     const auto &t=trace; const auto &r=t.result;
     const char *stage=t.stage==PacketTrace::Stage::Guard?"guard":
       t.stage==PacketTrace::Stage::Flush?"flush":t.stage==PacketTrace::Stage::Queue?"queue":"terminal";
-    char text[768];
+    char text[1024];
     std::snprintf(text,sizeof(text),
       "{\"available\":true,\"seq\":%u,\"uptime_ms\":%llu,\"stage\":\"%s\","
       "\"cmd\":%u,\"control\":%u,\"attempted\":%s,\"sent\":%s,"
@@ -43,14 +49,20 @@ struct PacketSnapshot {
       "\"irq_before\":%u,\"rt2\":[%u,%u],\"elapsed_us\":%u,\"logic_recovery\":%s,"
       "\"config_valid\":%s,\"config\":[%u,%u,%u,%u,%u,%u,%u,%u],"
       "\"cleanup_valid\":%s,\"cleanup_fifo\":%u,\"cleanup_rc1\":%u,"
-      "\"ack_config_valid\":%s,\"ack_config\":[%u,%u,%u],\"address_match\":%s}",
+      "\"ack_config_valid\":%s,\"ack_config\":[%u,%u,%u],\"address_match\":%s,"
+      "\"pre_init_valid\":%s,\"pre_init_mode_valid\":%s,\"pre_init\":[%u,%u,%u,%u,%u,%u,%u],"
+      "\"init_fifo_valid\":%s,\"init_fifo\":[%u,%u,%u,%u,%u,%u,%u,%u]}",
       static_cast<unsigned>(sequence),static_cast<unsigned long long>(uptime_ms),stage,
       t.command,t.control,r.attempted?"true":"false",r.sent()?"true":"false",
       r.irq,r.fifo_status,r.mode,r.fifo_before_flush,r.fifo_after_flush,r.fifo_after_write,
       t.irq_before,t.rt2_before,t.rt2_after,static_cast<unsigned>(t.elapsed_us),t.logic_recovery?"true":"false",
       t.config_valid?"true":"false",t.config[0],t.config[1],t.config[2],t.config[3],
       t.config[4],t.config[5],t.config[6],t.config[7],t.cleanup_valid?"true":"false",t.cleanup_fifo,t.cleanup_rc1,
-      t.ack_config_valid?"true":"false",t.ack_config[0],t.ack_config[1],t.ack_config[2],t.address_match?"true":"false");
+      t.ack_config_valid?"true":"false",t.ack_config[0],t.ack_config[1],t.ack_config[2],t.address_match?"true":"false",
+      t.pre_init_valid?"true":"false",t.pre_init_mode_valid?"true":"false",
+      t.pre_init[0],t.pre_init[1],t.pre_init[2],t.pre_init[3],t.pre_init[4],t.pre_init[5],t.pre_init[6],
+      t.init_fifo_valid?"true":"false",t.init_fifo[0],t.init_fifo[1],t.init_fifo[2],t.init_fifo[3],
+      t.init_fifo[4],t.init_fifo[5],t.init_fifo[6],t.init_fifo[7]);
     return text;
   }
 };

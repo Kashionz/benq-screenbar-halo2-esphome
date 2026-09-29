@@ -108,12 +108,15 @@ inline void write_bytes(uint8_t cmd,const uint8_t *p,size_t n){select();xfer(cmd
 inline void read_bytes(uint8_t cmd,uint8_t *p,size_t n){select();xfer(cmd);for(size_t i=0;i<n;++i)p[i]=xfer(0);release();}
 inline void set_bank(uint8_t bank){write_reg(0x00,static_cast<uint8_t>((read_reg(0x00)&0xFCU)|(bank&3U)));}
 
-inline std::array<uint8_t,3> setup_exact_pico(const std::array<uint8_t,4>& address,uint8_t channel=5){
+inline std::array<uint8_t,3> setup_exact_pico(const std::array<uint8_t,4>& address,uint8_t channel=5,
+                                            std::array<uint8_t,8>* fifo_trace=nullptr){
+  const auto sample_fifo=[&](size_t index){if(fifo_trace)(*fifo_trace)[index]=read_reg(0x05);};
   begin();
   // First transaction is write-only and works before GIO2 becomes SDO.
   write_reg(0x06,0x48); // PADDS=01, GIO2S=001: 4-wire SPI SDO.
   command(0x0C);        // Light sleep, exactly like Pico reference.
   esp_rom_delay_us(1000);
+  sample_fifo(0); // After stopping RX, before changing PRM_RX or packet settings.
   auto v=version();
   // Literal Pico lifecycle: no software reset during normal initialization.
   // Hidden packet/PID/RF state is allowed to continue from hardware POR.
@@ -121,18 +124,25 @@ inline std::array<uint8_t,3> setup_exact_pico(const std::array<uint8_t,4>& addre
   write_reg(0x03,static_cast<uint8_t>(read_reg(0x03)|0x01U)); // PRM_RX initially 1.
   const uint8_t rc1=read_reg(0x01);
   if(rc1&0x80U) write_reg(0x01,static_cast<uint8_t>(rc1&0x7FU));
+  sample_fifo(1); // PRX selected; power-on flag handled.
 
   command(0x0C);
   write_reg(0x06,0x48);
   write_reg(0x10,channel);
   write_reg(0x11,0x82); // 125 kbps, 4-byte address.
   write_bytes(0x10,address.data(),address.size());
+  sample_fifo(2); // Channel, data rate and address written.
   write_reg(0x03,static_cast<uint8_t>(read_reg(0x03)&0xFEU)); // PTX / PRM_RX=0.
+  sample_fifo(3);
   write_reg(0x2A,0x01); // Dynamic payload pipe 0.
+  sample_fifo(4);
   write_reg(0x2B,0x04); // Exact Pico reference: EN_DPL only.
+  sample_fifo(5);
   write_reg(0x09,0x20); // CRC enabled, Pico exact value.
+  sample_fifo(6);
   write_reg(0x32,0x3F); // Auto-ACK all pipes.
   write_reg(0x13,0x72); // 2 ms, 2 retransmissions.
+  sample_fifo(7); // ACK and retry configuration complete.
   return v;
 }
 
@@ -418,7 +428,16 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
   if(address_learning||!crc_seed_ready||!tx_pcf_prefix_zero||
      !payload||length==0||length>32)return finish();
   trace.stage=PacketTrace::Stage::Flush;
-  setup_exact_pico(active_radio_address,RADIO_CHANNEL);
+  // Preserve the pre-existing idle state before initialization can mask it.
+  // Common registers are readable in any bank. Never switch banks just to
+  // diagnose STA1; doing so would change the state being investigated.
+  trace.pre_init={read_reg(0x00),read_reg(0x01),read_reg(0x04),read_reg(0x05),
+                  read_reg(0x15),read_reg(0x10),0};
+  trace.pre_init_valid=true;
+  trace.pre_init_mode_valid=(trace.pre_init[0]&0x03U)==0;
+  if(trace.pre_init_mode_valid)trace.pre_init[6]=read_reg(0x26);
+  setup_exact_pico(active_radio_address,RADIO_CHANNEL,&trace.init_fifo);
+  trace.init_fifo_valid=true; // Retain first initialization, not the recovery pass.
   // Keep PTX in single-strobe mode while changing the FIFO so an old
   // unacknowledged packet cannot transmit again.
   write_reg(0x15,0x00);
