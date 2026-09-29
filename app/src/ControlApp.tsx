@@ -9,7 +9,7 @@ import {
   type SavedConnection,
 } from "./bridge";
 import "./halo.css";
-import { LightControls } from "./LightControls";
+import { LightControls, SETTINGS, type SettingKey } from "./LightControls";
 import { LampPreview } from "./LampPreview";
 import { PresetsPanel } from "./PresetsPanel";
 import { Banner, ConnectionStatus, type BannerSpec } from "./StatusCards";
@@ -81,6 +81,8 @@ export default function App() {
   const inflight = useRef<Promise<Outcome> | null>(null);
   const lastOutcome = useRef<Outcome | null>(null);
   const explicitRequested = useRef(false);
+  // Which setting the explicit "setting" command is for, while it runs.
+  const settingKey = useRef<SettingKey | null>(null);
   const setDraft = useCallback((next: Draft) => {
     draftRef.current = next;
     setDraftState(next);
@@ -289,11 +291,18 @@ export default function App() {
   }
   const power = (value: boolean) =>
     explicit("power", value ? "開燈" : "關燈", (device) => bridge.power(device, value));
-  /** Explicit ultrasonic presence mode value, never a toggle of the shown one. */
-  const sensing = (value: boolean) =>
-    explicit("setting", value ? "開啟入席感應" : "關閉入席感應", (device) =>
-      bridge.setState(device, { ultrasonic_enabled: value }),
-    );
+  /** One explicit setting value, never a toggle of the shown one. */
+  async function setting(key: SettingKey, value: boolean) {
+    const title = SETTINGS.find((s) => s.key === key)?.title ?? key;
+    settingKey.current = key;
+    try {
+      return await explicit("setting", `${value ? "開啟" : "關閉"}${title}`, (device) =>
+        bridge.setState(device, { [key]: value }),
+      );
+    } finally {
+      settingKey.current = null;
+    }
+  }
   /**
    * Stage user-changed lighting values and send them live. Returns false when
    * controls are locked. Only direct user input reaches this function.
@@ -615,9 +624,9 @@ export default function App() {
         values={shown!}
         lock={lock}
         adjust={adjust}
-        sensingPending={sending === "setting"}
+        settingPending={sending === "setting" ? settingKey.current : null}
         progressShown={sending === "power" || sending === "setting"}
-        onSensing={(value) => void sensing(value)}
+        onSetting={(key, value) => void setting(key, value)}
       />
     );
     const presets = (

@@ -74,4 +74,31 @@ struct PacketDiagnostics {
     if(!trace.result.sent())failure=last;
   }
 };
+
+// Control byte bits the bridge decodes: power (bit 0), lamp mode (bits 4:3)
+// and ultrasonic presence (bit 5). Anything else is not yet understood.
+constexpr uint8_t KNOWN_CONTROL_BITS=0x39;
+
+// One passive-RX capture and why it was or was not taken as remote state.
+// Kept so undecoded controller features (such as auto-dimming) can be
+// identified from logs. The frame never contains the pairing address.
+struct RxFrameTrace {
+  enum class Verdict { Length, Shape, Range, SeedLearning, Crc, LampReply, Accepted };
+  Verdict verdict{Verdict::Length};
+  uint8_t length=0;
+  std::array<uint8_t,13> frame{}; // PCF, ten payload bytes, CRC; raw bytes on Length
+  bool event=false;
+  std::string line() const {
+    static const char *names[]{"length","shape","range","seed-learning","crc","lamp-reply","accepted"};
+    char bytes[13*3]{};
+    size_t used=0;
+    for(size_t i=0;i<frame.size();++i)
+      used+=std::snprintf(bytes+used,sizeof(bytes)-used,"%02X%s",frame[i],i+1<frame.size()?" ":"");
+    char text[128];
+    std::snprintf(text,sizeof(text),"verdict=%s len=%u CMD=%02X CONTROL=%02X UNKNOWN_BITS=%02X frame=%s",
+      names[static_cast<int>(verdict)],length,frame[1],frame[2],
+      static_cast<unsigned>(frame[2]&~KNOWN_CONTROL_BITS)&0xFFU,bytes);
+    return text;
+  }
+};
 } // namespace bm5602_halo2

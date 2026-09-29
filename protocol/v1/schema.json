@@ -44,6 +44,9 @@
         },
         "ultrasonic_enabled": {
           "type": "boolean"
+        },
+        "auto_dimming": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -87,6 +90,9 @@
           "multipleOf": 25
         },
         "ultrasonic_enabled": {
+          "type": "boolean"
+        },
+        "auto_dimming": {
           "type": "boolean"
         }
       },
@@ -706,6 +712,14 @@
               ]
             },
             "ultrasonic_enabled": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "experimental",
+                "unsupported"
+              ]
+            },
+            "auto_dimming": {
               "type": "string",
               "enum": [
                 "verified",

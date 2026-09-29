@@ -10,6 +10,8 @@ export interface LightState {
   back_brightness: number;
   temperature_k: number;
   ultrasonic_enabled: boolean;
+  /** Absent from firmware that predates auto-dimming. */
+  auto_dimming?: boolean;
 }
 /** Only the lit lamps' brightness is kept; temperature is shared by both. */
 export type PresetValues = Pick<LightState, "mode" | "temperature_k"> &

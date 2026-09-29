@@ -40,7 +40,7 @@ class AppProtocolContractTests(unittest.TestCase):
             {"front_brightness": True}, {"back_brightness": 1.5},
             {"temperature_k": 2699}, {"temperature_k": 6501},
             {"temperature_k": 3926}, {"mode": "off"},
-            {"front": True}, {"ultrasonic_enabled": 1},
+            {"front": True}, {"ultrasonic_enabled": 1}, {"auto_dimming": "on"},
         ]
         for patch in bad_patches:
             with self.subTest(patch=patch):
@@ -60,7 +60,7 @@ class AppProtocolContractTests(unittest.TestCase):
         for patch in [
             {"power": False}, {"front_brightness": 1, "back_brightness": 100},
             {"temperature_k": 2700}, {"temperature_k": 6500},
-            {"mode": "both", "ultrasonic_enabled": False},
+            {"mode": "both", "ultrasonic_enabled": False}, {"auto_dimming": True},
         ]:
             with self.subTest(patch=patch):
                 request = copy.deepcopy(BY_NAME["power-off-request"])
@@ -77,6 +77,16 @@ class AppProtocolContractTests(unittest.TestCase):
         record = copy.deepcopy(BY_NAME["max-retries-not-proof-of-no-effect"])
         record["error"] = None
         self.assertFalse(validator("CommandRecord").is_valid(record))
+
+    def test_auto_dimming_is_optional_in_state(self):
+        # Older firmware omits it; newer firmware reports it with its feature flag.
+        state = copy.deepcopy(BY_NAME["snapshot-before-command"])
+        self.assertIn("auto_dimming", state["desired"]["values"])
+        del state["desired"]["values"]["auto_dimming"]
+        del state["features"]["auto_dimming"]
+        validator("Snapshot").validate(state)
+        state["features"]["auto_dimming"] = "maybe"
+        self.assertFalse(validator("Snapshot").is_valid(state))
 
     def test_forward_compatible_response_fields(self):
         state = copy.deepcopy(BY_NAME["snapshot-before-command"])

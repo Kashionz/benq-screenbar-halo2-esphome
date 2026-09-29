@@ -274,6 +274,23 @@ describe("presence switch", () => {
     expect(screen.queryByText("指令已送出")).not.toBeInTheDocument();
     expect(bridge.power).not.toHaveBeenCalled();
   });
+  it("sends one explicit auto-dimming value through the same guarded path", async () => {
+    let finish!: (record: CommandRecord) => void;
+    vi.mocked(bridge.setState).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    render(<App />);
+    const user = await login();
+    const toggle = screen.getByRole("switch", { name: /自動調光/ });
+    await user.click(toggle);
+    expect(bridge.setState).toHaveBeenCalledExactlyOnceWith(snapshot.device_id, { auto_dimming: true });
+    expect(toggle).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("switch", { name: /入席感應/ })).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByLabelText("後燈亮度")).toBeDisabled();
+    vi.mocked(bridge.state).mockResolvedValue(withDesired({ auto_dimming: true }));
+    finish(transmitted("dimming"));
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));
+    expect(toggle).toHaveAttribute("aria-busy", "false");
+    expect(bridge.power).not.toHaveBeenCalled();
+  });
   it("never retries a failed presence command", async () => {
     vi.mocked(bridge.setState).mockResolvedValue({ ...transmitted("f"), status: "failed", error: { code: "TX_MAX_RETRIES" } });
     render(<App />);

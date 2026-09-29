@@ -759,15 +759,15 @@ p {
   color: var(--ink3);
 }
 /* Scoped under the card so the later .switch-row reset keeps this separator. */
-.light-controls .sensing-row {
+.light-controls .setting-row {
   min-height: 56px;
   border-top: 0.5px solid var(--sep);
 }
-.sensing-row .action-desc {
+.setting-row .action-desc {
   display: block;
 }
 /* The locked card already dims everything once. */
-.locked .sensing-row:disabled {
+.locked .setting-row:disabled {
   opacity: 1;
 }
 .feature-tag {

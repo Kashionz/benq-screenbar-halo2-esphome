@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { LightControls } from "./LightControls";
+import { LightControls, type SettingKey } from "./LightControls";
 import { LampPreview } from "./LampPreview";
 import type { Snapshot } from "./bridge";
 import type { Feedback, LockReason } from "./controlState";
@@ -14,30 +14,31 @@ function view(options: {
   snapshot?: Snapshot;
   lock?: LockReason | null;
   values?: Partial<Snapshot["desired"]["values"]>;
-  sensingPending?: boolean;
+  settingPending?: SettingKey | null;
   progressShown?: boolean;
 } = {}) {
   const snapshot = options.snapshot ?? state;
   const adjust = vi.fn();
-  const onSensing = vi.fn();
+  const onSetting = vi.fn();
   render(
     <LightControls
       snapshot={snapshot}
       values={{ ...snapshot.desired.values, ...options.values }}
       lock={options.lock ?? null}
       adjust={adjust}
-      sensingPending={options.sensingPending}
+      settingPending={options.settingPending}
       progressShown={options.progressShown}
-      onSensing={onSensing}
+      onSetting={onSetting}
     />,
   );
-  return { adjust, onSensing };
+  return { adjust, onSetting };
 }
-const withSensing = (on: boolean, feature = "experimental"): Snapshot => ({
+const withSetting = (key: SettingKey, on: boolean, feature = "experimental"): Snapshot => ({
   ...state,
-  desired: { ...state.desired, values: { ...state.desired.values, ultrasonic_enabled: on } },
-  features: { ...state.features, ultrasonic_enabled: feature },
+  desired: { ...state.desired, values: { ...state.desired.values, [key]: on } },
+  features: { ...state.features, [key]: feature },
 });
+const withSensing = (on: boolean, feature?: string) => withSetting("ultrasonic_enabled", on, feature);
 function preview(options: {
   power?: boolean;
   lock?: LockReason | null;
@@ -104,21 +105,43 @@ it("presence switch sends the explicit opposite of the target and marks it exper
   const off = view({ snapshot: withSensing(false) });
   const button = screen.getByRole("switch", { name: /入席感應/ });
   expect(button).toHaveAttribute("aria-checked", "false");
-  expect(screen.getByText("實驗性")).toBeInTheDocument();
+  expect(within(button).getByText("實驗性")).toBeInTheDocument();
   await userEvent.click(button);
-  expect(off.onSensing).toHaveBeenCalledExactlyOnceWith(true);
+  expect(off.onSetting).toHaveBeenCalledExactlyOnceWith("ultrasonic_enabled", true);
   expect(off.adjust).not.toHaveBeenCalled();
   cleanup();
   const on = view({ snapshot: withSensing(true, "verified") });
-  expect(screen.queryByText("實驗性")).not.toBeInTheDocument();
+  expect(within(screen.getByRole("switch", { name: /入席感應/ })).queryByText("實驗性")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("switch", { name: /入席感應/ }));
-  expect(on.onSensing).toHaveBeenCalledExactlyOnceWith(false);
+  expect(on.onSetting).toHaveBeenCalledExactlyOnceWith("ultrasonic_enabled", false);
+});
+it("auto-dimming switch sends explicit values and says brightness changes end it", async () => {
+  const off = view({ snapshot: withSetting("auto_dimming", false) });
+  const button = screen.getByRole("switch", { name: /自動調光/ });
+  expect(button).toHaveAttribute("aria-checked", "false");
+  expect(button).toHaveAccessibleDescription("掛燈依環境光自動調整亮度");
+  await userEvent.click(button);
+  expect(off.onSetting).toHaveBeenCalledExactlyOnceWith("auto_dimming", true);
+  cleanup();
+  const on = view({ snapshot: withSetting("auto_dimming", true) });
+  expect(screen.getByRole("switch", { name: /自動調光/ })).toHaveAccessibleDescription(
+    "亮度由掛燈依環境光決定，手動調整亮度會關閉",
+  );
+  await userEvent.click(screen.getByRole("switch", { name: /自動調光/ }));
+  expect(on.onSetting).toHaveBeenCalledExactlyOnceWith("auto_dimming", false);
+});
+it("hides auto-dimming on firmware that does not report it", () => {
+  const { auto_dimming: _flag, ...features } = state.features;
+  const { auto_dimming: _value, ...values } = state.desired.values;
+  view({ snapshot: { ...state, features, desired: { ...state.desired, values } } });
+  expect(screen.queryByRole("switch", { name: /自動調光/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("switch", { name: /入席感應/ })).toBeInTheDocument();
 });
 it("presence switch is disabled when unsupported and shows its pending command", () => {
   view({ snapshot: withSensing(false, "unsupported") });
   expect(screen.getByRole("switch", { name: /入席感應/ })).toBeDisabled();
   cleanup();
-  view({ snapshot: withSensing(false), lock: "處理中", sensingPending: true, progressShown: true });
+  view({ snapshot: withSensing(false), lock: "處理中", settingPending: "ultrasonic_enabled", progressShown: true });
   expect(screen.getByRole("switch", { name: /入席感應/ })).toHaveAttribute("aria-busy", "true");
   expect(screen.getByText("正在送出…")).toBeInTheDocument();
   expect(screen.queryByText(/^已停用/)).not.toBeInTheDocument();

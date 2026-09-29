@@ -233,8 +233,11 @@ inline uint16_t halo_crc(uint8_t pcf,const uint8_t* payload,size_t length){
   feed(pcf); for(size_t i=0;i<length;++i)feed(payload[i]); return crc;
 }
 
+// Last passive-RX capture with its verdict; the loop logs and clears event.
+inline RxFrameTrace rx_frame_trace;
+
 struct HaloRxState {
-  bool valid=false,power=false,pir=false,front=false,back=false;
+  bool valid=false,power=false,pir=false,front=false,back=false,auto_dim=false;
   uint8_t command=0,front_brightness=0,back_brightness=0,pcf=0;
   uint16_t color_temperature=0;
 };
@@ -246,19 +249,32 @@ inline bool poll_halo_receive(HaloRxState& s){
   if(normal_rx_session)++normal_rx_captures;
   const uint8_t length=read_reg(0x0C);
   std::array<uint8_t,32> raw{};
+  std::array<uint8_t,13> frame{};
+  // Diagnostics only: records the verdict, never changes it.
+  const auto note=[&](RxFrameTrace::Verdict verdict){
+    rx_frame_trace.verdict=verdict; rx_frame_trace.length=length;
+    rx_frame_trace.frame=frame; rx_frame_trace.event=true;
+  };
   if(normal_rx_session){normal_rx_last_length=length;normal_rx_last_raw={};}
   if(!length||length>24){
     if(normal_rx_session)++normal_rx_rejected;
+    note(RxFrameTrace::Verdict::Length);
     command(0x89);command(0x8E);return false;
   }
   read_bytes(0xBF,raw.data(),length);
   write_reg(0x04,0x40); command(0x8E);
   if(normal_rx_session)normal_rx_last_raw=raw;
-  std::array<uint8_t,13> frame{};
-  if(!align_normal_rx(raw.data(),length,frame) ||
-     (frame[0]&0xF8U)!=0x50U || frame[1]>0x05 ||
+  if(!align_normal_rx(raw.data(),length,frame)){
+    if(normal_rx_session)++normal_rx_rejected;
+    for(size_t i=0;i<frame.size();++i)frame[i]=raw[i];
+    note(RxFrameTrace::Verdict::Length);
+    return false;
+  }
+  // Commands 0x00-0x05 plus 0x06, the original controller's auto-dimming button.
+  if((frame[0]&0xF8U)!=0x50U || frame[1]>0x06 ||
      frame[9]!=0x01 || frame[10]!=0x02){
     if(normal_rx_session)++normal_rx_rejected;
+    note(RxFrameTrace::Verdict::Shape);
     return false;
   }
   const uint8_t control=frame[2];
@@ -267,6 +283,7 @@ inline bool poll_halo_receive(HaloRxState& s){
   if(mode>2||frame[3]<1||frame[3]>100||frame[6]<1||frame[6]>100||
      temperature<2700||temperature>6500){
     if(normal_rx_session)++normal_rx_rejected;
+    note(RxFrameTrace::Verdict::Range);
     return false;
   }
   const uint16_t received_crc=static_cast<uint16_t>((frame[11]<<8U)|frame[12]);
@@ -286,16 +303,18 @@ inline bool poll_halo_receive(HaloRxState& s){
       normal_rx_seed_found_event=true;
     }
   }
-  if(!crc_seed_ready)return false;
+  if(!crc_seed_ready){note(RxFrameTrace::Verdict::SeedLearning);return false;}
   const uint16_t expected_crc=halo_crc(frame[0],frame.data()+1,10);
   if(expected_crc!=received_crc){
     if(normal_rx_session)++normal_rx_rejected;
+    note(RxFrameTrace::Verdict::Crc);
     return false;
   }
   // Canonical PCF bit 0 is NO_ACK, not PID (PID occupies bits 2:1).
   // Observed NO_ACK=1 lamp replies are not authoritative desired state.
   if(frame[0]&0x01U){
     if(normal_rx_session)++normal_rx_rejected;
+    note(RxFrameTrace::Verdict::LampReply);
     return false;
   }
   if(frame[1]==0x02 && !(control&0x01U) && !captured_remote_off_valid){
@@ -304,10 +323,12 @@ inline bool poll_halo_receive(HaloRxState& s){
     captured_remote_off_event=true;
   }
   s.pcf=frame[0];s.command=frame[1];
-  s.power=control&1U;s.pir=control&0x20U;
+  s.power=control&1U;s.pir=control&0x20U;s.auto_dim=control&0x02U;
   s.front=(mode==0||mode==2);s.back=(mode==1||mode==2);
   s.front_brightness=frame[3];s.color_temperature=temperature;
-  s.back_brightness=frame[6];s.valid=true;return true;
+  s.back_brightness=frame[6];s.valid=true;
+  note(RxFrameTrace::Verdict::Accepted);
+  return true;
 }
 
 
@@ -504,8 +525,8 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
   read_bytes(0x90,tx_address.data(),tx_address.size());
   trace.address_match=tx_address==active_radio_address;
   trace.ack_config_valid=true;
-  ESP_LOGI("halo2","HALO2 PACKET TRACE irq_before=%02X irq_after=%02X rt2_before=%02X rt2_after=%02X elapsed_us=%u fifo=%02X/%02X/%02X/%02X",
-           trace.irq_before,result.irq,trace.rt2_before,trace.rt2_after,static_cast<unsigned>(trace.elapsed_us),
+  ESP_LOGI("halo2","HALO2 PACKET TRACE cmd=%02X control=%02X irq_before=%02X irq_after=%02X rt2_before=%02X rt2_after=%02X elapsed_us=%u fifo=%02X/%02X/%02X/%02X",
+           trace.command,trace.control,trace.irq_before,result.irq,trace.rt2_before,trace.rt2_after,static_cast<unsigned>(trace.elapsed_us),
            result.fifo_before_flush,result.fifo_after_flush,result.fifo_after_write,result.fifo_status);
   if(!result.sent()){
     trace.config={read_reg(0x00),read_reg(0x01),read_reg(0x03),read_reg(0x09),
@@ -529,14 +550,16 @@ inline PacketEngineResult send_packet_engine(const uint8_t* payload,size_t lengt
 
 inline bool send_halo_state(uint8_t command,bool power,bool pir,bool front,bool back,
                             uint8_t front_brightness,uint8_t back_brightness,
-                            uint16_t color_temperature){
+                            uint16_t color_temperature,bool auto_dim=false){
   halo_last_packet_result=PacketEngineResult{};
   if(address_learning||!crc_seed_ready)return false;
   uint8_t lamp_mode=0;
   if(front && back)lamp_mode=2;
   else if(back)lamp_mode=1;
   else lamp_mode=0;
-  const uint8_t control=static_cast<uint8_t>((pir?0x20U:0U)|(lamp_mode<<3U)|(power?1U:0U));
+  // Bit 1 is auto-dimming, observed from the original controller (docs/PROJECT_STATUS.md).
+  const uint8_t control=static_cast<uint8_t>((pir?0x20U:0U)|(lamp_mode<<3U)|
+                                             (auto_dim?0x02U:0U)|(power?1U:0U));
   const uint8_t payload[10]{command,control,front_brightness,
     static_cast<uint8_t>(color_temperature>>8U),static_cast<uint8_t>(color_temperature),
     back_brightness,static_cast<uint8_t>(color_temperature>>8U),

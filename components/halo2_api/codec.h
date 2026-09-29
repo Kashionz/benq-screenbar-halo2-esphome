@@ -91,10 +91,11 @@ inline Admission decode_request(const std::string &body, Request &request) {
   request.revision = root["expected_revision"]; request.deadline = root["not_after_uptime_ms"];
   for (JsonPairConst entry : patch) {
     const std::string key(entry.key().c_str(), entry.key().size()); auto value = entry.value();
-    if (key == "power" || key == "ultrasonic_enabled") {
+    if (key == "power" || key == "ultrasonic_enabled" || key == "auto_dimming") {
       if (!value.is<bool>()) return {400, "INVALID_REQUEST"};
       if (key == "power") { request.patch.fields |= POWER; request.patch.values.power = value; }
-      else { request.patch.fields |= ULTRASONIC; request.patch.values.ultrasonic = value; }
+      else if (key == "ultrasonic_enabled") { request.patch.fields |= ULTRASONIC; request.patch.values.ultrasonic = value; }
+      else { request.patch.fields |= AUTO_DIM; request.patch.values.auto_dimming = value; }
     } else if (key == "mode") {
       if (!value.is<const char *>()) return {400, "INVALID_REQUEST"};
       const std::string mode = value.as<std::string>();
@@ -120,6 +121,7 @@ inline void encode_light(JsonObject out, const LightState &state) {
   out["power"] = state.power; out["mode"] = mode_name(state.mode);
   out["front_brightness"] = state.front; out["back_brightness"] = state.back;
   out["temperature_k"] = state.temperature; out["ultrasonic_enabled"] = state.ultrasonic;
+  out["auto_dimming"] = state.auto_dimming;
 }
 inline void encode_record(JsonObject out, const Record &r) {
   out["boot_id"] = std::string(r.request.boot.data()); out["command_id"] = std::string(r.request.command.data()); out["client_id"] = std::string(r.request.client.data());
@@ -152,8 +154,8 @@ inline void encode_snapshot(JsonObject out, const Dispatcher &d, Time now) {
   if (d.active >= 0) encode_record(out["active_command"].to<JsonObject>(), d.records[d.active]);
   if (d.last >= 0) encode_record(out["last_command"].to<JsonObject>(), d.records[d.last]);
   auto features = out["features"].to<JsonObject>();
-  const char *names[]{"power", "mode", "front_brightness", "back_brightness", "temperature_k", "ultrasonic_enabled"};
-  for (uint8_t i = 0; i < 6; ++i) features[names[i]] = !(d.supported & (1 << i)) ? "unsupported" : i == 0 && d.verified_power ? "verified" : "experimental";
+  const char *names[]{"power", "mode", "front_brightness", "back_brightness", "temperature_k", "ultrasonic_enabled", "auto_dimming"};
+  for (uint8_t i = 0; i < 7; ++i) features[names[i]] = !(d.supported & (1 << i)) ? "unsupported" : i == 0 && d.verified_power ? "verified" : "experimental";
 }
 inline void encode_info(JsonObject out, const Dispatcher &d) {
   out["device_id"] = std::string(d.device.data()); out["boot_id"] = std::string(d.boot.data());

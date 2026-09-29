@@ -67,35 +67,44 @@ export function SliderTrack({
   );
 }
 
+export type SettingKey = "auto_dimming" | "ultrasonic_enabled";
+
+/** Lamp settings sent as explicit on/off commands, in display order. */
+export const SETTINGS: ReadonlyArray<{ key: SettingKey; title: string; desc: (on: boolean) => string }> = [
+  {
+    key: "auto_dimming",
+    title: "自動調光",
+    desc: (on) => (on ? "亮度由掛燈依環境光決定，手動調整亮度會關閉" : "掛燈依環境光自動調整亮度"),
+  },
+  { key: "ultrasonic_enabled", title: "入席感應", desc: () => "掛燈的超音波人體感應模式" },
+];
+
 /**
  * Mode and sliders. Every change is sent live through adjust(); power lives
- * on the lamp preview. The presence switch is an explicit command instead.
+ * on the lamp preview. Settings are explicit commands instead.
  */
 export function LightControls({
   snapshot,
   values,
   lock,
   adjust,
-  sensingPending = false,
+  settingPending = null,
   progressShown = false,
-  onSensing,
+  onSetting,
 }: {
   snapshot: Snapshot;
   /** desired ⊕ transmitted ⊕ unsent values, as shown on screen. */
   values: LightState;
   lock: LockReason | null;
   adjust: (patch: Draft) => void;
-  /** The presence command is in flight. */
-  sensingPending?: boolean;
-  /** Our explicit command's progress is already shown (power status or presence row). */
+  /** The setting whose command is in flight. */
+  settingPending?: SettingKey | null;
+  /** Our explicit command's progress is already shown (power status or setting row). */
   progressShown?: boolean;
-  /** Send the explicit ultrasonic_enabled value; omitted hides the switch. */
-  onSensing?: (value: boolean) => void;
+  /** Send an explicit setting value; omitted hides the switches. */
+  onSetting?: (key: SettingKey, value: boolean) => void;
 }) {
   const disabled = lock !== null;
-  // Only the bridge's target is shown; nothing flips before a fresh read.
-  const sensingOn = snapshot.desired.values.ultrasonic_enabled;
-  const sensingFeature = snapshot.features.ultrasonic_enabled;
   return (
     <section aria-label="燈光" className="light-section">
       <div className="group-label">
@@ -149,32 +158,42 @@ export function LightControls({
               </div>
             );
           })}
-          {onSensing && (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={sensingOn}
-              aria-busy={sensingPending}
-              aria-labelledby="sensing-title"
-              aria-describedby="sensing-desc"
-              className="switch-row sensing-row"
-              disabled={disabled || !supported(snapshot, "ultrasonic_enabled")}
-              onClick={() => onSensing(!sensingOn)}
-            >
-              <span className="action-text">
-                <span id="sensing-title" className="action-title">
-                  入席感應
-                  {sensingFeature === "experimental" && <span className="feature-tag">實驗性</span>}
-                </span>
-                <span id="sensing-desc" className="action-desc">
-                  {sensingPending ? "正在送出…" : "掛燈的超音波人體感應模式"}
-                </span>
-              </span>
-              <span className={`switch${sensingOn ? " on" : ""}`} aria-hidden="true">
-                <span />
-              </span>
-            </button>
-          )}
+          {onSetting &&
+            SETTINGS.map(({ key, title, desc }) => {
+              const feature = snapshot.features[key];
+              // Firmware that predates a setting does not report it at all.
+              if (feature === undefined) return null;
+              // Only the bridge's target is shown; nothing flips before a fresh read.
+              const on = snapshot.desired.values[key] ?? false;
+              const pending = settingPending === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  aria-busy={pending}
+                  aria-labelledby={`${key}-title`}
+                  aria-describedby={`${key}-desc`}
+                  className="switch-row setting-row"
+                  disabled={disabled || !supported(snapshot, key)}
+                  onClick={() => onSetting(key, !on)}
+                >
+                  <span className="action-text">
+                    <span id={`${key}-title`} className="action-title">
+                      {title}
+                      {feature === "experimental" && <span className="feature-tag">實驗性</span>}
+                    </span>
+                    <span id={`${key}-desc`} className="action-desc">
+                      {pending ? "正在送出…" : desc(on)}
+                    </span>
+                  </span>
+                  <span className={`switch${on ? " on" : ""}`} aria-hidden="true">
+                    <span />
+                  </span>
+                </button>
+              );
+            })}
         </div>
       </div>
     </section>

@@ -2,7 +2,7 @@
 
 [![Validate](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/workflows/validate.yml/badge.svg)](https://github.com/Kashionz/benq-screenbar-halo2-esphome/actions/workflows/validate.yml)
 
-Control a **BenQ ScreenBar HALO 2** from Home Assistant using a **BM5602** radio module and an **M5Stack ATOM Lite**. The bridge supports power, front/back light, both brightness channels, color temperature, lamp mode, ultrasonic presence mode, and state updates from the original wireless controller.
+Control a **BenQ ScreenBar HALO 2** from Home Assistant using a **BM5602** radio module and an **M5Stack ATOM Lite**. The bridge supports power, front/back light, both brightness channels, color temperature, lamp mode, ultrasonic presence mode, experimental auto-dimming, and state updates from the original wireless controller.
 
 This firmware supports two validated transmit paths: the original tested pair uses BM5602 `TBCLK`-synchronized direct transmission, and a learned nine-bit-PCF pair uses the BM5602 packet engine. The original controller's state changes are received passively.
 
@@ -16,6 +16,7 @@ See [current project status](docs/PROJECT_STATUS.md) for the tested hardware, ob
 - Rear brightness: 1–100
 - Color temperature: 2700–6500 K
 - Ultrasonic presence mode
+- Auto-dimming on/off (experimental; see `docs/PROJECT_STATUS.md`)
 - Passive reception of original-controller state changes
 - ESPHome API, OTA, web UI and Home Assistant REST compatibility
 
