@@ -1,6 +1,6 @@
-import type { CommandRecord, Fault, LightState, Snapshot } from "./bridge";
+import type { CommandRecord, Fault, LightState, PresetValues, Snapshot } from "./bridge";
 
-export type LightPatch = Partial<Omit<LightState, "ultrasonic_enabled">>;
+export type LightPatch = Partial<Omit<LightState, "power">>;
 export type LightKey = "mode" | "front_brightness" | "back_brightness" | "temperature_k";
 export type Draft = Partial<Pick<LightState, LightKey>>;
 export type Tone = "ok" | "warn" | "err" | "info" | "busy" | "pending" | "idle";
@@ -9,15 +9,39 @@ export const LIGHT_KEYS: LightKey[] = ["mode", "front_brightness", "back_brightn
 export const MODES: Record<string, string> = { front: "前燈", back: "後燈", both: "前後燈" };
 
 export const modeLabel = (mode: string) => MODES[mode] ?? mode;
-/** 「前後燈 · 前 70% · 後 30% · 4300 K」 */
-export const lightSummary = (v: Pick<LightState, LightKey>) =>
-  `${modeLabel(v.mode)} · 前 ${v.front_brightness}% · 後 ${v.back_brightness}% · ${v.temperature_k} K`;
-/** A preset matches when every lighting field equals the shown values. */
-export const samePreset = (a: Pick<LightState, LightKey>, b: Pick<LightState, LightKey>) =>
-  LIGHT_KEYS.every((key) => a[key] === b[key]);
+
+/** Which lamps a mode lights; only their brightness can be adjusted. */
+export const litLamps = (mode: string) => ({ front: mode !== "back", back: mode !== "front" });
+/** Whether a lighting key is adjustable in this mode. */
+export const adjustable = (mode: string, key: string) =>
+  key === "front_brightness" ? litLamps(mode).front : key === "back_brightness" ? litLamps(mode).back : true;
+/** Drop the brightness of a lamp the resulting mode leaves unlit. */
+export function litOnly<T extends Partial<Pick<LightState, LightKey>>>(patch: T, mode: string): T {
+  const next = { ...patch };
+  const lit = litLamps(patch.mode ?? mode);
+  if (!lit.front) delete next.front_brightness;
+  if (!lit.back) delete next.back_brightness;
+  return next;
+}
+/** The values a preset keeps: mode, temperature and the lit lamps' brightness. */
+export const presetValues = (v: PresetValues): PresetValues => {
+  const { mode, front_brightness, back_brightness, temperature_k } = v;
+  return litOnly({ mode, front_brightness, back_brightness, temperature_k }, mode);
+};
+const levels = (v: PresetValues) => {
+  const lit = litLamps(v.mode);
+  return [lit.front && `前 ${v.front_brightness}%`, lit.back && `後 ${v.back_brightness}%`].filter(Boolean);
+};
+/** 「前後燈 · 前 70% · 後 30% · 4300 K」, 「前燈 · 前 70% · 4300 K」 */
+export const lightSummary = (v: PresetValues) =>
+  [modeLabel(v.mode), ...levels(v), `${v.temperature_k} K`].join(" · ");
 /** 「前 60% · 後 35% · 4000 K」 */
-export const levelSummary = (v: Pick<LightState, LightKey>) =>
-  `前 ${v.front_brightness}% · 後 ${v.back_brightness}% · ${v.temperature_k} K`;
+export const levelSummary = (v: PresetValues) => [...levels(v), `${v.temperature_k} K`].join(" · ");
+/** A preset matches when its mode, temperature and lit lamps' brightness equal the shown values. */
+export const samePreset = (preset: PresetValues, shown: Pick<LightState, LightKey>) => {
+  const kept = presetValues(preset);
+  return LIGHT_KEYS.every((key) => kept[key] === undefined || kept[key] === shown[key]);
+};
 
 export type LockReason = "已斷線" | "無線模組未就緒" | "處理中" | "結果不明，請先查詢";
 

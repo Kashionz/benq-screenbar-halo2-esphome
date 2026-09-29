@@ -14,19 +14,30 @@ function view(options: {
   snapshot?: Snapshot;
   lock?: LockReason | null;
   values?: Partial<Snapshot["desired"]["values"]>;
+  sensingPending?: boolean;
+  progressShown?: boolean;
 } = {}) {
   const snapshot = options.snapshot ?? state;
   const adjust = vi.fn();
+  const onSensing = vi.fn();
   render(
     <LightControls
       snapshot={snapshot}
       values={{ ...snapshot.desired.values, ...options.values }}
       lock={options.lock ?? null}
       adjust={adjust}
+      sensingPending={options.sensingPending}
+      progressShown={options.progressShown}
+      onSensing={onSensing}
     />,
   );
-  return { adjust };
+  return { adjust, onSensing };
 }
+const withSensing = (on: boolean, feature = "experimental"): Snapshot => ({
+  ...state,
+  desired: { ...state.desired, values: { ...state.desired.values, ultrasonic_enabled: on } },
+  features: { ...state.features, ultrasonic_enabled: feature },
+});
 function preview(options: {
   power?: boolean;
   lock?: LockReason | null;
@@ -50,6 +61,7 @@ function preview(options: {
 it("sends each slider and mode change live, allows experimental and blocks unsupported fields", async () => {
   const { adjust } = view({
     snapshot: { ...state, features: { ...state.features, front_brightness: "experimental", back_brightness: "unsupported" } },
+    values: { mode: "both" },
   });
   expect(screen.queryByRole("button", { name: "套用燈光設定" })).not.toBeInTheDocument();
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
@@ -60,8 +72,22 @@ it("sends each slider and mode change live, allows experimental and blocks unsup
   expect(adjust).toHaveBeenLastCalledWith({ mode: "both" });
   expect(adjust).toHaveBeenCalledTimes(2);
 });
+it("only lets the lamps the shown mode lights be adjusted", () => {
+  view({ values: { mode: "front" } });
+  expect(screen.getByLabelText("前燈亮度")).toBeEnabled();
+  expect(screen.getByLabelText("後燈亮度")).toBeDisabled();
+  expect(screen.getByLabelText("色溫")).toBeEnabled();
+  cleanup();
+  view({ values: { mode: "back" } });
+  expect(screen.getByLabelText("前燈亮度")).toBeDisabled();
+  expect(screen.getByLabelText("後燈亮度")).toBeEnabled();
+  cleanup();
+  view({ values: { mode: "both" } });
+  expect(screen.getByLabelText("前燈亮度")).toBeEnabled();
+  expect(screen.getByLabelText("後燈亮度")).toBeEnabled();
+});
 it("shows adjusted values without a separate target marker", () => {
-  view({ values: { front_brightness: 70 } });
+  view({ values: { mode: "both", front_brightness: 70 } });
   expect(screen.getByLabelText("前燈亮度")).toHaveValue("70");
   expect(screen.getByText("70%")).toBeInTheDocument();
   expect(screen.queryByTitle("目前目標")).not.toBeInTheDocument();
@@ -70,8 +96,32 @@ it("disables every control and names the reason during an unknown command state"
   const { adjust } = view({ lock: "結果不明，請先查詢" });
   for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
   expect(screen.getByLabelText("前燈亮度")).toBeDisabled();
+  expect(screen.getByRole("switch", { name: /入席感應/ })).toBeDisabled();
   expect(screen.getByText("已停用：結果不明，請先查詢")).toBeInTheDocument();
   expect(adjust).not.toHaveBeenCalled();
+});
+it("presence switch sends the explicit opposite of the target and marks it experimental", async () => {
+  const off = view({ snapshot: withSensing(false) });
+  const button = screen.getByRole("switch", { name: /入席感應/ });
+  expect(button).toHaveAttribute("aria-checked", "false");
+  expect(screen.getByText("實驗性")).toBeInTheDocument();
+  await userEvent.click(button);
+  expect(off.onSensing).toHaveBeenCalledExactlyOnceWith(true);
+  expect(off.adjust).not.toHaveBeenCalled();
+  cleanup();
+  const on = view({ snapshot: withSensing(true, "verified") });
+  expect(screen.queryByText("實驗性")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("switch", { name: /入席感應/ }));
+  expect(on.onSensing).toHaveBeenCalledExactlyOnceWith(false);
+});
+it("presence switch is disabled when unsupported and shows its pending command", () => {
+  view({ snapshot: withSensing(false, "unsupported") });
+  expect(screen.getByRole("switch", { name: /入席感應/ })).toBeDisabled();
+  cleanup();
+  view({ snapshot: withSensing(false), lock: "處理中", sensingPending: true, progressShown: true });
+  expect(screen.getByRole("switch", { name: /入席感應/ })).toHaveAttribute("aria-busy", "true");
+  expect(screen.getByText("正在送出…")).toBeInTheDocument();
+  expect(screen.queryByText(/^已停用/)).not.toBeInTheDocument();
 });
 it("power sends the explicit opposite of the target", async () => {
   const { onPower } = preview();

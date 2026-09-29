@@ -2,7 +2,16 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { bridge, flyout, type Preset } from "./bridge";
 import { PowerIcon, SLIDERS, SliderTrack } from "./LightControls";
-import { MODES, lightSummary, samePreset, tempColor, type Draft, type LightKey } from "./controlState";
+import {
+  MODES,
+  adjustable,
+  lightSummary,
+  presetValues,
+  samePreset,
+  tempColor,
+  type Draft,
+  type LightKey,
+} from "./controlState";
 import { ConnectionStatus, StatusLine } from "./StatusCards";
 import { parseState, trayLine, type FlyoutState } from "./flyout";
 import { detectPlatform } from "./platform";
@@ -159,6 +168,7 @@ export default function TrayApp() {
           </div>
           {SLIDERS.map((slider) => {
             const value = values?.[slider.key] ?? slider.min;
+            const unlit = !!values && !adjustable(values.mode, slider.key);
             return (
               <div key={slider.key} className="flyout-slider">
                 <span className="flyout-slider-label">{slider.label}</span>
@@ -166,7 +176,7 @@ export default function TrayApp() {
                   slider={slider}
                   value={value}
                   className="compact"
-                  disabled={locked || !has(slider.key)}
+                  disabled={locked || unlit || !has(slider.key)}
                   onChange={(next) => {
                     setDragging((current) => ({ ...current, [slider.key]: next }));
                     adjust({ [slider.key]: next });
@@ -188,7 +198,7 @@ export default function TrayApp() {
             return (
               <button key={preset.id} type="button" className={`flyout-tile${active ? " active" : ""}`}
                 disabled={locked} title={lightSummary(preset.values)} aria-label={`帶入情境 ${preset.name}`}
-                aria-pressed={active} onClick={() => adjust({ ...preset.values })}>
+                aria-pressed={active} onClick={() => adjust(presetValues(preset.values))}>
                 <span className="swatch" style={{ background: tempColor(preset.values.temperature_k) }} />
                 <span className="tile-name">{preset.name}</span>
               </button>

@@ -26,6 +26,8 @@ pub struct StatePatch {
     pub back_brightness: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_k: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ultrasonic_enabled: Option<bool>,
 }
 impl StatePatch {
     fn validate(&self, features: &Value) -> Result<Value, Fault> {

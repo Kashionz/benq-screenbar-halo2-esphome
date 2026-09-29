@@ -94,23 +94,34 @@ it("sends slider, mode and preset changes live, with no apply row", async () => 
   expect(intents().map((i) => i.kind === "adjust" && i.patch)).toEqual([
     { temperature_k: 5000 },
     { mode: "both" },
-    { mode: "back", front_brightness: 30, back_brightness: 20, temperature_k: 3925 },
+    { mode: "back", back_brightness: 20, temperature_k: 3925 },
   ]);
+});
+it("only lets the lamps the mode lights be adjusted", async () => {
+  await open({ ...ready, values: { ...ready.values!, mode: "back" } });
+  expect(screen.getByLabelText("前燈亮度")).toBeDisabled();
+  expect(screen.getByLabelText("後燈亮度")).toBeEnabled();
+  act(() => publish({ ...ready, values: { ...ready.values!, mode: "front" } }));
+  expect(screen.getByLabelText("前燈亮度")).toBeEnabled();
+  expect(screen.getByLabelText("後燈亮度")).toBeDisabled();
+  act(() => publish({ ...ready, values: { ...ready.values!, mode: "both" } }));
+  expect(screen.getByLabelText("前燈亮度")).toBeEnabled();
+  expect(screen.getByLabelText("後燈亮度")).toBeEnabled();
 });
 it("follows the main window after a drag ends", async () => {
   await open();
-  const slider = screen.getByLabelText("前燈亮度");
+  const slider = screen.getByLabelText("後燈亮度");
   fireEvent.change(slider, { target: { value: "70" } });
   expect(slider).toHaveValue("70");
   fireEvent.pointerUp(slider);
-  expect(slider).toHaveValue(String(ready.values!.front_brightness));
-  act(() => publish({ ...ready, values: { ...ready.values!, front_brightness: 70 }, adjusting: ["front_brightness"] }));
+  expect(slider).toHaveValue(String(ready.values!.back_brightness));
+  act(() => publish({ ...ready, values: { ...ready.values!, back_brightness: 70 }, adjusting: ["back_brightness"] }));
   expect(slider).toHaveValue("70");
 });
 it("keeps power and sliders usable while the main window is sending", async () => {
   await open({ ...ready, sending: true });
   expect(screen.getByRole("button", { name: "關燈" })).toBeEnabled();
-  expect(screen.getByLabelText("前燈亮度")).toBeEnabled();
+  expect(screen.getByLabelText("後燈亮度")).toBeEnabled();
 });
 it("locks with the main window and sends unknown outcomes to the main window for lookup", async () => {
   await open({

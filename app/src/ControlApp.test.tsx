@@ -249,6 +249,43 @@ describe("single power button", () => {
   });
 });
 
+describe("presence switch", () => {
+  it("sends one explicit ultrasonic value, locks meanwhile and shows the bridge target afterwards", async () => {
+    let finish!: (record: CommandRecord) => void;
+    vi.mocked(bridge.setState).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    render(<App />);
+    const user = await login();
+    const toggle = screen.getByRole("switch", { name: /入席感應/ });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    await user.click(toggle);
+    expect(bridge.setState).toHaveBeenCalledExactlyOnceWith(snapshot.device_id, { ultrasonic_enabled: true });
+    // Every control locks while the explicit command is in flight.
+    expect(screen.getByLabelText("前燈亮度")).toBeDisabled();
+    expect(toggle).toBeDisabled();
+    // The row itself says it is sending; the card label stays quiet.
+    expect(screen.queryByText("已停用：處理中")).not.toBeInTheDocument();
+    // Nothing flips before the bridge reports the new target.
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    vi.mocked(bridge.state).mockResolvedValue(withDesired({ ultrasonic_enabled: true }));
+    finish(transmitted("sensing"));
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));
+    expect(toggle).toBeEnabled();
+    // Only power flashes its confirmation beside the power button.
+    expect(screen.queryByText("指令已送出")).not.toBeInTheDocument();
+    expect(bridge.power).not.toHaveBeenCalled();
+  });
+  it("never retries a failed presence command", async () => {
+    vi.mocked(bridge.setState).mockResolvedValue({ ...transmitted("f"), status: "failed", error: { code: "TX_MAX_RETRIES" } });
+    render(<App />);
+    const user = await login();
+    await user.click(screen.getByRole("switch", { name: /入席感應/ }));
+    await screen.findByText("發送失敗");
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(bridge.setState).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("switch", { name: /入席感應/ })).toHaveAttribute("aria-checked", "false");
+  });
+});
+
 describe("lamp preview", () => {
   it("follows live adjustments while power follows desired", async () => {
     let finish!: (record: CommandRecord) => void;
@@ -281,16 +318,23 @@ describe("lamp preview", () => {
 
 describe("live adjustment", () => {
   const calls = () => vi.mocked(bridge.setState).mock.calls.map(([, patch]) => patch);
+  // Both lamps lit, so either brightness can be adjusted.
+  const live = (values: Partial<Snapshot["desired"]["values"]>, version = 0) =>
+    withDesired({ mode: "both", ...values }, version);
+  beforeEach(() => {
+    vi.mocked(bridge.connect).mockResolvedValue(live({}));
+    vi.mocked(bridge.state).mockResolvedValue(live({}));
+  });
   it("sends slider, mode and preset changes immediately without an apply step", async () => {
     // A bridge whose target follows the commands it receives.
-    let values = { ...snapshot.desired.values };
+    let values = { ...snapshot.desired.values, mode: "both" };
     let version = 0;
     vi.mocked(bridge.setState).mockImplementation(async (_device, patch) => {
       values = { ...values, ...patch };
       version += 1;
       return transmitted(`live-${version}`);
     });
-    vi.mocked(bridge.state).mockImplementation(async () => withDesired(values, version));
+    vi.mocked(bridge.state).mockImplementation(async () => live(values, version));
     vi.mocked(bridge.presets).mockResolvedValue([
       { id: "1", name: "夜晚", values: { mode: "back", front_brightness: 30, back_brightness: 20, temperature_k: 3925 } },
     ]);
@@ -299,13 +343,16 @@ describe("live adjustment", () => {
     expect(screen.queryByRole("button", { name: "套用燈光設定" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("前燈亮度"), { target: { value: "70" } });
     await waitFor(() => expect(calls()).toEqual([{ front_brightness: 70 }]));
-    await user.click(screen.getByRole("radio", { name: "前後燈" }));
+    await user.click(screen.getByRole("radio", { name: "前燈" }));
     await waitFor(() => expect(calls()).toHaveLength(2), { timeout: 2000 });
-    expect(calls()[1]).toEqual({ mode: "both" });
+    expect(calls()[1]).toEqual({ mode: "front" });
+    // Front mode: the back lamp is unlit and cannot be adjusted.
+    expect(await screen.findByLabelText("後燈亮度")).toBeDisabled();
     await user.click(await screen.findByRole("button", { name: "帶入情境 夜晚" }));
     await waitFor(() => expect(calls()).toHaveLength(3), { timeout: 2000 });
-    // Temperature already matches the target; power is never included.
-    expect(calls()[2]).toEqual({ mode: "back", front_brightness: 30, back_brightness: 20 });
+    // Temperature already matches the target; the unlit front level and power
+    // are never included.
+    expect(calls()[2]).toEqual({ mode: "back", back_brightness: 20 });
     expect(bridge.power).not.toHaveBeenCalled();
   });
   it("coalesces a drag into the latest value instead of queueing every step", async () => {
@@ -355,7 +402,7 @@ describe("live adjustment", () => {
     vi.mocked(bridge.setState).mockResolvedValue(transmitted("mine"));
     render(<App />);
     await login();
-    vi.mocked(bridge.state).mockResolvedValue(withDesired({ front_brightness: 30 }, 5));
+    vi.mocked(bridge.state).mockResolvedValue(live({ front_brightness: 30 }, 5));
     fireEvent.change(screen.getByLabelText("前燈亮度"), { target: { value: "70" } });
     await waitFor(() => expect(calls()).toHaveLength(1));
     await waitFor(() => expect(screen.getByLabelText("前燈亮度")).toHaveValue("30"));
@@ -395,6 +442,23 @@ describe("live adjustment", () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(bridge.power).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "關燈" })).toBeDisabled();
+  });
+  it("never sends the brightness of a lamp the mode leaves unlit", async () => {
+    vi.mocked(bridge.connect).mockResolvedValue(withDesired({ mode: "front" }));
+    vi.mocked(bridge.state).mockResolvedValue(withDesired({ mode: "front" }));
+    vi.mocked(bridge.setState).mockResolvedValue(transmitted("unlit"));
+    let intent!: (payload: unknown) => void;
+    vi.mocked(flyout.onIntent).mockImplementation(async (handler) => {
+      intent = handler;
+      return () => {};
+    });
+    render(<App />);
+    await login();
+    expect(screen.getByLabelText("後燈亮度")).toBeDisabled();
+    expect(screen.getByLabelText("前燈亮度")).toBeEnabled();
+    // Even an intent that names the unlit lamp only sends what it lights.
+    intent({ id: "i-1", kind: "adjust", patch: { back_brightness: 60, temperature_k: 3000 } });
+    await waitFor(() => expect(calls()).toEqual([{ temperature_k: 3000 }]));
   });
   it("drops unsent values when the connection drops", async () => {
     let finish!: (record: CommandRecord) => void;
@@ -450,13 +514,14 @@ describe("responsive order", () => {
 });
 
 describe("disabled reasons", () => {
-  it("names the reason while a command is in flight", async () => {
+  it("leaves the in-flight notice to the power status instead of the card label", async () => {
     let finish!: (record: CommandRecord) => void;
     vi.mocked(bridge.power).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
     render(<App />);
     const user = await login();
     await user.click(screen.getByRole("button", { name: "關燈" }));
-    expect(screen.getByText("已停用：處理中")).toBeInTheDocument();
+    expect(screen.getByLabelText("前燈亮度")).toBeDisabled();
+    expect(screen.queryByText("已停用：處理中")).not.toBeInTheDocument();
     // The progress sits beside the power button, not in a banner.
     const preview = screen.getByTestId("lamp-preview");
     expect(within(preview).getByText("處理中").parentElement).toHaveTextContent("處理中 · 正在送出「關燈」");
