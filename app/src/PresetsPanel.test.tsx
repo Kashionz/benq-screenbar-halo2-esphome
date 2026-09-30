@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+import { MotionGlobalConfig } from "motion/react";
 import { PresetsPanel } from "./PresetsPanel";
 import { bridge, type Preset } from "./bridge";
 vi.mock("./bridge", async (original) => ({
@@ -23,6 +24,15 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(bridge.presets).mockResolvedValue([preset, night]);
+});
+it("keeps the grid to one row when three presets load", async () => {
+  vi.mocked(bridge.presets).mockResolvedValue([preset, night, named("工作")]);
+  const { container } = render(<PresetsPanel values={values} disabled={false} select={vi.fn()} />);
+  const grid = container.querySelector(".tiles");
+  expect(grid?.children).toHaveLength(0);
+  await screen.findByRole("button", { name: "帶入情境 工作" });
+  // Hidden or exiting placeholders can leave an extra grid row after loading.
+  expect(grid?.children).toHaveLength(3);
 });
 it("loads without selecting and sends a preset's lit lighting values once, never power", async () => {
   const select = vi.fn();
@@ -124,6 +134,31 @@ it("leaves edit mode after the last preset is deleted and cancels delete on Esca
   await user.click(screen.getByRole("button", { name: "刪除" }));
   await screen.findByText("已刪除「閱讀」");
   expect(screen.getByRole("button", { name: "編輯" })).toBeDisabled();
+});
+it("never applies a deleted preset while its tile animates out", async () => {
+  // Real animations for this test only: the exiting tile stays in the DOM.
+  MotionGlobalConfig.skipAnimations = false;
+  try {
+    const user = userEvent.setup();
+    const select = vi.fn();
+    vi.mocked(bridge.presets).mockResolvedValue([preset]);
+    vi.mocked(bridge.deletePreset).mockResolvedValue([]);
+    render(<PresetsPanel values={values} disabled={false} select={select} />);
+    await screen.findByRole("button", { name: "帶入情境 閱讀" });
+    await user.click(screen.getByRole("button", { name: "編輯" }));
+    await user.click(screen.getByRole("button", { name: "刪除情境 閱讀" }));
+    await user.click(screen.getByRole("button", { name: "刪除" }));
+    await screen.findByText("已刪除「閱讀」");
+    // Deleting the last preset leaves edit mode, which would re-enable the tile.
+    const exiting = screen.getByRole("button", { name: "帶入情境 閱讀" });
+    expect(exiting).toBeDisabled();
+    await user.click(exiting);
+    expect(select).not.toHaveBeenCalled();
+    // Removal after the animation is covered with animations skipped; jsdom
+    // frame timing makes waiting for it here unreliable.
+  } finally {
+    MotionGlobalConfig.skipAnimations = true;
+  }
 });
 it("prevents writes after a corrupt or unavailable store and respects locked controls", async () => {
   vi.mocked(bridge.presets).mockRejectedValue({ code: "STORAGE_ERROR", message: "儲存資料無法讀取" });

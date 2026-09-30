@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { bridge, flyout, type Preset } from "./bridge";
 import { PowerIcon, SLIDERS, SliderTrack } from "./LightControls";
+import { ModeSelector } from "./ModeSelector";
 import {
-  MODES,
   adjustable,
   lightSummary,
   presetValues,
@@ -154,18 +154,12 @@ export default function TrayApp() {
           )}
         </div>
         <div className={`flyout-controls${locked ? " locked" : ""}`}>
-          <div className="segmented flyout-modes" role="radiogroup" aria-label="模式">
-            {Object.entries(MODES).map(([key, label]) => {
-              const active = values?.mode === key;
-              return (
-                <button key={key} type="button" role="radio" aria-checked={active}
-                  className={active ? "active" : ""}
-                  disabled={locked || !has("mode")} onClick={() => adjust({ mode: key })}>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          <ModeSelector
+            mode={values?.mode ?? null}
+            disabled={locked || !has("mode")}
+            className="flyout-modes"
+            onChange={(mode) => adjust({ mode })}
+          />
           {SLIDERS.map((slider) => {
             const value = values?.[slider.key] ?? slider.min;
             const unlit = !!values && !adjustable(values.mode, slider.key);

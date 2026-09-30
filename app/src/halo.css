@@ -521,18 +521,13 @@ p {
 }
 .preview-beam {
   inset: 0;
-  transition:
-    opacity 0.4s,
-    background 0.3s;
+  transition: background 0.3s;
 }
 .preview-beam.front {
   clip-path: polygon(76% 27%, 78.4% 27%, 58% 82%, 43.6% 82%);
 }
 .preview-beam.back {
   clip-path: polygon(78.4% 22%, 79.6% 26%, 95.2% 44%, 95.2% 2%);
-}
-.preview-spill {
-  transition: opacity 0.4s;
 }
 .preview-spill.front {
   left: 43.6%;
@@ -718,6 +713,7 @@ p {
   background: var(--fill);
 }
 .segmented button {
+  position: relative;
   min-height: 34px;
   border-radius: 8px;
   border: 0;
@@ -725,12 +721,20 @@ p {
   color: var(--ink2);
   font-size: 13px;
   white-space: nowrap;
-  transition: background 0.15s;
 }
 .segmented button.active {
-  background: var(--segOn);
   color: var(--ink);
+}
+.mode-highlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--segOn);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
+  pointer-events: none;
+}
+.mode-label {
+  position: relative;
 }
 .slider {
   flex: 1;
@@ -899,9 +903,12 @@ p {
   padding: 10px;
 }
 .tiles {
+  /* Exiting preset tiles are positioned against the grid while the rest move. */
+  position: relative;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  min-height: 90px;
   /* Room for the selection ring, which the card would otherwise clip. */
   padding: 3px;
   margin: -3px;
@@ -974,9 +981,6 @@ p {
   font-size: 11px;
   color: var(--ink2);
   font-variant-numeric: tabular-nums;
-}
-.tile-empty {
-  min-height: 84px;
 }
 .tile-delete {
   position: absolute;

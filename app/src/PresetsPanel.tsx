@@ -1,10 +1,32 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, LazyMotion, MotionConfig, useIsPresent } from "motion/react";
+import * as m from "motion/react-m";
 import { bridge, failure, type LightState, type Preset, type PresetValues } from "./bridge";
 import { lightSummary, litLamps, presetValues, samePreset, tempColor, type LightKey } from "./controlState";
 
 export const MAX_PRESETS = 4;
 const UNDO_MS = 6000;
+const loadMotionFeatures = () => import("./motionFeatures").then((module) => module.default);
+// iOS-like springs: tiles fade and scale in, leave a little faster than they
+// arrive, and the rest slide to their new places with a slight settle.
+const FADE = { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } as const;
+const TILE_MOTION = {
+  initial: { opacity: 0, scale: 0.9 },
+  animate: { opacity: 1, scale: 1 },
+  exit: {
+    opacity: 0,
+    scale: 0.9,
+    transition: { type: "spring", visualDuration: 0.3, bounce: 0, opacity: { ...FADE, duration: 0.2 } },
+  },
+  transition: {
+    type: "spring",
+    visualDuration: 0.45,
+    bounce: 0.12,
+    opacity: FADE,
+    layout: { type: "spring", visualDuration: 0.5, bounce: 0.12 },
+  },
+} as const;
 
 /** 「4300 K · 70/30%」, 「4300 K · 前 70%」, 「2700 K · 後 40%」 */
 const tileSummary = (v: PresetValues) => {
@@ -17,6 +39,64 @@ const tileSummary = (v: PresetValues) => {
         : `後 ${v.back_brightness}%`;
   return `${v.temperature_k} K · ${level}`;
 };
+
+function PresetTile({
+  preset,
+  active,
+  editing,
+  locked,
+  busy,
+  select,
+  remove,
+  ref,
+}: {
+  preset: Preset;
+  active: boolean;
+  editing: boolean;
+  /** Lamp controls are locked; applying is refused, local deletion is not. */
+  locked: boolean;
+  /** The local store is being written. */
+  busy: boolean;
+  select: (values: PresetValues) => void;
+  remove: () => void;
+  /** AnimatePresence's popLayout measures the exiting tile through this. */
+  ref?: Ref<HTMLDivElement>;
+}) {
+  // A deleted tile stays on screen while it animates out; it must never
+  // apply the deleted values or be deleted again.
+  const present = useIsPresent();
+  return (
+    <m.div ref={ref} className="tile-slot" layout {...TILE_MOTION}>
+      <button
+        type="button"
+        className={`tile${active ? " active" : ""}${editing ? " editing" : ""}`}
+        title={lightSummary(preset.values)}
+        aria-label={`帶入情境 ${preset.name}`}
+        aria-pressed={active}
+        disabled={locked || busy || editing || !present}
+        onClick={() => select(presetValues(preset.values))}
+      >
+        <span className="swatch" style={{ background: tempColor(preset.values.temperature_k) }} />
+        <span className="tile-text">
+          <span className="tile-name">{preset.name}</span>
+          <span className="tile-sub">{tileSummary(preset.values)}</span>
+        </span>
+      </button>
+      {editing && (
+        <button
+          type="button"
+          className="tile-delete"
+          aria-label={`刪除情境 ${preset.name}`}
+          title="刪除"
+          disabled={busy || !present}
+          onClick={remove}
+        >
+          −
+        </button>
+      )}
+    </m.div>
+  );
+}
 
 /**
  * Up to four local presets. Tapping one sends its lighting values once
@@ -122,7 +202,6 @@ export function PresetsPanel({
     clearUndo();
     await run(() => bridge.restorePreset(preset, index));
   }
-  const empty = Math.max(0, MAX_PRESETS - presets.length);
   return (
     <section aria-label="情境" className="presets">
       <div className="presets-head">
@@ -171,45 +250,27 @@ export function PresetsPanel({
         </button>
       </div>
       <div className="glass presets-card">
-        <div className={`tiles${disabled && !editing ? " locked" : ""}`}>
-          {presets.map((preset) => {
-            const active = !editing && samePreset(preset.values, values);
-            return (
-              <div key={preset.id} className="tile-slot">
-                <button
-                  type="button"
-                  className={`tile${active ? " active" : ""}${editing ? " editing" : ""}`}
-                  title={lightSummary(preset.values)}
-                  aria-label={`帶入情境 ${preset.name}`}
-                  aria-pressed={active}
-                  disabled={disabled || busy || editing}
-                  onClick={() => select(presetValues(preset.values))}
-                >
-                  <span className="swatch" style={{ background: tempColor(preset.values.temperature_k) }} />
-                  <span className="tile-text">
-                    <span className="tile-name">{preset.name}</span>
-                    <span className="tile-sub">{tileSummary(preset.values)}</span>
-                  </span>
-                </button>
-                {editing && (
-                  <button
-                    type="button"
-                    className="tile-delete"
-                    aria-label={`刪除情境 ${preset.name}`}
-                    title="刪除"
-                    disabled={busy}
-                    onClick={() => setConfirm(preset)}
-                  >
-                    −
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          {Array.from({ length: empty }, (_, index) => (
-            <div key={`empty-${index}`} className="tile-empty" aria-hidden="true" />
-          ))}
-        </div>
+        {/* Motion only animates the local list; nothing here reflects lamp state. */}
+        <LazyMotion features={loadMotionFeatures} strict>
+          <MotionConfig reducedMotion="user">
+            <div className={`tiles${disabled && !editing ? " locked" : ""}`}>
+              <AnimatePresence initial={false} mode="popLayout">
+                {presets.map((preset) => (
+                  <PresetTile
+                    key={preset.id}
+                    preset={preset}
+                    active={!editing && samePreset(preset.values, values)}
+                    editing={editing}
+                    locked={disabled}
+                    busy={busy}
+                    select={select}
+                    remove={() => setConfirm(preset)}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          </MotionConfig>
+        </LazyMotion>
       </div>
       {showAdd && (
         <form

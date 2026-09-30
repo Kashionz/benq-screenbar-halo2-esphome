@@ -1,5 +1,6 @@
 import type { LightState, Snapshot } from "./bridge";
-import { MODES, adjustable, supported, tempColor, type Draft, type LockReason } from "./controlState";
+import { adjustable, supported, tempColor, type Draft, type LockReason } from "./controlState";
+import { ModeSelector } from "./ModeSelector";
 
 export type { LightPatch } from "./controlState";
 
@@ -117,24 +118,11 @@ export function LightControls({
       <div className="glass light-card">
         <div className={`light-controls${disabled ? " locked" : ""}`}>
           <div className="mode-row">
-            <div className="segmented" role="radiogroup" aria-label="模式">
-              {Object.entries(MODES).map(([key, label]) => {
-                const active = values.mode === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    className={active ? "active" : ""}
-                    disabled={disabled || !supported(snapshot, "mode")}
-                    onClick={() => adjust({ mode: key })}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
+            <ModeSelector
+              mode={values.mode}
+              disabled={disabled || !supported(snapshot, "mode")}
+              onChange={(mode) => adjust({ mode })}
+            />
           </div>
           {SLIDERS.map((slider) => {
             const value = values[slider.key];
