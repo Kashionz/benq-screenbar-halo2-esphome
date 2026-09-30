@@ -1,15 +1,21 @@
+use halo2_app_support::presets::Preset;
 use std::{
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
     time::{Duration, Instant},
 };
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, PhysicalPosition, PhysicalSize, Rect, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder,
+    Emitter, Listener, Manager, PhysicalPosition, PhysicalSize, Rect, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, Wry,
 };
 
 pub const FLYOUT: &str = "tray";
+const TRAY_ID: &str = "halo-control";
+const PRESET_PREFIX: &str = "halo-preset:";
 const WIDTH: f64 = 340.0;
 const MARGIN: f64 = 12.0;
 const MIN_HEIGHT: f64 = 160.0;
@@ -337,28 +343,177 @@ fn flyout_window(app: &tauri::App) -> tauri::Result<WebviewWindow> {
     builder.build()
 }
 
+/// What the tray menu may offer, from the main window's published flyout
+/// state: power and presets only while controls are unlocked, and only the
+/// power item that changes the lamp's desired state.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct MenuFlags {
+    ready: bool,
+    power: Option<bool>,
+}
+
+pub fn menu_flags(state: &serde_json::Value) -> MenuFlags {
+    let connected = state["connected"].as_bool() == Some(true);
+    let power = state["desired"]["power"].as_bool().filter(|_| connected);
+    let ready = power.is_some()
+        && state["lock"].is_null()
+        && state["status"]["tone"].as_str() != Some("busy");
+    MenuFlags { ready, power }
+}
+
+/// The intent a tray menu item sends to the main window's coordinator, the
+/// same one the flyout sends; the main window re-checks its lock first.
+pub fn menu_intent(id: &str, presets: &[Preset], serial: u64) -> Option<serde_json::Value> {
+    let id_value = format!("tray-menu-{serial}");
+    match id {
+        "halo-power-on" | "halo-power-off" => Some(serde_json::json!({
+            "id": id_value,
+            "kind": "power",
+            "value": id == "halo-power-on",
+        })),
+        _ => {
+            let preset_id = id.strip_prefix(PRESET_PREFIX)?;
+            let preset = presets.iter().find(|p| p.id == preset_id)?;
+            Some(serde_json::json!({
+                "id": id_value,
+                "kind": "adjust",
+                "patch": preset.values,
+            }))
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct TrayMenu(Mutex<MenuFlags>);
+
+fn stored_presets(app: &tauri::AppHandle) -> Vec<Preset> {
+    app.try_state::<crate::SupportState>()
+        .and_then(|support| {
+            support
+                .lock()
+                .ok()
+                .and_then(|data| data.presets.list().ok())
+        })
+        .unwrap_or_default()
+}
+
+fn build_menu(app: &tauri::AppHandle, flags: MenuFlags) -> tauri::Result<Menu<Wry>> {
+    let on = flags.ready && flags.power == Some(false);
+    let off = flags.ready && flags.power == Some(true);
+    let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
+        Box::new(MenuItem::with_id(
+            app,
+            "halo-power-on",
+            "開燈",
+            on,
+            None::<&str>,
+        )?),
+        Box::new(MenuItem::with_id(
+            app,
+            "halo-power-off",
+            "關燈",
+            off,
+            None::<&str>,
+        )?),
+    ];
+    let presets = stored_presets(app);
+    if !presets.is_empty() {
+        items.push(Box::new(PredefinedMenuItem::separator(app)?));
+        for preset in presets {
+            items.push(Box::new(MenuItem::with_id(
+                app,
+                format!("{PRESET_PREFIX}{}", preset.id),
+                &preset.name,
+                flags.ready,
+                None::<&str>,
+            )?));
+        }
+    }
+    items.push(Box::new(PredefinedMenuItem::separator(app)?));
+    items.push(Box::new(MenuItem::with_id(
+        app,
+        "halo-show",
+        "開啟 HaloDesk",
+        true,
+        None::<&str>,
+    )?));
+    items.push(Box::new(MenuItem::with_id(
+        app,
+        "halo-quit",
+        "結束 HaloDesk",
+        true,
+        None::<&str>,
+    )?));
+    let refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|item| item.as_ref()).collect();
+    Menu::with_items(app, &refs)
+}
+
+/// Rebuild the right-click menu, for example after the presets changed.
+pub fn refresh_menu(app: &tauri::AppHandle) {
+    let flags = app
+        .try_state::<TrayMenu>()
+        .and_then(|menu| menu.0.lock().ok().map(|flags| *flags))
+        .unwrap_or_default();
+    if let (Some(tray), Ok(menu)) = (app.tray_by_id(TRAY_ID), build_menu(app, flags)) {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
+fn on_state(app: &tauri::AppHandle, payload: &str) {
+    let Ok(state) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return;
+    };
+    let flags = menu_flags(&state);
+    let changed = app
+        .state::<TrayMenu>()
+        .0
+        .lock()
+        .map(|mut current| std::mem::replace(&mut *current, flags) != flags)
+        .unwrap_or(false);
+    if changed {
+        refresh_menu(app);
+    }
+}
+
+fn on_menu(app: &tauri::AppHandle, id: &str) {
+    static SERIAL: AtomicU64 = AtomicU64::new(0);
+    match id {
+        "halo-show" => open_main(app),
+        "halo-quit" => app.exit(0),
+        _ => {
+            let presets = stored_presets(app);
+            let serial = SERIAL.fetch_add(1, Ordering::Relaxed);
+            // One intent per click; nothing here retries or replays it.
+            if let Some(intent) = menu_intent(id, &presets, serial) {
+                let _ = app.emit_to("main", "halo-flyout-intent", intent);
+            }
+        }
+    }
+}
+
 pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     app.manage(Flyout(Mutex::new(Placement {
         height: 480.0,
         ..Default::default()
     })));
+    app.manage(TrayMenu::default());
     // Without the flyout the tray menu still opens the App, so a window that
     // cannot be created (for example an unsupported backdrop) must not stop it.
     if let Err(error) = flyout_window(app) {
         eprintln!("tray flyout unavailable: {error}");
     }
-    let show_item = MenuItem::with_id(app, "halo-show", "開啟 HaloDesk", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "halo-quit", "結束 HaloDesk", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show_item, &quit])?;
-    let mut builder = TrayIconBuilder::with_id("halo-control")
+    let handle = app.handle().clone();
+    // The main window publishes its state to the flyout; the menu reads the
+    // same event to enable only what the main window would accept.
+    app.listen_any("halo-flyout-state", move |event| {
+        on_state(&handle, event.payload())
+    });
+    let menu = build_menu(app.handle(), MenuFlags::default())?;
+    let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("HaloDesk")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "halo-show" => open_main(app),
-            "halo-quit" => app.exit(0),
-            _ => (),
-        })
+        .on_menu_event(|app, event| on_menu(app, event.id.as_ref()))
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
@@ -380,6 +535,88 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use halo2_app_support::presets::Lighting;
+    use serde_json::json;
+
+    fn state(
+        connected: bool,
+        power: bool,
+        lock: serde_json::Value,
+        tone: &str,
+    ) -> serde_json::Value {
+        json!({
+            "connected": connected,
+            "lock": lock,
+            "desired": { "power": power },
+            "status": if tone.is_empty() { json!(null) } else { json!({ "tone": tone }) },
+            "updated": "",
+        })
+    }
+
+    #[test]
+    fn the_menu_offers_only_what_the_main_window_would_accept() {
+        let ready = |power| MenuFlags {
+            ready: true,
+            power: Some(power),
+        };
+        assert_eq!(
+            menu_flags(&state(true, false, json!(null), "")),
+            ready(false)
+        );
+        assert_eq!(
+            menu_flags(&state(true, true, json!(null), "ok")),
+            ready(true)
+        );
+        for locked in [
+            state(true, true, json!("處理中"), ""),
+            state(true, true, json!("結果不明，請先查詢"), "warn"),
+            state(true, false, json!(null), "busy"),
+        ] {
+            assert!(!menu_flags(&locked).ready);
+        }
+        assert_eq!(
+            menu_flags(&state(false, true, json!(null), "")),
+            MenuFlags::default()
+        );
+        assert_eq!(menu_flags(&json!({})), MenuFlags::default());
+    }
+
+    #[test]
+    fn menu_items_send_one_flyout_intent() {
+        let presets = [Preset {
+            id: "3f1c2d6e-8a1b-4c3d-9e2f-0a1b2c3d4e5f".into(),
+            name: "閱讀".into(),
+            values: Lighting {
+                mode: "front".into(),
+                front_brightness: Some(70),
+                back_brightness: None,
+                temperature_k: 4300,
+            },
+        }];
+        assert_eq!(
+            menu_intent("halo-power-on", &presets, 1),
+            Some(json!({ "id": "tray-menu-1", "kind": "power", "value": true }))
+        );
+        assert_eq!(
+            menu_intent("halo-power-off", &presets, 2),
+            Some(json!({ "id": "tray-menu-2", "kind": "power", "value": false }))
+        );
+        assert_eq!(
+            menu_intent(
+                "halo-preset:3f1c2d6e-8a1b-4c3d-9e2f-0a1b2c3d4e5f",
+                &presets,
+                3
+            ),
+            Some(json!({
+                "id": "tray-menu-3",
+                "kind": "adjust",
+                "patch": { "mode": "front", "front_brightness": 70, "temperature_k": 4300 },
+            }))
+        );
+        // A preset deleted since the menu was built sends nothing.
+        assert_eq!(menu_intent("halo-preset:gone", &presets, 4), None);
+        assert_eq!(menu_intent("halo-show", &presets, 5), None);
+    }
 
     const SCREEN: Area = Area {
         x: 0.0,

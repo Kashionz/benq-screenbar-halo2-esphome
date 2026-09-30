@@ -119,33 +119,52 @@ async fn list_presets(support: State<'_, SupportState>) -> Result<Vec<Preset>, F
 async fn save_preset(
     name: String,
     values: Lighting,
+    app: tauri::AppHandle,
     support: State<'_, SupportState>,
 ) -> Result<Vec<Preset>, Fault> {
-    support
+    let result = support
         .lock()
         .map_err(|_| halo2_app_support::storage_error())?
         .presets
-        .save(name, values)
+        .save(name, values);
+    presets_changed(&app);
+    result
 }
 #[tauri::command]
 async fn restore_preset(
     preset: Preset,
     index: usize,
+    app: tauri::AppHandle,
     support: State<'_, SupportState>,
 ) -> Result<Vec<Preset>, Fault> {
-    support
+    let result = support
         .lock()
         .map_err(|_| halo2_app_support::storage_error())?
         .presets
-        .restore(preset, index)
+        .restore(preset, index);
+    presets_changed(&app);
+    result
 }
 #[tauri::command]
-async fn delete_preset(id: String, support: State<'_, SupportState>) -> Result<Vec<Preset>, Fault> {
-    support
+async fn delete_preset(
+    id: String,
+    app: tauri::AppHandle,
+    support: State<'_, SupportState>,
+) -> Result<Vec<Preset>, Fault> {
+    let result = support
         .lock()
         .map_err(|_| halo2_app_support::storage_error())?
         .presets
-        .delete(&id)
+        .delete(&id);
+    presets_changed(&app);
+    result
+}
+/// The tray menu lists the presets; rebuild it once the store lock is released.
+fn presets_changed(app: &tauri::AppHandle) {
+    #[cfg(desktop)]
+    tray::refresh_menu(app);
+    #[cfg(mobile)]
+    let _ = app;
 }
 fn log(support: &SupportState, event: Event) {
     if let Ok(mut data) = support.lock() {
@@ -464,8 +483,6 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 match_title_bar(&window, false);
             }
-            #[cfg(desktop)]
-            tray::setup(app)?;
             let root = app.path().app_data_dir()?;
             let export_dir = app
                 .path()
@@ -480,6 +497,9 @@ pub fn run() {
                 warning: None,
                 last_observed_command: None,
             }));
+            // After the preset store exists: the tray menu lists the presets.
+            #[cfg(desktop)]
+            tray::setup(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
