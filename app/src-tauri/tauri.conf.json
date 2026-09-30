@@ -14,9 +14,10 @@
       {
         "title": "HaloDesk",
         "width": 880,
-        "height": 580,
-        "minWidth": 760,
-        "minHeight": 560,
+        "height": 610,
+        "resizable": false,
+        "maximizable": false,
+        "center": true,
         "theme": "Light",
         "backgroundColor": "#e6e8ec"
       }

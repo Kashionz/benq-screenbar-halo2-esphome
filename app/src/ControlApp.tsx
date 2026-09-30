@@ -9,7 +9,7 @@ import {
   type SavedConnection,
 } from "./bridge";
 import "./halo.css";
-import { LightControls, SETTINGS, type SettingKey } from "./LightControls";
+import { LightControls, type SettingKey } from "./LightControls";
 import { LampPreview } from "./LampPreview";
 import { PresetsPanel } from "./PresetsPanel";
 import { Banner, ConnectionStatus, type BannerSpec } from "./StatusCards";
@@ -30,6 +30,17 @@ import { ConnectPage } from "./ConnectPage";
 import { detectPlatform } from "./platform";
 import { PHONE_QUERY, SINGLE_COLUMN_QUERY, useMedia } from "./useCompact";
 import { loadTheme, saveTheme, useDocumentTheme, useResolvedTheme, type ThemePref } from "./theme";
+import {
+  I18nContext,
+  MESSAGES,
+  loadLocale,
+  resolveLocale,
+  saveLocale,
+  useDocumentLocale,
+  type LocalePref,
+  type Messages,
+  type Text,
+} from "./i18n";
 
 // The bridge accepts one command per 500 ms; keep a small margin.
 const LIVE_INTERVAL_MS = 550;
@@ -45,7 +56,7 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [saved, setSaved] = useState<SavedConnection | null>(null);
   const [remember, setRemember] = useState(false);
-  const [settingsMessage, setSettingsMessage] = useState("");
+  const [settingsMessage, setSettingsMessage] = useState<Text | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [connected, setConnected] = useState(false);
   const [online, setOnline] = useState(false);
@@ -62,7 +73,7 @@ export default function App() {
   const [sending, setSending] = useState<null | Kind>(null);
   // Kind of the most recent command, so only power flashes its confirmation.
   const [sentKind, setSentKind] = useState<Kind | null>(null);
-  const [action, setAction] = useState("");
+  const [action, setAction] = useState<Text | null>(null);
   const [rebooted, setRebooted] = useState(false);
   const [storeError, setStoreError] = useState(false);
   // A transmitted power command is confirmed next to the button for a moment.
@@ -98,6 +109,10 @@ export default function App() {
   const [themePref, setThemePref] = useState<ThemePref>(loadTheme);
   const theme = useResolvedTheme(themePref);
   useDocumentTheme(theme);
+  const [localePref, setLocalePref] = useState<LocalePref>(loadLocale);
+  const locale = resolveLocale(localePref);
+  const m = MESSAGES[locale];
+  useDocumentLocale(m, m.appName);
   useEffect(() => {
     // The native title bar follows the App theme; the tray gets it published.
     if (native) void bridge.windowTheme(theme === "dark").catch(() => {});
@@ -118,7 +133,7 @@ export default function App() {
       })
       .catch((e) => {
         if (!cancelled) {
-          setSettingsMessage(failure(e).message);
+          setSettingsMessage(() => (m: Messages) => m.fault(failure(e)));
           setStoreError(true);
         }
       });
@@ -212,9 +227,9 @@ export default function App() {
       if (save) {
         try {
           setSaved(await bridge.remember());
-          setSettingsMessage("連線已保存，密碼存放於系統憑證庫。");
+          setSettingsMessage(() => (m: Messages) => m.connect.savedNote);
         } catch (e) {
-          setSettingsMessage(`本次已連線，但保存失敗：${failure(e).message}`);
+          setSettingsMessage(() => (m: Messages) => m.connect.saveFailed(m.fault(failure(e))));
         }
       }
     } catch (e) {
@@ -237,9 +252,9 @@ export default function App() {
       setSaved(null);
       setRemember(false);
       setStoreError(false);
-      setSettingsMessage("已移除保存的連線與帳密。");
+      setSettingsMessage(() => (m: Messages) => m.connect.forgotten);
     } catch (e) {
-      setSettingsMessage(failure(e).message);
+      setSettingsMessage(() => (m: Messages) => m.fault(failure(e)));
       setStoreError(true);
     } finally {
       setBusy(false);
@@ -256,7 +271,7 @@ export default function App() {
     setDraft({});
     setPanel("main");
     setRebooted(false);
-    setAction("");
+    setAction(null);
     lastBoot.current = null;
     setBusy(true);
     try {
@@ -273,7 +288,7 @@ export default function App() {
    */
   async function explicit(
     kind: "power" | "setting",
-    label: string,
+    label: Text,
     send: (device: string) => Promise<CommandRecord>,
   ) {
     const device = snapshotRef.current?.device_id;
@@ -290,13 +305,12 @@ export default function App() {
     }
   }
   const power = (value: boolean) =>
-    explicit("power", value ? "開燈" : "關燈", (device) => bridge.power(device, value));
+    explicit("power", (m) => m.action.power(value), (device) => bridge.power(device, value));
   /** One explicit setting value, never a toggle of the shown one. */
   async function setting(key: SettingKey, value: boolean) {
-    const title = SETTINGS.find((s) => s.key === key)?.title ?? key;
     settingKey.current = key;
     try {
-      return await explicit("setting", `${value ? "開啟" : "關閉"}${title}`, (device) =>
+      return await explicit("setting", (m) => m.action.setting(value, m.lights.settings[key].title), (device) =>
         bridge.setState(device, { [key]: value }),
       );
     } finally {
@@ -351,7 +365,7 @@ export default function App() {
           continue;
         }
         lastSend.current = Date.now();
-        const outcome = await command("light", "調整燈光", async () => {
+        const outcome = await command("light", (m) => m.action.adjust, async () => {
           const record = await bridge.setState(current.device_id, pending);
           // Mark before command() starts its follow-up read, so that read
           // replaces the assumption instead of racing it.
@@ -372,7 +386,7 @@ export default function App() {
   }
   function command(
     kind: Kind,
-    label: string,
+    label: Text,
     send: () => Promise<CommandRecord>,
   ): Promise<Outcome> {
     if (!snapshotRef.current || commanding.current) return Promise.resolve("skipped");
@@ -385,7 +399,7 @@ export default function App() {
   }
   async function transmit(
     kind: Kind,
-    label: string,
+    label: Text,
     send: () => Promise<CommandRecord>,
   ): Promise<Outcome> {
     const token = generation.current;
@@ -395,7 +409,7 @@ export default function App() {
     if (kind !== "light") setBusy(true);
     setSending(kind);
     setSentKind(kind);
-    setAction(label);
+    setAction(() => label);
     setFault(null);
     setResult(null);
     try {
@@ -451,7 +465,8 @@ export default function App() {
   const adjusting = desiredValues
     ? LIGHT_KEYS.filter((key) => shown![key] !== desiredValues[key])
     : [];
-  const feedback = commandFeedback({ online, commanding: sending !== null, action, result, fault });
+  const actionText = action ? action(m) : "";
+  const feedback = commandFeedback(m, { online, commanding: sending !== null, action: actionText, result, fault });
   useEffect(() => {
     if (result?.status !== "transmitted" || sentKind !== "power") return;
     setFlash(result.command_id);
@@ -479,6 +494,7 @@ export default function App() {
       status: connected ? powerStatus : null,
       updated,
       theme,
+      locale,
     },
     {
       lock,
@@ -491,32 +507,33 @@ export default function App() {
   );
   let banner: BannerSpec | null = null;
   if (connected) {
-    if (lock === "已斷線")
+    const b = m.banner;
+    if (lock === "offline")
       banner = {
         tone: "warn",
-        title: "已斷線，重試中",
-        body: `最後同步 ${updated}。不會重送先前的操作。`,
-        action: { label: "立即重試", run: () => void refresh() },
+        title: b.offlineTitle,
+        body: b.offlineBody(updated),
+        action: { label: b.retry, run: () => void refresh() },
       };
-    else if (lock === "無線模組未就緒")
+    else if (lock === "radio")
       banner = {
         tone: "warn",
-        title: "無線模組未就緒",
-        body: "控制已暫停，模組就緒後即可操作。",
+        title: b.radioTitle,
+        body: b.radioBody,
       };
-    else if (lock === "結果不明，請先查詢")
+    else if (lock === "unknown")
       banner = {
         tone: "warn",
-        title: "上一筆結果不明",
-        body: `請先查詢「${action || "上一筆命令"}」的結果。`,
-        action: { label: "查詢命令結果", run: () => void lookup(), disabled: busy },
+        title: b.unknownTitle,
+        body: b.unknownBody(actionText || b.lastCommand),
+        action: { label: b.lookup, run: () => void lookup(), disabled: busy },
       };
     else if (rebooted)
       banner = {
         tone: "info",
-        title: "裝置已重新開機",
-        body: "已重新同步，先前的命令結果無法查詢。",
-        action: { label: "知道了", run: () => setRebooted(false) },
+        title: b.rebootTitle,
+        body: b.rebootBody,
+        action: { label: b.dismiss, run: () => setRebooted(false) },
       };
   }
   const header = (
@@ -524,17 +541,17 @@ export default function App() {
       {connected && panel === "settings" ? (
         <button type="button" className="header-pill back" onClick={() => setPanel("main")}>
           <span className="chevron" aria-hidden="true">‹</span>
-          燈光
+          {m.header.back}
         </button>
       ) : (
         <span />
       )}
       <div className="app-title">
-        {!connected ? "HaloDesk" : panel === "settings" ? "設定" : "ScreenBar Halo 2"}
+        {!connected ? m.appName : panel === "settings" ? m.header.settings : "ScreenBar Halo 2"}
       </div>
       {connected && panel === "main" ? (
         <button type="button" className="header-pill" onClick={() => setPanel("settings")}>
-          設定
+          {m.header.settings}
         </button>
       ) : (
         <span />
@@ -560,7 +577,7 @@ export default function App() {
         setRemember={setRemember}
         saved={saved}
         fault={fault}
-        settingsMessage={settingsMessage}
+        settingsMessage={settingsMessage ? settingsMessage(m) : ""}
         retryForget={!saved && storeError}
         submit={(event) => void connect(event)}
         useSaved={() => void useSaved()}
@@ -585,7 +602,7 @@ export default function App() {
         updated={updated}
         busy={busy}
         saved={saved}
-        settingsMessage={settingsMessage}
+        settingsMessage={settingsMessage ? settingsMessage(m) : ""}
         raw={{
           device_id: snapshot?.device_id,
           boot_id: snapshot?.boot_id,
@@ -598,6 +615,11 @@ export default function App() {
         setTheme={(next) => {
           setThemePref(next);
           saveTheme(next);
+        }}
+        locale={localePref}
+        setLocale={(next) => {
+          setLocalePref(next);
+          saveLocale(next);
         }}
         refresh={() => void refresh()}
         disconnect={() => void disconnect()}
@@ -643,16 +665,18 @@ export default function App() {
     );
   }
   return (
-    <div className={`app${phone ? " compact" : ""}`}>
-      {header}
-      <main className="content">
-        {banner && <Banner banner={banner} />}
-        {body}
-        <footer className="app-footer">
-          <ConnectionStatus connected={connected} online={online} updated={updated} />
-          <span>開發版 0.1.0</span>
-        </footer>
-      </main>
-    </div>
+    <I18nContext.Provider value={m}>
+      <div className={`app${phone ? " compact" : ""}`}>
+        {header}
+        <main className="content">
+          {banner && <Banner banner={banner} />}
+          {body}
+          <footer className="app-footer">
+            <ConnectionStatus connected={connected} online={online} updated={updated} />
+            <span>{m.version("0.1.0")}</span>
+          </footer>
+        </main>
+      </div>
+    </I18nContext.Provider>
   );
 }

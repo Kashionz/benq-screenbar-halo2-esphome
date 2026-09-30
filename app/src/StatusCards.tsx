@@ -1,4 +1,5 @@
 import type { Feedback, Tone } from "./controlState";
+import { useMessages, type Messages } from "./i18n";
 
 export interface BannerSpec {
   tone: Tone;
@@ -32,8 +33,8 @@ export interface Line {
 }
 
 /** Status beside the power button; the hint names the next explicit action. */
-export function powerLine(status: Feedback | null, next: string): Line {
-  if (!status) return { tone: "idle", body: `按一下${next}` };
+export function powerLine(m: Messages, status: Feedback | null, next: string): Line {
+  if (!status) return { tone: "idle", body: m.power.hint(next) };
   return { tone: status.tone, title: status.title, body: status.body ? ` · ${status.body}` : "" };
 }
 
@@ -59,12 +60,13 @@ export function ConnectionStatus({
   online: boolean;
   updated: string;
 }) {
+  const m = useMessages();
   const tone: Tone = !connected ? "idle" : online ? "ok" : "warn";
   const text = !connected
-    ? "未連線"
+    ? m.connection.none
     : online
-      ? `已連線 · 同步 ${updated}`
-      : `已斷線 · 重試中 · 最後同步 ${updated}`;
+      ? m.connection.online(updated)
+      : m.connection.offline(updated);
   return (
     <span className={`connection-status tone-${tone}`}>
       <span className={`dot${tone === "warn" ? " pulse" : ""}`} />

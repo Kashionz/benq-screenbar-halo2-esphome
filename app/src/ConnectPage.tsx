@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { DiscoveredBridge, Fault, SavedConnection } from "./bridge";
 import { DiscoveryPanel } from "./DiscoveryPanel";
-import { CREDENTIAL_STORE, type Platform } from "./platform";
+import { useMessages } from "./i18n";
+import type { Platform } from "./platform";
 
 export interface ConnectionFields {
   host: string;
@@ -12,7 +13,7 @@ export interface ConnectionFields {
 
 /**
  * First-connection flow: saved profile, LAN search and login. Nothing here
- * connects on its own; only 「連線」 or 「使用已保存帳密連線」 does.
+ * connects on its own; only Connect or Connect with saved login does.
  */
 export function ConnectPage({
   native,
@@ -48,7 +49,9 @@ export function ConnectPage({
   pick: (candidate: DiscoveredBridge) => void;
 }) {
   const [searching, setSearching] = useState(false);
-  const store = CREDENTIAL_STORE[platform];
+  const m = useMessages();
+  const c = m.connect;
+  const store = m.store[platform];
   const [showPassword, setShowPassword] = useState(false);
   const field = (label: string, input: React.InputHTMLAttributes<HTMLInputElement>, trailing?: React.ReactNode) => (
     <label className="field">
@@ -60,36 +63,36 @@ export function ConnectPage({
   return (
     <form className="setup" onSubmit={submit}>
       <div className="setup-head">
-        <h1 className="page-title">連接掛燈</h1>
+        <h1 className="page-title">{c.title}</h1>
       </div>
       {!native && (
         <p role="alert" className="notice">
-          請在 Tauri 桌面或手機 App 中開啟；瀏覽器預覽不會連接掛燈。
+          {c.browserOnly}
         </p>
       )}
       <div className="setup-col">
         {saved && (
-          <section aria-label="已保存">
-            <div className="group-label">已保存</div>
+          <section aria-label={c.saved}>
+            <div className="group-label">{c.saved}</div>
             <div className="glass">
               <div className="action-row">
                 <div className="action-text">
                   <div className="action-title mono">{saved.host}:{saved.port}</div>
-                  <div className="action-desc">密碼存於 {store}。</div>
+                  <div className="action-desc">{c.storedIn(store)}</div>
                 </div>
                 <button type="button" className="pill-button" disabled={busy || searching || !native}
                   onClick={useSaved}>
-                  使用已保存帳密連線
+                  {c.useSaved}
                 </button>
               </div>
               <div className="action-row">
                 <div className="action-text">
-                  <div className="action-title">忘記已保存連線</div>
-                  <div className="action-desc">移除保存的位址、帳號與密碼。</div>
+                  <div className="action-title">{c.forgetTitle}</div>
+                  <div className="action-desc">{c.forgetDesc}</div>
                 </div>
                 <button type="button" className="pill-button danger" disabled={busy}
-                  aria-label="忘記已保存連線" onClick={forget}>
-                  忘記
+                  aria-label={c.forgetTitle} onClick={forget}>
+                  {c.forget}
                 </button>
               </div>
             </div>
@@ -104,11 +107,11 @@ export function ConnectPage({
           select={pick}
         />
       </div>
-      <section aria-label="登入" className="setup-col">
+      <section aria-label={c.login} className="setup-col">
         <div>
-          <div className="group-label">登入</div>
+          <div className="group-label">{c.login}</div>
           <div className="glass">
-            {field("主機", {
+            {field(c.host, {
               value: fields.host,
               onChange: (e) => edit({ host: e.target.value }),
               placeholder: "192.168.1.10",
@@ -116,7 +119,7 @@ export function ConnectPage({
               autoCorrect: "off",
               spellCheck: false,
             })}
-            {field("連接埠", {
+            {field(c.port, {
               type: "number",
               inputMode: "numeric",
               min: 1,
@@ -124,27 +127,27 @@ export function ConnectPage({
               value: fields.port,
               onChange: (e) => edit({ port: Number(e.target.value) }),
             })}
-            {field("帳號", {
+            {field(c.username, {
               value: fields.username,
               onChange: (e) => edit({ username: e.target.value }),
-              placeholder: "必填",
+              placeholder: c.required,
               autoComplete: "username",
               autoCapitalize: "none",
             })}
             {field(
-              "密碼",
+              c.password,
               {
                 type: showPassword ? "text" : "password",
                 value: fields.password,
                 onChange: (e) => edit({ password: e.target.value }),
-                placeholder: "必填",
+                placeholder: c.required,
                 autoComplete: "current-password",
                 autoCapitalize: "none",
                 autoCorrect: "off",
                 spellCheck: false,
               },
-              <button type="button" className="field-reveal" aria-label={showPassword ? "隱藏密碼" : "顯示密碼"}
-                aria-pressed={showPassword} title={showPassword ? "隱藏密碼" : "顯示密碼"} disabled={busy}
+              <button type="button" className="field-reveal" aria-label={showPassword ? c.hidePassword : c.showPassword}
+                aria-pressed={showPassword} title={showPassword ? c.hidePassword : c.showPassword} disabled={busy}
                 onClick={() => setShowPassword((shown) => !shown)}>
                 <EyeIcon crossed={showPassword} />
               </button>,
@@ -153,9 +156,9 @@ export function ConnectPage({
               aria-labelledby="remember-title" aria-describedby="remember-desc"
               disabled={busy} onClick={() => setRemember(!remember)}>
               <span className="action-text">
-                <span id="remember-title" className="action-title">記住此連線與帳密</span>
+                <span id="remember-title" className="action-title">{c.remember}</span>
                 <span id="remember-desc" className="action-desc" style={{ display: "block" }}>
-                  密碼存於 {store}。
+                  {c.storedIn(store)}
                 </span>
               </span>
               <span className={`switch${remember ? " on" : ""}`} aria-hidden="true">
@@ -167,13 +170,13 @@ export function ConnectPage({
       </section>
       <button type="submit" className="connect-button" disabled={busy || searching || !native}>
         {busy && <span className="spinner light" aria-hidden="true" />}
-        {busy ? "連線中…" : "連線"}
+        {busy ? c.connecting : c.connect}
       </button>
       {(fault || settingsMessage || retryForget) && (
         <div className="setup-messages">
           {fault && (
             <p role="alert" className="form-error">
-              {fault.message}
+              {m.fault(fault)}
             </p>
           )}
           {settingsMessage && (
@@ -183,7 +186,7 @@ export function ConnectPage({
           )}
           {retryForget && (
             <button type="button" className="text-button" disabled={busy} onClick={forget}>
-              重試移除保存資料
+              {c.retryForget}
             </button>
           )}
         </div>

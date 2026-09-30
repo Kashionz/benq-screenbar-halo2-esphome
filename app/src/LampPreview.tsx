@@ -1,7 +1,8 @@
 import { LazyMotion, MotionConfig, useReducedMotion } from "motion/react";
-import * as m from "motion/react-m";
+import * as motion from "motion/react-m";
 import type { LightState } from "./bridge";
 import { beamColor, beamLevels, modeLabel, tempColor, type Feedback, type LockReason } from "./controlState";
+import { useMessages } from "./i18n";
 import { PowerIcon } from "./LightControls";
 import { StatusLine, powerLine } from "./StatusCards";
 
@@ -33,12 +34,13 @@ export function LampPreview({
   status?: Feedback | null;
   onPower: (value: boolean) => void;
 }) {
+  const m = useMessages();
   const levels = beamLevels(power, preview);
   const beam = beamColor(preview.temperature_k);
   const glow = tempColor(preview.temperature_k);
   const reducedMotion = useReducedMotion();
   const beamTransition = { duration: reducedMotion ? 0 : 0.35, ease: "easeOut" as const };
-  const next = power ? "關燈" : "開燈";
+  const next = m.action.power(!power);
   // A power command in flight locks everything else as 處理中, but the power
   // button keeps its normal look; repeat presses are ignored here.
   const disabled = lock !== null && !powerPending;
@@ -49,13 +51,13 @@ export function LampPreview({
           <div className="preview-scene" aria-hidden="true">
             <div className="preview-wall" />
             <div className="preview-desk" />
-            <m.div className="preview-beam front" style={{ background: beam }} initial={false}
+            <motion.div className="preview-beam front" style={{ background: beam }} initial={false}
               animate={{ opacity: levels.front }} transition={beamTransition} />
-            <m.div className="preview-beam back" style={{ background: beam }} initial={false}
+            <motion.div className="preview-beam back" style={{ background: beam }} initial={false}
               animate={{ opacity: levels.back }} transition={beamTransition} />
-            <m.div className="preview-spill front" style={{ background: glow }} initial={false}
+            <motion.div className="preview-spill front" style={{ background: glow }} initial={false}
               animate={{ opacity: levels.front }} transition={beamTransition} />
-            <m.div className="preview-spill back" style={{ background: glow }} initial={false}
+            <motion.div className="preview-spill back" style={{ background: glow }} initial={false}
               animate={{ opacity: levels.back }} transition={beamTransition} />
             <div className="preview-monitor" />
             <div className="preview-stand" />
@@ -64,14 +66,14 @@ export function LampPreview({
               className="preview-bar"
               style={{ boxShadow: power ? `0 0 18px ${glow}, 0 0 4px ${glow}` : "none" }}
             />
-            <span className="preview-tag front">前 {levels.front ? `${preview.front_brightness}%` : "—"}</span>
-            <span className="preview-tag back">後 {levels.back ? `${preview.back_brightness}%` : "—"}</span>
+            <span className="preview-tag front">{m.preview.front} {levels.front ? `${preview.front_brightness}%` : "—"}</span>
+            <span className="preview-tag back">{m.preview.back} {levels.back ? `${preview.back_brightness}%` : "—"}</span>
             <span className="preview-temp">{preview.temperature_k} K</span>
           </div>
         </MotionConfig>
       </LazyMotion>
       <div className="preview-info">
-        <span className="preview-caption">目標示意</span>
+        <span className="preview-caption">{m.preview.caption}</span>
         <div className="preview-power">
           <button
             type="button"
@@ -87,11 +89,11 @@ export function LampPreview({
             <PowerIcon size={26} />
           </button>
           <div className="preview-power-text">
-            <div className="power-state">{power ? "開啟" : "關閉"}</div>
+            <div className="power-state">{power ? m.power.on : m.power.off}</div>
             <div className="power-sub">
-              {power ? `${modeLabel(preview.mode)} · ${preview.temperature_k} K` : "燈已關閉"}
+              {power ? `${modeLabel(m, preview.mode)} · ${preview.temperature_k} K` : m.power.lightOff}
             </div>
-            <StatusLine line={powerLine(status, next)} />
+            <StatusLine line={powerLine(m, status, next)} />
           </div>
         </div>
       </div>

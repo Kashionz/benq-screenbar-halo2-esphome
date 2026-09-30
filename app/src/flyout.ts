@@ -1,6 +1,7 @@
 import type { LightState } from "./bridge";
 import type { Draft, Feedback, LightKey, LockReason } from "./controlState";
 import type { Line } from "./StatusCards";
+import type { Locale, Messages } from "./i18n";
 import type { Theme } from "./theme";
 
 /**
@@ -23,6 +24,8 @@ export interface FlyoutState {
   status: Feedback | null;
   updated: string;
   theme: Theme;
+  /** The main window's language; status texts above are already in it. */
+  locale: Locale;
 }
 
 export type FlyoutIntent =
@@ -67,13 +70,13 @@ export function parseState(payload: unknown): FlyoutState | null {
  * The flyout's status line beside its power button. Offline and radio locks
  * come first; an unknown outcome sends the user to the main window to look up.
  */
-export function trayLine(state: FlyoutState | null, next: string): Line & { lookup: boolean } {
-  if (!state?.connected) return { tone: "idle", body: "未連線", lookup: false };
-  if (state.lock === "已斷線" || state.lock === "無線模組未就緒")
-    return { tone: "warn", title: state.lock, body: "", lookup: false };
+export function trayLine(m: Messages, state: FlyoutState | null, next: string): Line & { lookup: boolean } {
+  if (!state?.connected) return { tone: "idle", body: m.tray.notConnected, lookup: false };
+  if (state.lock === "offline" || state.lock === "radio")
+    return { tone: "warn", title: m.lock[state.lock], body: "", lookup: false };
   const { status } = state;
-  if (!status) return { tone: "idle", body: `按一下${next}`, lookup: false };
-  if (status.lookup) return { tone: "warn", title: status.title, body: "，請先查詢", lookup: true };
+  if (!status) return { tone: "idle", body: m.power.hint(next), lookup: false };
+  if (status.lookup) return { tone: "warn", title: status.title, body: m.tray.lookupSuffix, lookup: true };
   return {
     tone: status.tone,
     title: status.title,

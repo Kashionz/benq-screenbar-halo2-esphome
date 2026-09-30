@@ -1,4 +1,5 @@
 import type { CommandRecord, Fault, LightState, PresetValues, Snapshot } from "./bridge";
+import type { Messages } from "./i18n";
 
 export type LightPatch = Partial<Omit<LightState, "power">>;
 export type LightKey = "mode" | "front_brightness" | "back_brightness" | "temperature_k";
@@ -6,9 +7,9 @@ export type Draft = Partial<Pick<LightState, LightKey>>;
 export type Tone = "ok" | "warn" | "err" | "info" | "busy" | "pending" | "idle";
 
 export const LIGHT_KEYS: LightKey[] = ["mode", "front_brightness", "back_brightness", "temperature_k"];
-export const MODES: Record<string, string> = { front: "前燈", back: "後燈", both: "前後燈" };
+export const MODES = ["front", "back", "both"] as const;
 
-export const modeLabel = (mode: string) => MODES[mode] ?? mode;
+export const modeLabel = (m: Messages, mode: string) => m.modes[mode] ?? mode;
 
 /** Which lamps a mode lights; only their brightness can be adjusted. */
 export const litLamps = (mode: string) => ({ front: mode !== "back", back: mode !== "front" });
@@ -28,22 +29,25 @@ export const presetValues = (v: PresetValues): PresetValues => {
   const { mode, front_brightness, back_brightness, temperature_k } = v;
   return litOnly({ mode, front_brightness, back_brightness, temperature_k }, mode);
 };
-const levels = (v: PresetValues) => {
+const levels = (m: Messages, v: PresetValues) => {
   const lit = litLamps(v.mode);
-  return [lit.front && `前 ${v.front_brightness}%`, lit.back && `後 ${v.back_brightness}%`].filter(Boolean);
+  return [lit.front && m.level.front(v.front_brightness ?? 0), lit.back && m.level.back(v.back_brightness ?? 0)].filter(
+    Boolean,
+  );
 };
 /** 「前後燈 · 前 70% · 後 30% · 4300 K」, 「前燈 · 前 70% · 4300 K」 */
-export const lightSummary = (v: PresetValues) =>
-  [modeLabel(v.mode), ...levels(v), `${v.temperature_k} K`].join(" · ");
+export const lightSummary = (m: Messages, v: PresetValues) =>
+  [modeLabel(m, v.mode), ...levels(m, v), `${v.temperature_k} K`].join(" · ");
 /** 「前 60% · 後 35% · 4000 K」 */
-export const levelSummary = (v: PresetValues) => [...levels(v), `${v.temperature_k} K`].join(" · ");
+export const levelSummary = (m: Messages, v: PresetValues) => [...levels(m, v), `${v.temperature_k} K`].join(" · ");
 /** A preset matches when its mode, temperature and lit lamps' brightness equal the shown values. */
 export const samePreset = (preset: PresetValues, shown: Pick<LightState, LightKey>) => {
   const kept = presetValues(preset);
   return LIGHT_KEYS.every((key) => kept[key] === undefined || kept[key] === shown[key]);
 };
 
-export type LockReason = "已斷線" | "無線模組未就緒" | "處理中" | "結果不明，請先查詢";
+/** Shown through Messages.lock; the tray menu only checks whether it is null. */
+export type LockReason = "offline" | "radio" | "busy" | "unknown";
 
 /**
  * Why controls are disabled, or null when commands may be sent. The order is
@@ -56,15 +60,15 @@ export function lockReason(input: {
   fault: Fault | null;
 }): LockReason | null {
   const { online, snapshot, busy, fault } = input;
-  if (!online || !snapshot) return "已斷線";
+  if (!online || !snapshot) return "offline";
   if (
     snapshot.radio_status !== "ready" ||
     snapshot.pairing_status !== "ready" ||
     snapshot.features.power !== "verified"
   )
-    return "無線模組未就緒";
-  if (busy || snapshot.active_command) return "處理中";
-  if (fault?.code === "UNKNOWN_OUTCOME") return "結果不明，請先查詢";
+    return "radio";
+  if (busy || snapshot.active_command) return "busy";
+  if (fault?.code === "UNKNOWN_OUTCOME") return "unknown";
   return null;
 }
 
@@ -143,35 +147,37 @@ export interface Feedback {
 }
 
 /** Recent-command card. Error codes are deliberately left to diagnostics. */
-export function commandFeedback(input: {
-  online: boolean;
-  commanding: boolean;
-  action: string;
-  result: CommandRecord | null;
-  fault: Fault | null;
-}): Feedback {
+export function commandFeedback(
+  m: Messages,
+  input: {
+    online: boolean;
+    commanding: boolean;
+    action: string;
+    result: CommandRecord | null;
+    fault: Fault | null;
+  },
+): Feedback {
   const { online, commanding, action, result, fault } = input;
-  if (commanding)
-    return { tone: "busy", title: "處理中", body: action ? `正在送出「${action}」` : "", lookup: false };
-  if (fault?.code === "UNKNOWN_OUTCOME")
-    return { tone: "warn", title: "結果不明", body: "請先查詢，不要重送。", lookup: true };
-  if (fault) return { tone: "err", title: "發送失敗", body: fault.message, lookup: false };
+  const f = m.feedback;
+  if (commanding) return { tone: "busy", title: f.busy, body: action ? f.sending(action) : "", lookup: false };
+  if (fault?.code === "UNKNOWN_OUTCOME") return { tone: "warn", title: f.unknown, body: f.unknownBody, lookup: true };
+  if (fault) return { tone: "err", title: f.failed, body: m.fault(fault), lookup: false };
   if (result) {
     switch (result.status) {
       case "transmitted":
-        return { tone: "ok", title: "指令已送出", body: "", lookup: false };
+        return { tone: "ok", title: f.transmitted, body: "", lookup: false };
       case "failed":
-        return { tone: "err", title: "發送失敗", body: "請稍後再試。", lookup: false };
+        return { tone: "err", title: f.failed, body: f.failedBody, lookup: false };
       case "expired":
-        return { tone: "warn", title: "指令已過期", body: "", lookup: false };
+        return { tone: "warn", title: f.expired, body: "", lookup: false };
       case "superseded":
-        return { tone: "warn", title: "指令已被新操作取代", body: "", lookup: false };
+        return { tone: "warn", title: f.superseded, body: "", lookup: false };
       case "accepted":
       case "executing":
-        return { tone: "busy", title: "處理中", body: "", lookup: false };
+        return { tone: "busy", title: f.busy, body: "", lookup: false };
       default:
-        return { tone: "warn", title: "結果不明", body: "請先查詢，不要重送。", lookup: false };
+        return { tone: "warn", title: f.unknown, body: f.unknownBody, lookup: false };
     }
   }
-  return { tone: "idle", title: online ? "就緒" : "等待連線", body: "", lookup: false };
+  return { tone: "idle", title: online ? f.ready : f.waiting, body: "", lookup: false };
 }
