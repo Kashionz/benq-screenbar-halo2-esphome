@@ -49,10 +49,12 @@ export function ConnectPage({
 }) {
   const [searching, setSearching] = useState(false);
   const store = CREDENTIAL_STORE[platform];
-  const field = (label: string, input: React.InputHTMLAttributes<HTMLInputElement>) => (
+  const [showPassword, setShowPassword] = useState(false);
+  const field = (label: string, input: React.InputHTMLAttributes<HTMLInputElement>, trailing?: React.ReactNode) => (
     <label className="field">
       <span className="field-label">{label}</span>
       <input {...input} disabled={busy} required />
+      {trailing}
     </label>
   );
   return (
@@ -129,13 +131,24 @@ export function ConnectPage({
               autoComplete: "username",
               autoCapitalize: "none",
             })}
-            {field("密碼", {
-              type: "password",
-              value: fields.password,
-              onChange: (e) => edit({ password: e.target.value }),
-              placeholder: "必填",
-              autoComplete: "current-password",
-            })}
+            {field(
+              "密碼",
+              {
+                type: showPassword ? "text" : "password",
+                value: fields.password,
+                onChange: (e) => edit({ password: e.target.value }),
+                placeholder: "必填",
+                autoComplete: "current-password",
+                autoCapitalize: "none",
+                autoCorrect: "off",
+                spellCheck: false,
+              },
+              <button type="button" className="field-reveal" aria-label={showPassword ? "隱藏密碼" : "顯示密碼"}
+                aria-pressed={showPassword} title={showPassword ? "隱藏密碼" : "顯示密碼"} disabled={busy}
+                onClick={() => setShowPassword((shown) => !shown)}>
+                <EyeIcon crossed={showPassword} />
+              </button>,
+            )}
             <button type="button" role="switch" aria-checked={remember} className="switch-row"
               aria-labelledby="remember-title" aria-describedby="remember-desc"
               disabled={busy} onClick={() => setRemember(!remember)}>
@@ -176,5 +189,16 @@ export function ConnectPage({
         </div>
       )}
     </form>
+  );
+}
+
+function EyeIcon({ crossed }: { crossed: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      {crossed && <path d="M4 4l16 16" />}
+    </svg>
   );
 }

@@ -7,6 +7,11 @@ body.flyout-body,
   background: transparent;
   overflow: hidden;
 }
+/* The window is capped to the monitor's work area (small screens, large
+   scaling); the panel then scrolls instead of being cut off. */
+html {
+  overflow-y: auto;
+}
 .flyout {
   width: 340px;
   border-radius: 12px;
@@ -19,6 +24,21 @@ body.flyout-body,
   line-height: 1.45;
   overflow: hidden;
   user-select: none;
+}
+/* On Windows the window itself is the panel: DWM already draws its rounded
+   corners, 1 px border and shadow around the acrylic backdrop, so the card must
+   not draw a second frame inside it. The tint sits on the page so it covers
+   the whole window even while its size catches up with the content. */
+html:has(.flyout-windows) {
+  background: var(--trayWin);
+}
+.flyout-windows {
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 0;
+  box-shadow: none;
 }
 /* macOS keeps an opaque rectangular window (no private transparency API). */
 .flyout-macos {
@@ -183,7 +203,10 @@ body.flyout-body,
   border: 0;
   background: var(--fill);
   color: var(--ink);
-  transition: box-shadow 0.15s;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s,
+    filter 0.15s;
 }
 .flyout-tile .swatch {
   width: 14px;
@@ -224,4 +247,17 @@ body.flyout-body,
   background: none;
   color: var(--ink);
   font-size: 12.5px;
+}
+@media (hover: hover) {
+  .flyout-open:hover:not(:disabled),
+  .flyout-lookup:hover:not(:disabled),
+  .flyout-tile:not(.active):hover:not(:disabled) {
+    background: var(--fillHover);
+  }
+  .flyout-foot button:hover:not(:disabled) {
+    background: var(--hoverFill);
+  }
+  .flyout-tile.active:hover:not(:disabled) {
+    filter: var(--lift);
+  }
 }

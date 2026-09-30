@@ -141,12 +141,12 @@
   - 搜尋列 min-height 60：「搜尋區域網路」14px ＋「約 5 秒，選取後只會填入位址。」12px ＋ 右「搜尋」膠囊。搜尋中改為「搜尋中…約 5 秒」＋14px spinner，連線鈕 opacity .4。
   - 結果列 min-height 56、padding `8px 14px`：32px 圖示格＋名稱 14/600＋`host:port` 12px mono；選取者 `background:var(--accentWash)` 並右側 20px accent 圓「✓」。
   - 下方說明：選取後「已填入，請輸入密碼。」（並清空密碼）；找不到「找不到裝置，可直接輸入 IP。」＋平台提示（`platform.ts` 的 `DISCOVERY_HINT`）。
-- **登入**（L + G）：欄位列 min-height 48、左標籤 72px `--ink2`、右對齊輸入 14px：主機、連接埠、帳號（placeholder「必填」）、密碼（placeholder「必填」）。最後一列 min-height 60：「記住此連線與帳密」＋「密碼存於 {CREDENTIAL_STORE}。」12px ＋ 40×24 開關。
+- **登入**（L + G）：欄位列 min-height 48、左標籤 72px `--ink2`、右對齊輸入 14px：主機、連接埠、帳號（placeholder「必填」）、密碼（placeholder「必填」）。欄位狀態：hover `--hoverFill`；編輯中整列 `--accentWash`、標籤轉 `--accent`、左緣 3px accent 條；使用者留下無效值（例如清空必填）時標籤轉 `--err-ink`，編輯中左緣條轉 `--danger`。最後一列 min-height 60：「記住此連線與帳密」＋「密碼存於 {CREDENTIAL_STORE}。」12px ＋ 40×24 開關。
 - 「連線」按鈕：min-height 46、radius 99、accent/#fff、15/600、`box-shadow:var(--onShadow)`；連線中「連線中…」＋白色 spinner。
 - 有已保存連線時，於區域網路上方加「已保存」群組：`host:port`、「使用已保存帳密連線」、「忘記已保存連線」(danger)（樣式沿用連線群組列）。
 
 ### 6. 系統匣面板（寬 340）
-- 容器：radius 12（macOS 不透明矩形見現有 `tray.css`）、`var(--tray)` + blur(24px) saturate(170%)、`border:1px solid var(--edge)`、`box-shadow:var(--trayShadow)`、line-height 1.45。
+- 容器：radius 12（macOS 不透明矩形見現有 `tray.css`；Windows 由視窗本身當面板，圓角、邊框、陰影交給 DWM，底色改用疊在原生 acrylic 上的 `var(--trayWin)`）、`var(--tray)` + blur(24px) saturate(170%)、`border:1px solid var(--edge)`、`box-shadow:var(--trayShadow)`、line-height 1.45。
 - 頂列 padding `14px 14px 10px 16px`：「ScreenBar Halo 2」14/600（ellipsis）＋「開啟 HaloDesk」膠囊（min-height 30、`--fill`、12.5px）。
 - 內卡（margin `0 12px`、radius 12、`--glass`、`box-shadow:var(--innerShadow)`）：
   - 電源列 padding `10px 10px 10px 12px`、gap 12：44px 電源鈕（icon 20）＋「開啟／關閉」14/600＋**狀態行** 11.5px：就緒「按一下關燈」`--ink3`；處理中 9px spinner＋「**處理中** · 正在送出「關燈」」；已送出／發送失敗同主畫面；結果不明「**結果不明**，請先查詢」warn＋右側「查詢」膠囊（開啟主視窗）；鎖定「已斷線／無線模組未就緒」warn。
@@ -197,6 +197,7 @@
 | --sheet | rgba(250,250,252,.9) | rgba(38,40,46,.92) |
 | --scrim | rgba(30,34,42,.28) | rgba(0,0,0,.5) |
 | --tray | rgba(246,247,249,.62) | rgba(36,38,44,.72) |
+| --trayWin | rgba(243,244,247,.88) | rgba(32,34,40,.9) |
 | --offBg | rgba(255,255,255,.7) | rgba(255,255,255,.12) |
 | --offInk | #1d1d1f | #f2f2f5 |
 

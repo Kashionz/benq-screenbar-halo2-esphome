@@ -84,3 +84,15 @@ it("detects the platform for credential and discovery copy", () => {
   expect(detectPlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", 5)).toBe("ios");
   expect(detectPlatform("Mozilla/5.0 (X11; Linux x86_64)", 0)).toBe("other");
 });
+it("reveals and hides the password on request", async () => {
+  page({ fields: { ...fields, password: "secret" } });
+  const user = userEvent.setup();
+  const password = screen.getByLabelText("密碼");
+  expect(password).toHaveAttribute("type", "password");
+  await user.click(screen.getByRole("button", { name: "顯示密碼" }));
+  expect(password).toHaveAttribute("type", "text");
+  const hide = screen.getByRole("button", { name: "隱藏密碼" });
+  expect(hide).toHaveAttribute("aria-pressed", "true");
+  await user.click(hide);
+  expect(password).toHaveAttribute("type", "password");
+});
