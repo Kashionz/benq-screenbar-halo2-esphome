@@ -71,8 +71,9 @@ describe("labels", () => {
     expect(commandFeedback({ ...base, fault: unknown })).toMatchObject({ title: "結果不明", lookup: true });
     expect(commandFeedback({ ...base, result: { status: "future_success" } as never }).title).toBe("結果不明");
     expect(commandFeedback({ ...base, commanding: true }).body).toBe("正在送出「關燈」");
-    expect(commandFeedback({ ...base, result: { status: "transmitted" } as never }).body).toBe(
-      "掛燈不回報狀態，請以實際燈光為準。",
-    );
+    expect(commandFeedback({ ...base, result: { status: "transmitted" } as never })).toMatchObject({
+      title: "指令已送出",
+      body: "",
+    });
   });
 });

@@ -73,7 +73,7 @@ describe("trayLine", () => {
       trayLine({ ...base, status: { tone: "busy", title: "處理中", body: "正在送出「關燈」", lookup: false } }, "關燈"),
     ).toMatchObject({ tone: "busy", title: "處理中", body: " · 正在送出「關燈」" });
     expect(
-      trayLine({ ...base, status: { tone: "ok", title: "指令已送出", body: "請以實際燈光為準", lookup: false } }, "關燈"),
-    ).toMatchObject({ title: "指令已送出", body: " · 請以實際燈光為準" });
+      trayLine({ ...base, status: { tone: "ok", title: "指令已送出", body: "", lookup: false } }, "關燈"),
+    ).toMatchObject({ title: "指令已送出", body: "" });
   });
 });

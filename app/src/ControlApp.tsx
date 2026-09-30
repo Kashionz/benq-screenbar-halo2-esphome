@@ -464,7 +464,7 @@ export default function App() {
   if (sending === "power") powerStatus = feedback;
   else if (!sending && (feedback.tone === "err" || feedback.tone === "warn")) powerStatus = feedback;
   else if (!sending && feedback.tone === "ok" && result && flash === result.command_id)
-    powerStatus = { ...feedback, body: "請以實際燈光為準" };
+    powerStatus = feedback;
   useFlyoutHost(
     native,
     {

@@ -159,7 +159,7 @@ export function commandFeedback(input: {
   if (result) {
     switch (result.status) {
       case "transmitted":
-        return { tone: "ok", title: "指令已送出", body: "掛燈不回報狀態，請以實際燈光為準。", lookup: false };
+        return { tone: "ok", title: "指令已送出", body: "", lookup: false };
       case "failed":
         return { tone: "err", title: "發送失敗", body: "請稍後再試。", lookup: false };
       case "expired":

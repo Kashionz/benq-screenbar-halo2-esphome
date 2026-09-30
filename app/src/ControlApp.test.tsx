@@ -550,7 +550,7 @@ describe("disabled reasons", () => {
     expect(bridge.power).toHaveBeenCalledTimes(1);
     finish(transmitted());
     expect(await within(preview).findByText("指令已送出")).toBeInTheDocument();
-    expect(within(preview).getByText(/請以實際燈光為準/)).toBeInTheDocument();
+    expect(within(preview).queryByText(/請以實際燈光為準/)).not.toBeInTheDocument();
   });
   it("names the radio reason and the offline reason", async () => {
     vi.mocked(bridge.connect).mockResolvedValue({ ...snapshot, radio_status: "error" });
@@ -600,7 +600,7 @@ describe("tray flyout intents", () => {
       expect(lastPublished()).toMatchObject({
         connected: true,
         lock: null,
-        status: { title: "指令已送出", body: "請以實際燈光為準" },
+        status: { title: "指令已送出", body: "" },
       }),
     );
   });
