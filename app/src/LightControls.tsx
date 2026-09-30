@@ -1,13 +1,14 @@
 import type { LightState, Snapshot } from "./bridge";
 import { adjustable, supported, tempColor, type Draft, type LockReason } from "./controlState";
+import { useMessages } from "./i18n";
 import { ModeSelector } from "./ModeSelector";
 
 export type { LightPatch } from "./controlState";
 
 export const SLIDERS = [
-  { key: "front_brightness", label: "前燈", name: "前燈亮度", min: 1, max: 100, step: 1, unit: "%" },
-  { key: "back_brightness", label: "後燈", name: "後燈亮度", min: 1, max: 100, step: 1, unit: "%" },
-  { key: "temperature_k", label: "色溫", name: "色溫", min: 2700, max: 6500, step: 25, unit: " K" },
+  { key: "front_brightness", min: 1, max: 100, step: 1, unit: "%" },
+  { key: "back_brightness", min: 1, max: 100, step: 1, unit: "%" },
+  { key: "temperature_k", min: 2700, max: 6500, step: 25, unit: " K" },
 ] as const;
 
 export const sliderPct = (slider: (typeof SLIDERS)[number], value: number) =>
@@ -41,6 +42,7 @@ export function SliderTrack({
   onKeyUp?: () => void;
   onBlur?: () => void;
 }) {
+  const m = useMessages();
   const pct = sliderPct(slider, value);
   return (
     <div className={`slider-track ${className}${disabled ? " disabled" : ""}`.trim()}>
@@ -55,7 +57,7 @@ export function SliderTrack({
       />
       <input
         type="range"
-        aria-label={slider.name}
+        aria-label={m.lights.sliders[slider.key].name}
         min={slider.min}
         max={slider.max}
         step={slider.step}
@@ -70,15 +72,8 @@ export function SliderTrack({
 
 export type SettingKey = "auto_dimming" | "ultrasonic_enabled";
 
-/** Lamp settings sent as explicit on/off commands, in display order. */
-export const SETTINGS: ReadonlyArray<{ key: SettingKey; title: string; desc: (on: boolean) => string }> = [
-  {
-    key: "auto_dimming",
-    title: "自動調光",
-    desc: (on) => (on ? "亮度由掛燈依環境光決定，手動調整亮度會關閉" : "掛燈依環境光自動調整亮度"),
-  },
-  { key: "ultrasonic_enabled", title: "入席感應", desc: () => "掛燈的超音波人體感應模式" },
-];
+/** Lamp settings sent as explicit on/off commands, in display order; texts are in Messages.lights.settings. */
+export const SETTINGS: readonly SettingKey[] = ["auto_dimming", "ultrasonic_enabled"];
 
 /**
  * Mode and sliders. Every change is sent live through adjust(); power lives
@@ -105,14 +100,15 @@ export function LightControls({
   /** Send an explicit setting value; omitted hides the switches. */
   onSetting?: (key: SettingKey, value: boolean) => void;
 }) {
+  const m = useMessages();
   const disabled = lock !== null;
   return (
-    <section aria-label="燈光" className="light-section">
+    <section aria-label={m.lights.section} className="light-section">
       <div className="group-label">
-        <span>燈光</span>
+        <span>{m.lights.section}</span>
         {/* Our own command already shows its progress; no second notice. */}
-        {lock && !(progressShown && lock === "處理中") && (
-          <span className="group-label-end">已停用：{lock}</span>
+        {lock && !(progressShown && lock === "busy") && (
+          <span className="group-label-end">{m.lights.disabled(m.lock[lock])}</span>
         )}
       </div>
       <div className="glass light-card">
@@ -131,7 +127,7 @@ export function LightControls({
             return (
               <div key={slider.key} className="slider">
                 <div className="slider-head">
-                  <span>{slider.label}</span>
+                  <span>{m.lights.sliders[slider.key].label}</span>
                   <span className="slider-value">
                     {value}
                     {slider.unit}
@@ -147,7 +143,8 @@ export function LightControls({
             );
           })}
           {onSetting &&
-            SETTINGS.map(({ key, title, desc }) => {
+            SETTINGS.map((key) => {
+              const { title, desc } = m.lights.settings[key];
               const feature = snapshot.features[key];
               // Firmware that predates a setting does not report it at all.
               if (feature === undefined) return null;
@@ -170,10 +167,10 @@ export function LightControls({
                   <span className="action-text">
                     <span id={`${key}-title`} className="action-title">
                       {title}
-                      {feature === "experimental" && <span className="feature-tag">實驗性</span>}
+                      {feature === "experimental" && <span className="feature-tag">{m.lights.experimental}</span>}
                     </span>
                     <span id={`${key}-desc`} className="action-desc">
-                      {pending ? "正在送出…" : desc(on)}
+                      {pending ? m.lights.sendingSetting : desc(on)}
                     </span>
                   </span>
                   <span className={`switch${on ? " on" : ""}`} aria-hidden="true">

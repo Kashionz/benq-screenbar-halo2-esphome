@@ -116,23 +116,6 @@ export const bridge = {
     invoke<CommandRecord>("set_power", { deviceId, power }),
   lookup: () => invoke<CommandRecord | null>("lookup_command"),
 };
-export function resultLabel(record: CommandRecord): string {
-  switch (record.status) {
-    case "transmitted":
-      return "指令已送出";
-    case "failed":
-      return "發送失敗";
-    case "expired":
-      return "指令已過期";
-    case "superseded":
-      return "指令已被新操作取代";
-    case "accepted":
-    case "executing":
-      return "處理中";
-    default:
-      return "結果不明";
-  }
-}
 // Listen only to events addressed to this window; a listener with the default
 // "Any" target would also receive events meant for the other window.
 const own = <T>(event: string, handler: (payload: T) => void) =>

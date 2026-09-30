@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseIntent, parseState, trayLine, type FlyoutState } from "./flyout";
+import { MESSAGES } from "./i18n";
+
+const zh = MESSAGES["zh-TW"];
 
 const base: FlyoutState = {
   connected: true,
@@ -13,6 +16,7 @@ const base: FlyoutState = {
   status: null,
   updated: "21:14:08",
   theme: "light",
+  locale: "zh-TW",
 };
 
 describe("parseIntent", () => {
@@ -56,24 +60,24 @@ describe("parseState", () => {
 
 describe("trayLine", () => {
   it("hints the next explicit action while ready", () => {
-    expect(trayLine(base, "關燈")).toEqual({ tone: "idle", body: "按一下關燈", lookup: false });
+    expect(trayLine(zh, base, "關燈")).toEqual({ tone: "idle", body: "按一下關燈", lookup: false });
   });
   it("covers disconnected, offline, radio and command states", () => {
-    expect(trayLine(null, "開燈")).toMatchObject({ body: "未連線" });
-    expect(trayLine({ ...base, connected: false }, "開燈")).toMatchObject({ body: "未連線" });
-    expect(trayLine({ ...base, lock: "已斷線" }, "關燈")).toMatchObject({ tone: "warn", title: "已斷線" });
-    expect(trayLine({ ...base, lock: "無線模組未就緒" }, "關燈")).toMatchObject({ title: "無線模組未就緒" });
+    expect(trayLine(zh, null, "開燈")).toMatchObject({ body: "未連線" });
+    expect(trayLine(zh, { ...base, connected: false }, "開燈")).toMatchObject({ body: "未連線" });
+    expect(trayLine(zh, { ...base, lock: "offline" }, "關燈")).toMatchObject({ tone: "warn", title: "已斷線" });
+    expect(trayLine(zh, { ...base, lock: "radio" }, "關燈")).toMatchObject({ title: "無線模組未就緒" });
     expect(
-      trayLine(
-        { ...base, lock: "結果不明，請先查詢", status: { tone: "warn", title: "結果不明", body: "請先查詢，不要重送。", lookup: true } },
+      trayLine(zh, 
+        { ...base, lock: "unknown", status: { tone: "warn", title: "結果不明", body: "請先查詢，不要重送。", lookup: true } },
         "關燈",
       ),
     ).toEqual({ tone: "warn", title: "結果不明", body: "，請先查詢", lookup: true });
     expect(
-      trayLine({ ...base, status: { tone: "busy", title: "處理中", body: "正在送出「關燈」", lookup: false } }, "關燈"),
+      trayLine(zh, { ...base, status: { tone: "busy", title: "處理中", body: "正在送出「關燈」", lookup: false } }, "關燈"),
     ).toMatchObject({ tone: "busy", title: "處理中", body: " · 正在送出「關燈」" });
     expect(
-      trayLine({ ...base, status: { tone: "ok", title: "指令已送出", body: "", lookup: false } }, "關燈"),
+      trayLine(zh, { ...base, status: { tone: "ok", title: "指令已送出", body: "", lookup: false } }, "關燈"),
     ).toMatchObject({ title: "指令已送出", body: "" });
   });
 });

@@ -10,6 +10,42 @@ use tokio::sync::Mutex;
 #[cfg(desktop)]
 mod tray;
 
+/// The main window has a fixed size (tauri.conf.json) that shows every page
+/// without scrolling. On a work area too small for it, shrink the inner size
+/// by the overflow so the window stays on screen; the pages then scroll.
+/// Sizes are physical pixels; None keeps the configured size.
+#[cfg(desktop)]
+fn fit_inner(inner: (u32, u32), outer: (u32, u32), work: (u32, u32)) -> Option<(u32, u32)> {
+    let over_w = outer.0.saturating_sub(work.0);
+    let over_h = outer.1.saturating_sub(work.1);
+    (over_w > 0 || over_h > 0).then(|| {
+        (
+            inner.0.saturating_sub(over_w),
+            inner.1.saturating_sub(over_h),
+        )
+    })
+}
+
+#[cfg(desktop)]
+fn fit_main_window(window: &tauri::WebviewWindow) {
+    let (Ok(inner), Ok(outer), Ok(Some(monitor))) = (
+        window.inner_size(),
+        window.outer_size(),
+        window.current_monitor(),
+    ) else {
+        return;
+    };
+    let work = monitor.work_area().size;
+    if let Some((width, height)) = fit_inner(
+        (inner.width, inner.height),
+        (outer.width, outer.height),
+        (work.width, work.height),
+    ) {
+        let _ = window.set_size(tauri::PhysicalSize::new(width, height));
+        let _ = window.center();
+    }
+}
+
 /// Match the Windows 11 title bar to the App background: #e6e8ec with dark
 /// text, or #111317 with light text in the dark theme. Older Windows ignores
 /// these attributes and keeps the system title bar.
@@ -483,6 +519,10 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 match_title_bar(&window, false);
             }
+            #[cfg(desktop)]
+            if let Some(window) = app.get_webview_window("main") {
+                fit_main_window(&window);
+            }
             let root = app.path().app_data_dir()?;
             let export_dir = app
                 .path()
@@ -529,4 +569,23 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("Unable to start HaloDesk");
+}
+
+#[cfg(all(test, desktop))]
+mod tests {
+    use super::fit_inner;
+
+    #[test]
+    fn keeps_the_fixed_size_when_it_fits() {
+        assert_eq!(fit_inner((1575, 788), (1591, 835), (1920, 1032)), None);
+    }
+
+    #[test]
+    fn shrinks_by_the_overflow_on_a_small_work_area() {
+        // 1260 × 630 at 175 % on a 1920 × 1080 screen with a taskbar.
+        assert_eq!(
+            fit_inner((2205, 1103), (2221, 1158), (1920, 1032)),
+            Some((1904, 977))
+        );
+    }
 }

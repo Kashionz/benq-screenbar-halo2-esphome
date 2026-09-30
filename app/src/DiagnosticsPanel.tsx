@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { bridge, failure, type DiagnosticReport } from "./bridge";
+import { bridge, failure, type DiagnosticReport, type Fault } from "./bridge";
 import type { Tone } from "./controlState";
+import { useMessages, type Messages } from "./i18n";
 
 type DiagnosticEvent = DiagnosticReport["events"][number];
+type Notice = { kind: "cleared" } | { kind: "exported"; path: string } | { kind: "error"; fault: Fault } | null;
 
 const CONNECTION = new Set([
   "NETWORK",
@@ -15,42 +17,43 @@ const CONNECTION = new Set([
 const STORAGE = new Set(["CREDENTIAL_STORE", "STORAGE_ERROR"]);
 
 /** Plain-language row for one stored event; codes stay in the raw line. */
-export function describeEvent(event: DiagnosticEvent): { title: string; status: string; tone: Tone } {
+export function describeEvent(m: Messages, event: DiagnosticEvent): { title: string; status: string; tone: Tone } {
+  const d = m.diag;
   if (event.kind === "command") {
     switch (event.status) {
       case "transmitted":
-        return { title: "命令", status: "已送出", tone: "ok" };
+        return { title: d.command, status: d.sent, tone: "ok" };
       case "failed":
-        return { title: "命令", status: "發送失敗", tone: "err" };
+        return { title: d.command, status: d.sendFailed, tone: "err" };
       case "expired":
-        return { title: "命令", status: "已過期", tone: "idle" };
+        return { title: d.command, status: d.expired, tone: "idle" };
       case "superseded":
-        return { title: "命令", status: "已被取代", tone: "idle" };
+        return { title: d.command, status: d.superseded, tone: "idle" };
       case "accepted":
       case "executing":
-        return { title: "命令", status: "處理中", tone: "idle" };
+        return { title: d.command, status: d.busy, tone: "idle" };
       default:
-        return { title: "命令", status: "結果不明", tone: "warn" };
+        return { title: d.command, status: d.unknown, tone: "warn" };
     }
   }
   if (event.kind === "state") {
     switch (event.status) {
       case "ready":
-        return { title: "狀態同步", status: "就緒", tone: "ok" };
+        return { title: d.sync, status: d.ready, tone: "ok" };
       case "learning":
-        return { title: "狀態同步", status: "學習位址中", tone: "idle" };
+        return { title: d.sync, status: d.learning, tone: "idle" };
       case "fault":
       case "unavailable":
-        return { title: "狀態同步", status: "無線模組未就緒", tone: "err" };
+        return { title: d.sync, status: d.radio, tone: "err" };
       default:
-        return { title: "狀態同步", status: "狀態不明", tone: "idle" };
+        return { title: d.sync, status: d.unknownState, tone: "idle" };
     }
   }
   const code = event.error_code ?? "";
-  if (code === "UNKNOWN_OUTCOME") return { title: "命令", status: "結果不明", tone: "warn" };
-  if (CONNECTION.has(code)) return { title: "連線", status: "失敗", tone: "err" };
-  if (STORAGE.has(code)) return { title: "儲存", status: "失敗", tone: "err" };
-  return { title: "命令", status: "失敗", tone: "err" };
+  if (code === "UNKNOWN_OUTCOME") return { title: d.command, status: d.unknown, tone: "warn" };
+  if (CONNECTION.has(code)) return { title: d.connection, status: d.failed, tone: "err" };
+  if (STORAGE.has(code)) return { title: d.storage, status: d.failed, tone: "err" };
+  return { title: d.command, status: d.failed, tone: "err" };
 }
 
 const hex = (value: number | null) => value?.toString(16).toUpperCase() ?? "—";
@@ -79,7 +82,7 @@ function time(unixMs: number) {
  */
 function useDiagnostics(reloadKey: string) {
   const [report, setReport] = useState<DiagnosticReport | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<Fault | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -92,10 +95,10 @@ function useDiagnostics(reloadKey: string) {
       const next = await bridge.diagnostics();
       if (mounted.current && next) {
         setReport(next);
-        setError("");
+        setError(null);
       }
     } catch (e) {
-      if (mounted.current) setError(failure(e).message);
+      if (mounted.current) setError(failure(e));
     }
   }, []);
   useEffect(() => {
@@ -105,9 +108,11 @@ function useDiagnostics(reloadKey: string) {
 }
 
 export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: string }) {
+  const m = useMessages();
+  const d = m.diag;
   const { report, error, reload } = useDiagnostics(reloadKey);
   const iphone = /iPhone|iPod/.test(navigator.userAgent);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const mounted = useRef(true);
@@ -119,19 +124,19 @@ export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: 
   }, []);
   async function action(kind: "export" | "clear") {
     setBusy(true);
-    setMessage("");
+    setMessage(null);
     try {
       if (kind === "clear") {
         await bridge.clearDiagnostics();
-        if (mounted.current) setMessage("歷史紀錄已清除。");
+        if (mounted.current) setMessage({ kind: "cleared" });
       }
       if (kind === "export") {
         const path = await bridge.exportDiagnostics();
-        if (mounted.current) setMessage(`已匯出：${path}`);
+        if (mounted.current) setMessage({ kind: "exported", path });
       }
       await reload();
     } catch (e) {
-      if (mounted.current) setMessage(failure(e).message);
+      if (mounted.current) setMessage({ kind: "error", fault: failure(e) });
     } finally {
       if (mounted.current) setBusy(false);
     }
@@ -139,12 +144,12 @@ export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: 
   const rows = (report?.events ?? [])
     .slice()
     .reverse()
-    .map((event) => ({ event, ...describeEvent(event) }));
+    .map((event) => ({ event, ...describeEvent(m, event) }));
   const count = (tone: Tone) => rows.filter((row) => row.tone === tone).length;
   const counts: Array<[Tone, string]> = [
-    ["ok", "成功"],
-    ["warn", "結果不明"],
-    ["err", "失敗"],
+    ["ok", d.ok],
+    ["warn", d.unknown],
+    ["err", d.failed],
   ];
   return (
     <div className="stack">
@@ -159,9 +164,9 @@ export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: 
           </div>
         ))}
       </div>
-      <section aria-label="事件">
+      <section aria-label={d.events}>
         <div className="diag-toolbar">
-          <span>最近 {rows.length} 筆 · 保留最近 200 筆</span>
+          <span>{d.recent(rows.length)}</span>
           <button
             type="button"
             role="switch"
@@ -169,7 +174,7 @@ export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: 
             className="raw-toggle"
             onClick={() => setShowRaw((value) => !value)}
           >
-            原始資料
+            {d.raw}
             <span className={`switch small${showRaw ? " on" : ""}`} aria-hidden="true">
               <span />
             </span>
@@ -194,30 +199,32 @@ export function DiagnosticsPanel({ raw, reloadKey }: { raw: unknown; reloadKey: 
               })}
             </ol>
           ) : (
-            <div className="event-empty">沒有紀錄</div>
+            <div className="event-empty">{d.empty}</div>
           )}
           {showRaw && <pre className="raw-json">{JSON.stringify(raw, null, 2)}</pre>}
           <div className="diag-foot">
-            <span>匯出檔不含帳號、IP 與密碼。</span>
+            <span>{d.privacy}</span>
             <button type="button" className="pill-button" disabled={busy} onClick={() => void action("export")}>
-              匯出 JSON
+              {d.export}
             </button>
             <button type="button" className="pill-button danger" disabled={busy} onClick={() => void action("clear")}>
-              清除紀錄
+              {d.clear}
             </button>
           </div>
         </div>
         {(error || report?.warning) && (
           <p role="alert" className="group-note warn">
-            {error || report?.warning?.message}
+            {m.fault((error ?? report?.warning)!)}
           </p>
         )}
         {message && (
           <div role="status" className="group-note">
-            {message}
-            {iphone && message.startsWith("已匯出：") && (
-              <div>到「檔案」→「我的 iPhone」→「HaloDesk」→「HaloDesk」取用。</div>
-            )}
+            {message.kind === "cleared"
+              ? d.cleared
+              : message.kind === "exported"
+                ? d.exported(message.path)
+                : m.fault(message.fault)}
+            {iphone && message.kind === "exported" && <div>{d.iphoneHint}</div>}
           </div>
         )}
       </section>

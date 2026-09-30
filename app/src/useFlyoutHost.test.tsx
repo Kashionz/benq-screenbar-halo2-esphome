@@ -18,6 +18,7 @@ const state: FlyoutState = {
   status: null,
   updated: "",
   theme: "light",
+  locale: "zh-TW",
 };
 let intent!: (payload: unknown) => Promise<void> | void;
 let shown!: () => void;
@@ -80,8 +81,8 @@ it("passes power and live adjustments to the main window's guarded handlers", as
   expect(flyout.ack).toHaveBeenCalledWith({ id: "a", done: true });
 });
 it("refuses intents while locked and ignores malformed ones", async () => {
-  const h = handlers({ lock: "結果不明，請先查詢" });
-  renderHook(() => useFlyoutHost(true, { ...state, lock: "結果不明，請先查詢" }, h));
+  const h = handlers({ lock: "unknown" });
+  renderHook(() => useFlyoutHost(true, { ...state, lock: "unknown" }, h));
   await waitFor(() => expect(flyout.onIntent).toHaveBeenCalled());
   await act(async () => intent({ id: "p", kind: "power", value: true }));
   await act(async () => intent({ id: "a", kind: "adjust", patch: { front_brightness: 40 } }));

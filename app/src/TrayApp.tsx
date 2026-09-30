@@ -14,6 +14,7 @@ import {
 } from "./controlState";
 import { ConnectionStatus, StatusLine } from "./StatusCards";
 import { parseState, trayLine, type FlyoutState } from "./flyout";
+import { I18nContext, MESSAGES, loadLocale, resolveLocale, useDocumentLocale } from "./i18n";
 import { detectPlatform } from "./platform";
 import { loadTheme, useDocumentTheme, useResolvedTheme } from "./theme";
 
@@ -39,6 +40,9 @@ export default function TrayApp() {
   // Until the main window publishes its theme, use the saved choice.
   const fallback = useResolvedTheme(loadTheme());
   useDocumentTheme(state?.theme ?? fallback);
+  // Likewise the language: the saved choice until the main window publishes its own.
+  const m = MESSAGES[state?.locale ?? resolveLocale(loadLocale())] ?? MESSAGES["zh-TW"];
+  useDocumentLocale(m, m.flyoutTitle);
   useEffect(() => {
     if (!native) return;
     let disposed = false;
@@ -102,8 +106,8 @@ export default function TrayApp() {
   // The main window's own power command is in flight: keep the button's look
   // but ignore presses, as the main window does.
   const powerPending = connected && state?.status?.tone === "busy";
-  const next = desired?.power ? "關燈" : "開燈";
-  const line = trayLine(connected ? state : null, next);
+  const next = m.action.power(!desired?.power);
+  const line = trayLine(m, connected ? state : null, next);
   const has = (key: string) =>
     state?.features[key] === "verified" || state?.features[key] === "experimental";
   const adjust = (patch: Draft) => {
@@ -117,95 +121,97 @@ export default function TrayApp() {
       return rest;
     });
   return (
-    <div ref={panel} className={`flyout flyout-${platform}`}>
-      <div className="flyout-head">
-        <div className="flyout-name">ScreenBar Halo 2</div>
-        <button type="button" className="flyout-open" onClick={() => void flyout.openMain().catch(() => {})}>
-          開啟 HaloDesk
-        </button>
-      </div>
-      <div className="flyout-card">
-        <div className="flyout-power">
-          <button
-            type="button"
-            className={`power-button small${connected && desired?.power ? " on" : ""}`}
-            disabled={locked && !powerPending}
-            aria-disabled={waiting !== null || powerPending || undefined}
-            aria-label={next}
-            title={next}
-            onClick={() => {
-              if (!desired || waiting !== null || powerPending) return;
-              const id = nextId();
-              setWaiting(id);
-              void flyout.send({ id, kind: "power", value: !desired.power }).catch(() => setWaiting(null));
-            }}
-          >
-            <PowerIcon size={20} />
+    <I18nContext.Provider value={m}>
+      <div ref={panel} className={`flyout flyout-${platform}`}>
+        <div className="flyout-head">
+          <div className="flyout-name">ScreenBar Halo 2</div>
+          <button type="button" className="flyout-open" onClick={() => void flyout.openMain().catch(() => {})}>
+            {m.tray.open}
           </button>
-          <div className="flyout-power-text">
-            <div className="flyout-power-state">{connected ? (desired?.power ? "開啟" : "關閉") : "—"}</div>
-            <StatusLine line={line} />
-          </div>
-          {line.lookup && (
-            <button type="button" className={`flyout-lookup tone-${line.tone}`}
-              onClick={() => void flyout.openMain().catch(() => {})}>
-              查詢
+        </div>
+        <div className="flyout-card">
+          <div className="flyout-power">
+            <button
+              type="button"
+              className={`power-button small${connected && desired?.power ? " on" : ""}`}
+              disabled={locked && !powerPending}
+              aria-disabled={waiting !== null || powerPending || undefined}
+              aria-label={next}
+              title={next}
+              onClick={() => {
+                if (!desired || waiting !== null || powerPending) return;
+                const id = nextId();
+                setWaiting(id);
+                void flyout.send({ id, kind: "power", value: !desired.power }).catch(() => setWaiting(null));
+              }}
+            >
+              <PowerIcon size={20} />
             </button>
-          )}
-        </div>
-        <div className={`flyout-controls${locked ? " locked" : ""}`}>
-          <ModeSelector
-            mode={values?.mode ?? null}
-            disabled={locked || !has("mode")}
-            className="flyout-modes"
-            onChange={(mode) => adjust({ mode })}
-          />
-          {SLIDERS.map((slider) => {
-            const value = values?.[slider.key] ?? slider.min;
-            const unlit = !!values && !adjustable(values.mode, slider.key);
-            return (
-              <div key={slider.key} className="flyout-slider">
-                <span className="flyout-slider-label">{slider.label}</span>
-                <SliderTrack
-                  slider={slider}
-                  value={value}
-                  className="compact"
-                  disabled={locked || unlit || !has(slider.key)}
-                  onChange={(next) => {
-                    setDragging((current) => ({ ...current, [slider.key]: next }));
-                    adjust({ [slider.key]: next });
-                  }}
-                  onPointerUp={() => release(slider.key)}
-                  onKeyUp={() => release(slider.key)}
-                  onBlur={() => release(slider.key)}
-                />
-                <span className="flyout-slider-value">{connected ? `${value}${slider.unit}` : "—"}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {presets.length > 0 && (
-        <div className={`flyout-presets${locked ? " locked" : ""}`}>
-          {presets.map((preset) => {
-            const active = !!values && samePreset(preset.values, values);
-            return (
-              <button key={preset.id} type="button" className={`flyout-tile${active ? " active" : ""}`}
-                disabled={locked} title={lightSummary(preset.values)} aria-label={`帶入情境 ${preset.name}`}
-                aria-pressed={active} onClick={() => adjust(presetValues(preset.values))}>
-                <span className="swatch" style={{ background: tempColor(preset.values.temperature_k) }} />
-                <span className="tile-name">{preset.name}</span>
+            <div className="flyout-power-text">
+              <div className="flyout-power-state">{connected ? (desired?.power ? m.power.on : m.power.off) : "—"}</div>
+              <StatusLine line={line} />
+            </div>
+            {line.lookup && (
+              <button type="button" className={`flyout-lookup tone-${line.tone}`}
+                onClick={() => void flyout.openMain().catch(() => {})}>
+                {m.tray.lookup}
               </button>
-            );
-          })}
+            )}
+          </div>
+          <div className={`flyout-controls${locked ? " locked" : ""}`}>
+            <ModeSelector
+              mode={values?.mode ?? null}
+              disabled={locked || !has("mode")}
+              className="flyout-modes"
+              onChange={(mode) => adjust({ mode })}
+            />
+            {SLIDERS.map((slider) => {
+              const value = values?.[slider.key] ?? slider.min;
+              const unlit = !!values && !adjustable(values.mode, slider.key);
+              return (
+                <div key={slider.key} className="flyout-slider">
+                  <span className="flyout-slider-label">{m.lights.sliders[slider.key].label}</span>
+                  <SliderTrack
+                    slider={slider}
+                    value={value}
+                    className="compact"
+                    disabled={locked || unlit || !has(slider.key)}
+                    onChange={(next) => {
+                      setDragging((current) => ({ ...current, [slider.key]: next }));
+                      adjust({ [slider.key]: next });
+                    }}
+                    onPointerUp={() => release(slider.key)}
+                    onKeyUp={() => release(slider.key)}
+                    onBlur={() => release(slider.key)}
+                  />
+                  <span className="flyout-slider-value">{connected ? `${value}${slider.unit}` : "—"}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      )}
-      <div className="flyout-foot">
-        <ConnectionStatus connected={connected} online={!!state?.online} updated={state?.updated ?? ""} />
-        <button type="button" onClick={() => void flyout.quit().catch(() => {})}>
-          結束
-        </button>
+        {presets.length > 0 && (
+          <div className={`flyout-presets${locked ? " locked" : ""}`}>
+            {presets.map((preset) => {
+              const active = !!values && samePreset(preset.values, values);
+              return (
+                <button key={preset.id} type="button" className={`flyout-tile${active ? " active" : ""}`}
+                  disabled={locked} title={lightSummary(m, preset.values)} aria-label={m.presets.apply(preset.name)}
+                  aria-pressed={active} onClick={() => adjust(presetValues(preset.values))}>
+                  <span className="swatch" style={{ background: tempColor(preset.values.temperature_k) }} />
+                  <span className="tile-name">{preset.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="flyout-foot">
+          <ConnectionStatus connected={connected} online={!!state?.online} updated={state?.updated ?? ""} />
+          <button type="button" onClick={() => void flyout.quit().catch(() => {})}>
+            {m.tray.quit}
+          </button>
+        </div>
       </div>
-    </div>
+    </I18nContext.Provider>
   );
 }

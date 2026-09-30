@@ -33,6 +33,7 @@ const ready: FlyoutState = {
   status: null,
   updated: "21:14:08",
   theme: "light",
+  locale: "zh-TW",
 };
 let publish!: (payload: unknown) => void;
 let ack!: (payload: unknown) => void;
@@ -126,7 +127,7 @@ it("keeps power and sliders usable while the main window is sending", async () =
 it("locks with the main window and sends unknown outcomes to the main window for lookup", async () => {
   await open({
     ...ready,
-    lock: "結果不明，請先查詢",
+    lock: "unknown",
     status: { tone: "warn", title: "結果不明", body: "請先查詢，不要重送。", lookup: true },
   });
   expect(screen.getByRole("button", { name: "關燈" })).toBeDisabled();
@@ -148,7 +149,7 @@ it("drops a value under the pointer when reopened and hides on Escape", async ()
 it("shows the main window's command status beside power and the offline state in the footer", async () => {
   await open({
     ...ready,
-    lock: "處理中",
+    lock: "busy",
     sending: true,
     status: { tone: "busy", title: "處理中", body: "正在送出「關燈」", lookup: false },
   });
@@ -159,7 +160,7 @@ it("shows the main window's command status beside power and the offline state in
   expect(power).toHaveAttribute("aria-disabled", "true");
   await userEvent.click(power);
   expect(intents()).toHaveLength(0);
-  act(() => publish({ ...ready, online: false, lock: "已斷線" }));
+  act(() => publish({ ...ready, online: false, lock: "offline" }));
   expect(screen.getByText("已斷線")).toBeInTheDocument();
   expect(screen.getByText("已斷線 · 重試中 · 最後同步 21:14:08")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "關燈" })).toBeDisabled();
@@ -169,4 +170,14 @@ it("follows the theme the main window publishes", async () => {
   expect(document.documentElement.dataset.theme).toBe("dark");
   act(() => publish({ ...ready, theme: "light" }));
   expect(document.documentElement.dataset.theme).toBe("light");
+});
+it("follows the language the main window publishes", async () => {
+  await open({ ...ready, locale: "en" });
+  expect(document.documentElement.lang).toBe("en");
+  expect(screen.getByRole("button", { name: "Open HaloDesk" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Turn off" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Front brightness")).toBeInTheDocument();
+  act(() => publish({ ...ready, locale: "zh-TW" }));
+  expect(document.documentElement.lang).toBe("zh-Hant");
+  expect(screen.getByRole("button", { name: "開啟 HaloDesk" })).toBeInTheDocument();
 });

@@ -345,11 +345,38 @@ fn flyout_window(app: &tauri::App) -> tauri::Result<WebviewWindow> {
 
 /// What the tray menu may offer, from the main window's published flyout
 /// state: power and presets only while controls are unlocked, and only the
-/// power item that changes the lamp's desired state.
+/// power item that changes the lamp's desired state. The labels follow the
+/// main window's language; before it publishes, they stay in Chinese.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct MenuFlags {
     ready: bool,
     power: Option<bool>,
+    english: bool,
+}
+
+struct MenuLabels {
+    power_on: &'static str,
+    power_off: &'static str,
+    show: &'static str,
+    quit: &'static str,
+}
+
+fn menu_labels(english: bool) -> MenuLabels {
+    if english {
+        MenuLabels {
+            power_on: "Turn on",
+            power_off: "Turn off",
+            show: "Open HaloDesk",
+            quit: "Quit HaloDesk",
+        }
+    } else {
+        MenuLabels {
+            power_on: "開燈",
+            power_off: "關燈",
+            show: "開啟 HaloDesk",
+            quit: "結束 HaloDesk",
+        }
+    }
 }
 
 pub fn menu_flags(state: &serde_json::Value) -> MenuFlags {
@@ -358,7 +385,12 @@ pub fn menu_flags(state: &serde_json::Value) -> MenuFlags {
     let ready = power.is_some()
         && state["lock"].is_null()
         && state["status"]["tone"].as_str() != Some("busy");
-    MenuFlags { ready, power }
+    let english = state["locale"].as_str() == Some("en");
+    MenuFlags {
+        ready,
+        power,
+        english,
+    }
 }
 
 /// The intent a tray menu item sends to the main window's coordinator, the
@@ -400,18 +432,19 @@ fn stored_presets(app: &tauri::AppHandle) -> Vec<Preset> {
 fn build_menu(app: &tauri::AppHandle, flags: MenuFlags) -> tauri::Result<Menu<Wry>> {
     let on = flags.ready && flags.power == Some(false);
     let off = flags.ready && flags.power == Some(true);
+    let labels = menu_labels(flags.english);
     let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
         Box::new(MenuItem::with_id(
             app,
             "halo-power-on",
-            "開燈",
+            labels.power_on,
             on,
             None::<&str>,
         )?),
         Box::new(MenuItem::with_id(
             app,
             "halo-power-off",
-            "關燈",
+            labels.power_off,
             off,
             None::<&str>,
         )?),
@@ -433,14 +466,14 @@ fn build_menu(app: &tauri::AppHandle, flags: MenuFlags) -> tauri::Result<Menu<Wr
     items.push(Box::new(MenuItem::with_id(
         app,
         "halo-show",
-        "開啟 HaloDesk",
+        labels.show,
         true,
         None::<&str>,
     )?));
     items.push(Box::new(MenuItem::with_id(
         app,
         "halo-quit",
-        "結束 HaloDesk",
+        labels.quit,
         true,
         None::<&str>,
     )?));
@@ -558,6 +591,7 @@ mod tests {
         let ready = |power| MenuFlags {
             ready: true,
             power: Some(power),
+            english: false,
         };
         assert_eq!(
             menu_flags(&state(true, false, json!(null), "")),
@@ -568,8 +602,8 @@ mod tests {
             ready(true)
         );
         for locked in [
-            state(true, true, json!("處理中"), ""),
-            state(true, true, json!("結果不明，請先查詢"), "warn"),
+            state(true, true, json!("busy"), ""),
+            state(true, true, json!("unknown"), "warn"),
             state(true, false, json!(null), "busy"),
         ] {
             assert!(!menu_flags(&locked).ready);
@@ -579,6 +613,20 @@ mod tests {
             MenuFlags::default()
         );
         assert_eq!(menu_flags(&json!({})), MenuFlags::default());
+    }
+
+    #[test]
+    fn the_menu_follows_the_main_window_language() {
+        let mut english = state(true, false, json!(null), "");
+        english["locale"] = json!("en");
+        assert!(menu_flags(&english).english);
+        assert!(menu_flags(&english).ready);
+        let mut chinese = english.clone();
+        chinese["locale"] = json!("zh-TW");
+        assert!(!menu_flags(&chinese).english);
+        assert!(!menu_flags(&state(true, false, json!(null), "")).english);
+        assert_eq!(menu_labels(true).power_on, "Turn on");
+        assert_eq!(menu_labels(false).quit, "結束 HaloDesk");
     }
 
     #[test]

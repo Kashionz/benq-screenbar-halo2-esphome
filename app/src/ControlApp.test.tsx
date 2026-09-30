@@ -6,7 +6,6 @@ import App from "./ControlApp";
 import {
   bridge,
   flyout,
-  resultLabel,
   type Snapshot,
   type CommandRecord,
 } from "./bridge";
@@ -220,11 +219,6 @@ describe("control safety", () => {
     expect(screen.queryByText(/已連線/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /開燈|關燈/ })).not.toBeInTheDocument();
   });
-  it("never labels unknown status as success", () => {
-    expect(resultLabel({ status: "future_success" } as CommandRecord)).toBe(
-      "結果不明",
-    );
-  });
 });
 
 describe("single power button", () => {
@@ -255,7 +249,7 @@ describe("presence switch", () => {
     vi.mocked(bridge.setState).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
     render(<App />);
     const user = await login();
-    const toggle = screen.getByRole("switch", { name: /入席感應/ });
+    const toggle = screen.getByRole("switch", { name: /入席偵測/ });
     expect(toggle).toHaveAttribute("aria-checked", "false");
     await user.click(toggle);
     expect(bridge.setState).toHaveBeenCalledExactlyOnceWith(snapshot.device_id, { ultrasonic_enabled: true });
@@ -283,7 +277,7 @@ describe("presence switch", () => {
     await user.click(toggle);
     expect(bridge.setState).toHaveBeenCalledExactlyOnceWith(snapshot.device_id, { auto_dimming: true });
     expect(toggle).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("switch", { name: /入席感應/ })).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByRole("switch", { name: /入席偵測/ })).toHaveAttribute("aria-busy", "false");
     expect(screen.getByLabelText("後燈亮度")).toBeDisabled();
     vi.mocked(bridge.state).mockResolvedValue(withDesired({ auto_dimming: true }));
     finish(transmitted("dimming"));
@@ -295,11 +289,11 @@ describe("presence switch", () => {
     vi.mocked(bridge.setState).mockResolvedValue({ ...transmitted("f"), status: "failed", error: { code: "TX_MAX_RETRIES" } });
     render(<App />);
     const user = await login();
-    await user.click(screen.getByRole("switch", { name: /入席感應/ }));
+    await user.click(screen.getByRole("switch", { name: /入席偵測/ }));
     await screen.findByText("發送失敗");
     await new Promise((resolve) => setTimeout(resolve, 900));
     expect(bridge.setState).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("switch", { name: /入席感應/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: /入席偵測/ })).toHaveAttribute("aria-checked", "false");
   });
 });
 
@@ -615,7 +609,7 @@ describe("tray flyout intents", () => {
     await intent({ id: "one", kind: "power", value: true });
     expect(flyout.ack).toHaveBeenCalledWith({ id: "one", done: false });
     expect(bridge.power).not.toHaveBeenCalled();
-    expect(lastPublished()).toMatchObject({ connected: false, lock: "已斷線" });
+    expect(lastPublished()).toMatchObject({ connected: false, lock: "offline" });
   });
 });
 
@@ -635,5 +629,37 @@ describe("appearance", () => {
     expect(bridge.power).not.toHaveBeenCalled();
     expect(bridge.setState).not.toHaveBeenCalled();
     window.localStorage.clear();
+  });
+});
+
+describe("language", () => {
+  afterEach(() => window.localStorage.clear());
+  it("switches every surface to English from settings and remembers the choice", async () => {
+    render(<App />);
+    const user = await login();
+    await openDevice(user);
+    await user.click(screen.getByRole("tab", { name: /外觀/ }));
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    expect(window.localStorage.getItem("halodesk.locale")).toBe("en");
+    expect(document.documentElement.lang).toBe("en");
+    expect(screen.getByRole("tab", { name: /Appearance/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Lighting" }));
+    expect(screen.getByRole("button", { name: "Turn off" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Front brightness")).toBeInTheDocument();
+    expect(screen.getByText(/^Connected · synced /)).toBeInTheDocument();
+    // The flyout gets the language with the rest of the published state.
+    expect(lastPublished()).toMatchObject({ locale: "en" });
+    expect(bridge.power).not.toHaveBeenCalled();
+    expect(bridge.setState).not.toHaveBeenCalled();
+  });
+  it("shows native faults in English by their code", async () => {
+    window.localStorage.setItem("halodesk.locale", "en");
+    vi.mocked(bridge.connect).mockRejectedValue({ code: "UNAUTHORIZED", message: "帳號或密碼不正確。" });
+    render(<App />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Username"), "test");
+    await user.type(screen.getByLabelText("Password"), "bad");
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Incorrect username or password."));
   });
 });

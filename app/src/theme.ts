@@ -3,12 +3,6 @@ import { useEffect, useState } from "react";
 export type ThemePref = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
 
-export const THEME_LABELS: Record<ThemePref, string> = {
-  light: "淺色",
-  dark: "深色",
-  system: "跟隨系統",
-};
-
 const KEY = "halodesk.theme";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 

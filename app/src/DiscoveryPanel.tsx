@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { bridge, failure, type DiscoveredBridge } from "./bridge";
-import { DISCOVERY_HINT, type Platform } from "./platform";
+import { bridge, failure, type DiscoveredBridge, type Fault } from "./bridge";
+import { useMessages } from "./i18n";
+import type { Platform } from "./platform";
 
-type Message = { kind: "empty" | "picked" | "error"; text: string } | null;
+type Message = { kind: "empty" | "picked" } | { kind: "error"; fault: Fault } | null;
 
 /**
  * Bounded LAN search. Selecting a result only fills the address; it never
@@ -16,6 +17,8 @@ export function DiscoveryPanel({ disabled, dimmed = false, current, platform, se
   select: (candidate: DiscoveredBridge) => void;
   onSearching?: (searching: boolean) => void;
 }) {
+  const m = useMessages();
+  const d = m.discovery;
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<DiscoveredBridge[]>([]);
   const [message, setMessage] = useState<Message>(null);
@@ -41,9 +44,9 @@ export function DiscoveryPanel({ disabled, dimmed = false, current, platform, se
       const found = await bridge.discover();
       if (!mounted.current) return;
       setResults(found);
-      setMessage(found.length ? null : { kind: "empty", text: "找不到裝置，可直接輸入 IP。" });
+      setMessage(found.length ? null : { kind: "empty" });
     } catch (error) {
-      if (mounted.current) setMessage({ kind: "error", text: failure(error).message });
+      if (mounted.current) setMessage({ kind: "error", fault: failure(error) });
     } finally {
       inFlight.current = false;
       if (mounted.current) {
@@ -52,21 +55,21 @@ export function DiscoveryPanel({ disabled, dimmed = false, current, platform, se
       }
     }
   }
-  const hint = DISCOVERY_HINT[platform];
+  const hint = m.discoveryHint[platform];
   return (
-    <section aria-label="區域網路">
-      <div className="group-label">區域網路</div>
+    <section aria-label={d.section}>
+      <div className="group-label">{d.section}</div>
       <div className={`glass${dimmed ? " dimmed" : ""}`}>
         <div className="action-row">
           <div className="action-text">
-            <div className="action-title">搜尋區域網路</div>
-            <div className="action-desc">{searching ? "搜尋中…約 5 秒" : "約 5 秒，選取後只會填入位址。"}</div>
+            <div className="action-title">{d.title}</div>
+            <div className="action-desc">{searching ? d.searching : d.desc}</div>
           </div>
           {searching && <span className="spinner" aria-hidden="true" />}
           <button type="button" className="pill-button" disabled={disabled || searching}
-            aria-label={searching ? "搜尋中…約 5 秒" : "搜尋區域網路"} aria-busy={searching}
+            aria-label={searching ? d.searching : d.title} aria-busy={searching}
             onClick={() => void search()}>
-            搜尋
+            {d.search}
           </button>
         </div>
         {results.map((candidate) => {
@@ -74,10 +77,10 @@ export function DiscoveryPanel({ disabled, dimmed = false, current, platform, se
           const picked = current === address;
           return (
             <button key={address} type="button" className="result-row" aria-pressed={picked}
-              aria-label={`選取 ${candidate.name} ${address}`} disabled={disabled || searching}
+              aria-label={d.select(candidate.name, address)} disabled={disabled || searching}
               onClick={() => {
                 select(candidate);
-                setMessage({ kind: "picked", text: "已填入，請輸入密碼。" });
+                setMessage({ kind: "picked" });
               }}>
               <span className="result-icon" aria-hidden="true"><span /></span>
               <span className="result-text">
@@ -91,7 +94,7 @@ export function DiscoveryPanel({ disabled, dimmed = false, current, platform, se
       </div>
       {message && (
         <p role="status" className={`group-note${message.kind === "picked" ? "" : " warn"}`}>
-          {message.text}
+          {message.kind === "error" ? m.fault(message.fault) : message.kind === "picked" ? d.picked : d.empty}
           {message.kind === "empty" && hint && ` ${hint}`}
         </p>
       )}

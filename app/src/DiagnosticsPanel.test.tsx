@@ -6,6 +6,9 @@ import { describeEvent } from "./DiagnosticsPanel";
 import { SettingsPage } from "./SettingsPage";
 import { bridge, type DiagnosticReport, type Snapshot } from "./bridge";
 import examples from "../../protocol/v1/examples.json";
+import { MESSAGES } from "./i18n";
+
+const zh = MESSAGES["zh-TW"];
 vi.mock("./bridge", async (original) => ({
   ...(await original<typeof import("./bridge")>()),
   bridge: { diagnostics: vi.fn(), exportDiagnostics: vi.fn(), clearDiagnostics: vi.fn() },
@@ -62,6 +65,8 @@ function settings(overrides: Partial<Parameters<typeof SettingsPage>[0]> = {}) {
     raw,
     theme: "light",
     setTheme: vi.fn(),
+    locale: "zh-TW",
+    setLocale: vi.fn(),
     refresh: vi.fn(),
     disconnect: vi.fn(),
     forget: vi.fn(),
@@ -123,8 +128,8 @@ it("exports with the iPhone Files hint and clears history", async () => {
   expect(screen.getByText("歷史紀錄已清除。")).toBeInTheDocument();
 });
 it("never labels an unknown command status as sent", () => {
-  expect(describeEvent(event({ status: "unknown" }))).toMatchObject({ status: "結果不明", tone: "warn" });
-  expect(describeEvent(event({ kind: "error", error_code: "NETWORK" }))).toMatchObject({ title: "連線", tone: "err" });
+  expect(describeEvent(zh, event({ status: "unknown" }))).toMatchObject({ status: "結果不明", tone: "warn" });
+  expect(describeEvent(zh, event({ kind: "error", error_code: "NETWORK" }))).toMatchObject({ title: "連線", tone: "err" });
 });
 it("device tab shows bridge facts and hides forget without a saved profile", async () => {
   const { props, view } = settings({ native: false });
@@ -151,9 +156,18 @@ it("marks an unready radio and chooses the theme in the appearance tab", async (
   const look = screen.getByRole("tab", { name: /外觀/ });
   expect(look).toHaveTextContent("跟隨系統");
   await userEvent.click(look);
-  expect(screen.getByRole("radio", { name: "跟隨系統" })).toHaveAttribute("aria-checked", "true");
-  await userEvent.click(screen.getByRole("radio", { name: "深色" }));
+  const themes = within(screen.getByRole("radiogroup", { name: "主題" }));
+  expect(themes.getByRole("radio", { name: "跟隨系統" })).toHaveAttribute("aria-checked", "true");
+  await userEvent.click(themes.getByRole("radio", { name: "深色" }));
   expect(props.setTheme).toHaveBeenCalledExactlyOnceWith("dark");
+});
+it("chooses the language in the appearance tab", async () => {
+  const { props } = settings({ locale: "system" });
+  await userEvent.click(screen.getByRole("tab", { name: /外觀/ }));
+  const languages = within(screen.getByRole("radiogroup", { name: "語言" }));
+  expect(languages.getByRole("radio", { name: "跟隨系統" })).toHaveAttribute("aria-checked", "true");
+  await userEvent.click(languages.getByRole("radio", { name: "English" }));
+  expect(props.setLocale).toHaveBeenCalledExactlyOnceWith("en");
 });
 it("stacks every section without tabs on a phone", async () => {
   settings({ compact: true });

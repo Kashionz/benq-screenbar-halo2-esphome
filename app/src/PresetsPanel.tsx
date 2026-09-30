@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, LazyMotion, MotionConfig, useIsPresent } from "motion/react";
-import * as m from "motion/react-m";
+import * as motion from "motion/react-m";
 import { bridge, failure, type LightState, type Preset, type PresetValues } from "./bridge";
+import { useMessages, type Messages, type Text } from "./i18n";
 import { lightSummary, litLamps, presetValues, samePreset, tempColor, type LightKey } from "./controlState";
 
 export const MAX_PRESETS = 4;
@@ -29,14 +30,14 @@ const TILE_MOTION = {
 } as const;
 
 /** 「4300 K · 70/30%」, 「4300 K · 前 70%」, 「2700 K · 後 40%」 */
-const tileSummary = (v: PresetValues) => {
+const tileSummary = (m: Messages, v: PresetValues) => {
   const lit = litLamps(v.mode);
   const level =
     lit.front && lit.back
       ? `${v.front_brightness}/${v.back_brightness}%`
       : lit.front
-        ? `前 ${v.front_brightness}%`
-        : `後 ${v.back_brightness}%`;
+        ? m.level.front(v.front_brightness ?? 0)
+        : m.level.back(v.back_brightness ?? 0);
   return `${v.temperature_k} K · ${level}`;
 };
 
@@ -65,13 +66,14 @@ function PresetTile({
   // A deleted tile stays on screen while it animates out; it must never
   // apply the deleted values or be deleted again.
   const present = useIsPresent();
+  const m = useMessages();
   return (
-    <m.div ref={ref} className="tile-slot" layout {...TILE_MOTION}>
+    <motion.div ref={ref} className="tile-slot" layout {...TILE_MOTION}>
       <button
         type="button"
         className={`tile${active ? " active" : ""}${editing ? " editing" : ""}`}
-        title={lightSummary(preset.values)}
-        aria-label={`帶入情境 ${preset.name}`}
+        title={lightSummary(m, preset.values)}
+        aria-label={m.presets.apply(preset.name)}
         aria-pressed={active}
         disabled={locked || busy || editing || !present}
         onClick={() => select(presetValues(preset.values))}
@@ -79,22 +81,22 @@ function PresetTile({
         <span className="swatch" style={{ background: tempColor(preset.values.temperature_k) }} />
         <span className="tile-text">
           <span className="tile-name">{preset.name}</span>
-          <span className="tile-sub">{tileSummary(preset.values)}</span>
+          <span className="tile-sub">{tileSummary(m, preset.values)}</span>
         </span>
       </button>
       {editing && (
         <button
           type="button"
           className="tile-delete"
-          aria-label={`刪除情境 ${preset.name}`}
-          title="刪除"
+          aria-label={m.presets.remove(preset.name)}
+          title={m.presets.delete}
           disabled={busy || !present}
           onClick={remove}
         >
           −
         </button>
       )}
-    </m.div>
+    </motion.div>
   );
 }
 
@@ -116,7 +118,8 @@ export function PresetsPanel({
   const [presets, setPresets] = useState<Preset[]>([]);
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(true);
-  const [message, setMessage] = useState("");
+  const m = useMessages();
+  const [message, setMessage] = useState<Text | null>(null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -134,7 +137,7 @@ export function PresetsPanel({
         setAvailable(true);
       })
       .catch((e) => {
-        if (mounted.current) setMessage(failure(e).message);
+        if (mounted.current) setMessage(() => (m: Messages) => m.fault(failure(e)));
       })
       .finally(() => {
         if (mounted.current) setBusy(false);
@@ -164,13 +167,13 @@ export function PresetsPanel({
   };
   async function run(action: () => Promise<Preset[]>) {
     setBusy(true);
-    setMessage("");
+    setMessage(null);
     try {
       const next = await action();
       if (mounted.current) setPresets(next);
       return next;
     } catch (e) {
-      if (mounted.current) setMessage(failure(e).message);
+      if (mounted.current) setMessage(() => (m: Messages) => m.fault(failure(e)));
       return null;
     } finally {
       if (mounted.current) setBusy(false);
@@ -203,16 +206,16 @@ export function PresetsPanel({
     await run(() => bridge.restorePreset(preset, index));
   }
   return (
-    <section aria-label="情境" className="presets">
+    <section aria-label={m.presets.section} className="presets">
       <div className="presets-head">
         <span>
-          情境<span className="num"> · {presets.length}/{MAX_PRESETS}</span>
+          {m.presets.section}<span className="num"> · {presets.length}/{MAX_PRESETS}</span>
         </span>
         {undo ? (
           <>
-            <span className="undo-text" role="status">已刪除「{undo.preset.name}」</span>
+            <span className="undo-text" role="status">{m.presets.deleted(undo.preset.name)}</span>
             <button type="button" className="link strong" disabled={busy} onClick={() => void restore()}>
-              復原
+              {m.presets.undo}
             </button>
           </>
         ) : (
@@ -220,14 +223,14 @@ export function PresetsPanel({
             type="button"
             className="link"
             disabled={!canAdd}
-            title={full ? "最多 4 組情境" : "以目前設定新增情境"}
+            title={full ? m.presets.full(MAX_PRESETS) : m.presets.addTitle}
             onClick={() => {
               setAdding(true);
               setDraftName("");
               setEditing(false);
             }}
           >
-            ＋ 新增
+            {m.presets.add}
           </button>
         )}
         <span className="head-sep" aria-hidden="true" />
@@ -246,7 +249,7 @@ export function PresetsPanel({
             }
           }}
         >
-          {editing ? "完成" : "編輯"}
+          {editing ? m.presets.done : m.presets.edit}
         </button>
       </div>
       <div className="glass presets-card">
@@ -275,41 +278,41 @@ export function PresetsPanel({
       {showAdd && (
         <form
           className="add-panel"
-          aria-label="新增情境"
+          aria-label={m.presets.newPreset}
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
         >
           <div className="add-row">
-            <span className="add-title">新增情境</span>
-            <span className="add-hint">以目前的燈光設定保存</span>
+            <span className="add-title">{m.presets.newPreset}</span>
+            <span className="add-hint">{m.presets.newHint}</span>
           </div>
           <div className="add-row">
             <span className="swatch" style={{ background: tempColor(values.temperature_k) }} />
             <input
-              aria-label="情境名稱"
+              aria-label={m.presets.nameLabel}
               value={draftName}
               maxLength={40}
-              placeholder="名稱"
+              placeholder={m.presets.namePlaceholder}
               autoFocus
               onChange={(e) => setDraftName(e.target.value.slice(0, 40))}
             />
           </div>
           <div className="add-row">
-            <span className="add-summary ellipsis">{lightSummary(values)}</span>
+            <span className="add-summary ellipsis">{lightSummary(m, values)}</span>
             <button type="button" className="text-pill" onClick={() => setAdding(false)}>
-              取消
+              {m.presets.cancel}
             </button>
             <button type="submit" className="primary-pill" disabled={!draftName.trim() || busy}>
-              保存
+              {m.presets.save}
             </button>
           </div>
         </form>
       )}
       {message && (
         <p role="status" className="group-note err">
-          {message}
+          {message(m)}
         </p>
       )}
       {confirm &&
@@ -323,21 +326,21 @@ export function PresetsPanel({
               onClick={(event) => event.stopPropagation()}
             >
               <div id="preset-delete-title" className="dialog-title">
-                刪除這個情境？
+                {m.presets.confirmDelete}
               </div>
               <div className="dialog-preview">
                 <span className="swatch" style={{ background: tempColor(confirm.values.temperature_k) }} />
                 <div className="dialog-preview-text">
                   <span className="ellipsis">{confirm.name}</span>
-                  <span className="ellipsis">{lightSummary(confirm.values)}</span>
+                  <span className="ellipsis">{lightSummary(m, confirm.values)}</span>
                 </div>
               </div>
               <div className="dialog-actions">
                 <button type="button" className="cancel" autoFocus onClick={() => setConfirm(null)}>
-                  取消
+                  {m.presets.cancel}
                 </button>
                 <button type="button" className="destructive" onClick={() => void remove(confirm)}>
-                  刪除
+                  {m.presets.delete}
                 </button>
               </div>
             </div>
