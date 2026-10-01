@@ -82,6 +82,8 @@ export default function App() {
   const refreshing = useRef<Promise<Snapshot | null> | null>(null);
   const commanding = useRef(false);
   const connectionEdited = useRef(false);
+  // Started at login in the tray with a saved connection; ends on disconnect.
+  const autoConnect = useRef(false);
   const lastBoot = useRef<string | null>(null);
   const draftRef = useRef<Draft>({});
   const sentRef = useRef<Draft>({});
@@ -122,13 +124,19 @@ export default function App() {
     let cancelled = false;
     bridge
       .saved()
-      .then((profile) => {
+      .then(async (profile) => {
         if (cancelled) return;
         setSaved(profile);
         if (profile && !connectionEdited.current) {
           setHost(profile.host);
           setPort(profile.port);
           setUsername(profile.username);
+          // Started at login in the tray: connect (read-only) with the saved
+          // connection so the tray works without opening the window.
+          const hidden = await bridge.launchedHidden().catch(() => false);
+          if (cancelled || !hidden || connectionEdited.current) return;
+          autoConnect.current = true;
+          await establish(bridge.connectSaved, false);
         }
       })
       .catch((e) => {
@@ -262,6 +270,7 @@ export default function App() {
   }
   async function disconnect() {
     ++generation.current;
+    autoConnect.current = false;
     setConnected(false);
     setOnline(false);
     setSnapshot(null);
@@ -502,6 +511,9 @@ export default function App() {
       adjust,
       sync: () => {
         if (connected) void refresh();
+        // A login-time connection can fail before the network is up; opening
+        // the tray tries the saved connection again.
+        else if (autoConnect.current && saved && !busy) void useSaved();
       },
     },
   );

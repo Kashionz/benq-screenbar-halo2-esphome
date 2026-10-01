@@ -34,6 +34,7 @@ vi.mock("./bridge", async (original) => ({
     setState: vi.fn(),
     lookup: vi.fn(),
     saved: vi.fn(),
+    launchedHidden: vi.fn(),
     remember: vi.fn(),
     forget: vi.fn(),
     connectSaved: vi.fn(),
@@ -58,6 +59,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(bridge.saved).mockResolvedValue(null);
+  vi.mocked(bridge.launchedHidden).mockResolvedValue(false);
   vi.mocked(bridge.connect).mockResolvedValue(snapshot);
   vi.mocked(bridge.state).mockResolvedValue(snapshot);
   vi.mocked(bridge.diagnostics).mockResolvedValue({ events: [], warning: null });
@@ -154,6 +156,41 @@ describe("control safety", () => {
     await screen.findByText(/^已連線 · 同步 /);
     expect(bridge.connectSaved).toHaveBeenCalledTimes(1);
     expect(bridge.power).not.toHaveBeenCalled();
+  });
+  describe("started at login in the tray", () => {
+    const profile = { host: "192.168.0.99", port: 8080, username: "saved", device_id: snapshot.device_id };
+    beforeEach(() => {
+      vi.mocked(bridge.launchedHidden).mockResolvedValue(true);
+    });
+    it("connects once with the saved connection and sends nothing", async () => {
+      vi.mocked(bridge.saved).mockResolvedValue(profile);
+      vi.mocked(bridge.connectSaved).mockResolvedValue(snapshot);
+      render(<App />);
+      await screen.findByText(/^已連線 · 同步 /);
+      expect(bridge.connectSaved).toHaveBeenCalledTimes(1);
+      expect(bridge.power).not.toHaveBeenCalled();
+      expect(bridge.setState).not.toHaveBeenCalled();
+    });
+    it("stays on the connect page without a saved connection", async () => {
+      render(<App />);
+      await waitFor(() => expect(bridge.saved).toHaveBeenCalled());
+      expect(screen.getByRole("button", { name: "連線" })).toBeInTheDocument();
+      expect(bridge.connectSaved).not.toHaveBeenCalled();
+    });
+    it("tries the saved connection again when the tray opens after a failed attempt", async () => {
+      vi.mocked(bridge.saved).mockResolvedValue(profile);
+      vi.mocked(bridge.connectSaved)
+        .mockRejectedValueOnce({ code: "NETWORK", message: "無法連線" })
+        .mockResolvedValue(snapshot);
+      render(<App />);
+      await waitFor(() => expect(bridge.connectSaved).toHaveBeenCalledTimes(1));
+      await screen.findByText("無法連線");
+      const shown = vi.mocked(flyout.onShown).mock.lastCall![0];
+      shown();
+      await screen.findByText(/^已連線 · 同步 /);
+      expect(bridge.connectSaved).toHaveBeenCalledTimes(2);
+      expect(bridge.power).not.toHaveBeenCalled();
+    });
   });
   it("keeps a successful session usable when secure saving fails", async () => {
     vi.mocked(bridge.remember).mockRejectedValue({

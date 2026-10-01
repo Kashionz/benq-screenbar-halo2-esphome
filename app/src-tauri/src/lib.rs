@@ -110,6 +110,57 @@ fn flyout_resize(app: tauri::AppHandle, height: f64) {
 fn flyout_quit(app: tauri::AppHandle) {
     app.exit(0);
 }
+/// A launch at login passes this argument and starts in the tray.
+const AUTOSTART_ARG: &str = "--autostart";
+
+/// Whether this launch keeps the main window hidden (started at login).
+struct Launch {
+    hidden: bool,
+}
+#[tauri::command]
+fn launched_hidden(launch: State<'_, Launch>) -> bool {
+    launch.hidden
+}
+
+/// Read, or set and then read back, the per-user launch-at-login entry
+/// (Windows: HKCU Run; macOS: a LaunchAgent).
+#[cfg(desktop)]
+fn autostart(app: &tauri::AppHandle, enable: Option<bool>) -> Result<bool, Fault> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    // Disabling an entry that is already gone fails; the state read back decides.
+    if let Some(enable) = enable {
+        let _ = if enable {
+            manager.enable()
+        } else {
+            manager.disable()
+        };
+    }
+    match manager.is_enabled() {
+        Ok(now) if enable.is_none_or(|wanted| wanted == now) => Ok(now),
+        _ => Err(Fault::new(
+            "AUTOSTART_UNAVAILABLE",
+            "無法讀取或變更開機啟動設定。",
+        )),
+    }
+}
+#[cfg(mobile)]
+fn autostart(app: &tauri::AppHandle, enable: Option<bool>) -> Result<bool, Fault> {
+    let _ = (app, enable);
+    Err(Fault::new(
+        "AUTOSTART_UNAVAILABLE",
+        "此平台不支援開機啟動。",
+    ))
+}
+#[tauri::command]
+async fn autostart_enabled(app: tauri::AppHandle) -> Result<bool, Fault> {
+    autostart(&app, None)
+}
+#[tauri::command]
+async fn set_autostart(enabled: bool, app: tauri::AppHandle) -> Result<bool, Fault> {
+    autostart(&app, Some(enabled))
+}
+
 /// The App's light or dark theme for the main window's native title bar.
 #[tauri::command]
 fn set_window_theme(window: tauri::WebviewWindow, dark: bool) {
@@ -498,8 +549,25 @@ async fn lookup_command(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let hidden = cfg!(desktop) && std::env::args().any(|arg| arg == AUTOSTART_ARG);
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder
+        // Registered first: launching HaloDesk again while it runs in the tray
+        // shows the running App instead of starting a second one.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if !args.iter().any(|arg| arg == AUTOSTART_ARG) {
+                tray::open_main(app);
+            }
+        }))
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .arg(AUTOSTART_ARG)
+                .build(),
+        );
+    builder
         .manage(Session::default())
+        .manage(Launch { hidden })
         .on_window_event(|window, event| {
             #[cfg(desktop)]
             match (window.label(), event) {
@@ -514,14 +582,17 @@ pub fn run() {
             #[cfg(mobile)]
             let _ = (window, event);
         })
-        .setup(|app| {
-            #[cfg(windows)]
+        .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
+                #[cfg(windows)]
                 match_title_bar(&window, false);
-            }
-            #[cfg(desktop)]
-            if let Some(window) = app.get_webview_window("main") {
+                #[cfg(desktop)]
                 fit_main_window(&window);
+                // Created hidden (tauri.conf.json); a launch at login stays in
+                // the tray until the user opens the window from there.
+                if !hidden {
+                    let _ = window.show();
+                }
             }
             let root = app.path().app_data_dir()?;
             let export_dir = app
@@ -562,18 +633,42 @@ pub fn run() {
             restore_preset,
             delete_preset,
             set_window_theme,
+            launched_hidden,
+            autostart_enabled,
+            set_autostart,
             flyout_open_main,
             flyout_hide,
             flyout_resize,
             flyout_quit
         ])
-        .run(tauri::generate_context!())
-        .expect("Unable to start HaloDesk");
+        .build(tauri::generate_context!())
+        .expect("Unable to start HaloDesk")
+        .run(|app, event| {
+            // macOS: clicking the Dock icon of an App started in the tray.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } = event
+            {
+                tray::open_main(app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 #[cfg(all(test, desktop))]
 mod tests {
     use super::fit_inner;
+
+    #[test]
+    fn the_autostart_entry_is_named_after_the_product() {
+        // tauri-plugin-autostart names its registry values after the package
+        // name; the NSIS uninstall hook removes them by ${PRODUCTNAME}.
+        let context: tauri::Context = tauri::generate_context!();
+        assert_eq!(context.package_info().name, "HaloDesk");
+    }
 
     #[test]
     fn keeps_the_fixed_size_when_it_fits() {

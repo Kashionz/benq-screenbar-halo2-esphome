@@ -99,6 +99,11 @@ export const bridge = {
   restorePreset: (preset: Preset, index: number) => invoke<Preset[]>("restore_preset", { preset, index }),
   /** Match the native title bar to the App theme; main window only. */
   windowTheme: (dark: boolean) => invoke<void>("set_window_theme", { dark }),
+  /** This launch started at login and keeps the main window in the tray. */
+  launchedHidden: () => invoke<boolean>("launched_hidden"),
+  /** Launch at login (desktop only); both return the state read back. */
+  autostart: () => invoke<boolean>("autostart_enabled"),
+  setAutostart: (enabled: boolean) => invoke<boolean>("set_autostart", { enabled }),
   saved: () => invoke<SavedConnection | null>("saved_connection"),
   remember: () => invoke<SavedConnection>("remember_connection"),
   forget: () => invoke<void>("forget_connection"),
