@@ -51,6 +51,7 @@ See **[Wiring and soldering](docs/WIRING.md)** before powering the boards.
 | `tools/halo2_client.py` | Minimal polling client; does not automatically replay timed-out commands |
 | [`protocol/v1/schema.json`](protocol/v1/schema.json) | App protocol schemas, with examples and behavioral acceptance cases alongside |
 | [`docs/CROSS_PLATFORM_APP_PLAN.md`](docs/CROSS_PLATFORM_APP_PLAN.md) | Tauri 2 plan for Windows, macOS and iOS |
+| [`docs/EXTERNAL_CONTROL_PLAN.md`](docs/EXTERNAL_CONTROL_PLAN.md) | Plan for Stream Deck–style control via command line, `halodesk://` links and global shortcuts (not implemented) |
 
 ## Install
 
