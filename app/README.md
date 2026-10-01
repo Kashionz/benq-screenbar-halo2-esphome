@@ -56,7 +56,7 @@ Windows bundle 用 `npm run tauri build -- --bundles nsis`；平台設定由 `ta
 
 ## 架構與錯誤語意
 
-- 前端使用受限的 Tauri commands：連線、燈光控制、查詢、設定保存與診斷；沒有任意 URL、檔案路徑或 shell 代理。每個命令都要在 `src-tauri/capabilities/` 明確授權：主視窗可用橋接器命令與設定自己標題列深淺色的命令，系統匣面板只能用事件、`list_presets` 與面板視窗命令。
+- 前端使用受限的 Tauri commands：連線、燈光控制、查詢、設定保存與診斷；沒有任意 URL、檔案路徑或 shell 代理。每個命令都要在 `src-tauri/capabilities/` 明確授權：主視窗可用橋接器命令、設定自己標題列深淺色的命令，以及讀取與切換開機啟動的命令，系統匣面板只能用事件、`list_presets` 與面板視窗命令。
 - Rust 序列化 session 存取，校驗 device_id；每筆 POST 前讀取新 boot/revision。
 - 不跟隨 HTTP redirect、不使用環境 proxy；回應上限 8192 bytes。
 - POST 回應遺失時保留 command_id/boot_id、禁止新寫入，只以 GET 查詢原結果。
@@ -91,5 +91,13 @@ Apple Silicon Mac 的完整步驟與結果表見 [Apple 實機驗收](../docs/AP
 面板不直接連線橋接器，只把主視窗發佈的狀態顯示出來，並把「開燈／關燈／調整燈光」意圖送回主視窗。主視窗仍是唯一的命令協調者：它會重新檢查停用條件，再走與主畫面相同的命令流程（先等背景讀取、裝置驗證、不自動重送、結果不明時停用）。停用條件與主畫面相同；結果不明時，面板的「查詢」只會開啟主視窗。面板的 Tauri 權限只有事件、讀取情境與它自己的視窗命令，無法呼叫連線、燈光、帳密或診斷命令。
 
 Windows 面板使用透明視窗加系統壓克力背景；macOS 為避免使用私有 API，面板是不透明的矩形視窗。最小化可保留快捷控制；關閉主視窗或選擇結束會退出 App，不會自行改變掛燈。iOS 沒有桌面系統匣。各平台實際操作仍以驗收紀錄為準。
+
+## 開機自動啟動
+
+「設定」→「啟動」的「開機時自動啟動」預設關閉，只在 Windows 與 macOS 桌面 App 出現。開啟後登入系統時會以 `--autostart` 在背景啟動，主視窗保持隱藏、只留系統匣（macOS 為選單列）圖示，需要時從面板或右鍵選單「開啟 HaloDesk」開啟。Windows 寫入目前使用者的 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`，macOS 使用 LaunchAgent；開關顯示的是寫入後再讀回的系統狀態，在工作管理員停用也會反映為關閉。Windows 解除安裝時會一併刪除 `Run` 與工作管理員啟動狀態（`Explorer\StartupApproved\Run`）中的 `HaloDesk` 值（`src-tauri/windows/hooks.nsh`）；透過更新模式重新安裝則保留這項設定。
+
+這種啟動若有已保存的連線，會自動用它連線一次，以便直接從系統匣控制；連線只有 GET 讀取，不送任何燈光命令。登入當下網路可能尚未就緒，連線失敗時，下次開啟系統匣面板會再試一次已保存的連線；在設定中按「中斷連線」後就不再自動連線。沒有已保存連線時只停在連線畫面。
+
+App 只允許一個執行個體：在背景執行時再從開始選單或捷徑開啟 HaloDesk，會顯示既有的主視窗，不會多出第二個系統匣圖示。
 
 SSE 與自動探索尚未提供。最新功能與實機結果見 [開發驗收紀錄](../docs/DEVELOPMENT_ACCEPTANCE.md)，初期協定驗證見 [協定驗收紀錄](../docs/VALIDATION_2026-09-27.md)。

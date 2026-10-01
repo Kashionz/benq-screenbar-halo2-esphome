@@ -223,7 +223,15 @@ const zhTW = {
     diagAppOnly: "診斷紀錄只在 App 中提供。",
     deviceTab: "裝置與連線",
     lookTab: "外觀",
+    startupTab: "啟動",
     diagTab: "診斷紀錄",
+    autostart: "開機時自動啟動",
+    autostartDesc: (platform: Platform): string =>
+      platform === "macos"
+        ? "登入後在背景啟動並留在選單列，需要時再從選單列開啟主視窗。"
+        : "登入後在背景啟動並縮到系統匣，需要時再從系統匣開啟主視窗。",
+    on: "已開啟",
+    off: "已關閉",
   },
   diag: {
     command: "命令",
@@ -262,6 +270,7 @@ export type Messages = typeof zhTW;
 /** English messages for the native layer's fault codes; its own text is Chinese. */
 const EN_FAULTS: Record<string, string> = {
   APP_ERROR: "The operation could not be completed. Please reconnect.",
+  AUTOSTART_UNAVAILABLE: "Could not read or change the launch-at-login setting.",
   BOOT_CHANGED: "The device just restarted. Please reconnect.",
   BUSY: "Another command is in progress.",
   CREDENTIAL_STORE:
@@ -470,7 +479,15 @@ const en: Messages = {
     diagAppOnly: "Diagnostics are available only in the App.",
     deviceTab: "Device & connection",
     lookTab: "Appearance",
+    startupTab: "Startup",
     diagTab: "Diagnostics",
+    autostart: "Launch at login",
+    autostartDesc: (platform) =>
+      platform === "macos"
+        ? "Starts in the background when you log in and stays in the menu bar; open the window from there."
+        : "Starts in the background when you sign in and stays in the system tray; open the window from there.",
+    on: "On",
+    off: "Off",
   },
   diag: {
     command: "Command",

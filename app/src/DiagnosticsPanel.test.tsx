@@ -11,7 +11,13 @@ import { MESSAGES } from "./i18n";
 const zh = MESSAGES["zh-TW"];
 vi.mock("./bridge", async (original) => ({
   ...(await original<typeof import("./bridge")>()),
-  bridge: { diagnostics: vi.fn(), exportDiagnostics: vi.fn(), clearDiagnostics: vi.fn() },
+  bridge: {
+    diagnostics: vi.fn(),
+    exportDiagnostics: vi.fn(),
+    clearDiagnostics: vi.fn(),
+    autostart: vi.fn(),
+    setAutostart: vi.fn(),
+  },
 }));
 const snapshot = examples.find((e) => e.schema === "Snapshot")!.body as unknown as Snapshot;
 const tx = (sent: number, planned: number, irq: number | null, fifo: number | null) => ({
@@ -49,6 +55,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(bridge.diagnostics).mockResolvedValue(report);
+  vi.mocked(bridge.autostart).mockResolvedValue(false);
 });
 function settings(overrides: Partial<Parameters<typeof SettingsPage>[0]> = {}) {
   const props: Parameters<typeof SettingsPage>[0] = {
@@ -175,4 +182,40 @@ it("stacks every section without tabs on a phone", async () => {
   expect(screen.getByRole("region", { name: "裝置與連線" })).toBeInTheDocument();
   expect(screen.getByRole("radiogroup", { name: "主題" })).toBeInTheDocument();
   expect(await screen.findByText("最近 4 筆 · 保留最近 200 筆")).toBeInTheDocument();
+});
+it("turns launch at login on and off in the startup tab", async () => {
+  vi.mocked(bridge.setAutostart).mockImplementation(async (enabled) => enabled);
+  settings();
+  const tab = screen.getByRole("tab", { name: /啟動/ });
+  await waitFor(() => expect(tab).toHaveTextContent("已關閉"));
+  await userEvent.click(tab);
+  const toggle = screen.getByRole("switch", { name: "開機時自動啟動" });
+  expect(toggle).toHaveAccessibleDescription(/縮到系統匣/);
+  expect(toggle).toHaveAttribute("aria-checked", "false");
+  await userEvent.click(toggle);
+  await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));
+  expect(bridge.setAutostart).toHaveBeenLastCalledWith(true);
+  expect(tab).toHaveTextContent("已開啟");
+  await userEvent.click(toggle);
+  await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "false"));
+  expect(bridge.setAutostart).toHaveBeenLastCalledWith(false);
+});
+it("shows the system's launch-at-login state after a failed change", async () => {
+  vi.mocked(bridge.setAutostart).mockRejectedValue({ code: "AUTOSTART_UNAVAILABLE", message: "無法讀取或變更開機啟動設定。" });
+  settings();
+  await userEvent.click(screen.getByRole("tab", { name: /啟動/ }));
+  const toggle = screen.getByRole("switch", { name: "開機時自動啟動" });
+  await waitFor(() => expect(toggle).toBeEnabled());
+  await userEvent.click(toggle);
+  expect(await screen.findByText("無法讀取或變更開機啟動設定。")).toBeInTheDocument();
+  expect(toggle).toHaveAttribute("aria-checked", "false");
+  expect(bridge.autostart).toHaveBeenCalledTimes(2);
+});
+it("offers launch at login only in the desktop App", () => {
+  settings({ platform: "ios" });
+  expect(screen.queryByRole("tab", { name: /啟動/ })).not.toBeInTheDocument();
+  cleanup();
+  settings({ native: false, compact: true });
+  expect(screen.queryByRole("switch", { name: "開機時自動啟動" })).not.toBeInTheDocument();
+  expect(bridge.autostart).not.toHaveBeenCalled();
 });

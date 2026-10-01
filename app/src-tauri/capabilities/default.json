@@ -25,6 +25,9 @@
     "allow-save-preset",
     "allow-restore-preset",
     "allow-delete-preset",
-    "allow-set-window-theme"
+    "allow-set-window-theme",
+    "allow-launched-hidden",
+    "allow-autostart-enabled",
+    "allow-set-autostart"
   ]
 }

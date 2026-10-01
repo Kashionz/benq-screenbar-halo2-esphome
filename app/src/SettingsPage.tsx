@@ -1,12 +1,12 @@
-import { useState } from "react";
-import type { SavedConnection, Snapshot } from "./bridge";
+import { useEffect, useState } from "react";
+import { bridge, failure, type Fault, type SavedConnection, type Snapshot } from "./bridge";
 import { tempColor } from "./controlState";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
 import { useMessages, type LocalePref, type Messages } from "./i18n";
 import type { Platform } from "./platform";
 import type { ThemePref } from "./theme";
 
-type Tab = "device" | "look" | "diag";
+type Tab = "device" | "look" | "startup" | "diag";
 
 const THEMES: ThemePref[] = ["light", "dark", "system"];
 const LOCALES: LocalePref[] = ["zh-TW", "en", "system"];
@@ -97,6 +97,36 @@ export function SettingsPage({
   const [tab, setTab] = useState<Tab>("device");
   const radioReady = snapshot?.radio_status === "ready";
   const temperature = snapshot?.desired.values.temperature_k ?? 4000;
+  // Launch at login exists only in the desktop App, which starts in the tray.
+  const desktop = native && (platform === "windows" || platform === "macos");
+  const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [autostartBusy, setAutostartBusy] = useState(false);
+  const [autostartFault, setAutostartFault] = useState<Fault | null>(null);
+  useEffect(() => {
+    if (!desktop) return;
+    let cancelled = false;
+    bridge
+      .autostart()
+      .then((enabled) => !cancelled && setAutostart(enabled))
+      .catch((e) => !cancelled && setAutostartFault(failure(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop]);
+  async function toggleAutostart() {
+    if (autostart === null) return;
+    setAutostartBusy(true);
+    setAutostartFault(null);
+    try {
+      setAutostart(await bridge.setAutostart(!autostart));
+    } catch (e) {
+      setAutostartFault(failure(e));
+      // Show what the system actually holds after a failed change.
+      setAutostart(await bridge.autostart().catch(() => autostart));
+    } finally {
+      setAutostartBusy(false);
+    }
+  }
 
   const device = (
     <div className="stack">
@@ -190,6 +220,32 @@ export function SettingsPage({
     </div>
   );
 
+  const startup = (
+    <section aria-label={t.startupTab}>
+      <div className="group-label">{t.startupTab}</div>
+      <div className="glass">
+        <button type="button" role="switch" aria-checked={autostart === true} className="switch-row"
+          aria-labelledby="autostart-title" aria-describedby="autostart-desc"
+          disabled={autostart === null || autostartBusy} onClick={() => void toggleAutostart()}>
+          <span className="action-text">
+            <span id="autostart-title" className="action-title">{t.autostart}</span>
+            <span id="autostart-desc" className="action-desc" style={{ display: "block" }}>
+              {t.autostartDesc(platform)}
+            </span>
+          </span>
+          <span className={`switch${autostart ? " on" : ""}`} aria-hidden="true">
+            <span />
+          </span>
+        </button>
+      </div>
+      {autostartFault && (
+        <p role="status" className="group-note">
+          {m.fault(autostartFault)}
+        </p>
+      )}
+    </section>
+  );
+
   const diag = native ? (
     <DiagnosticsPanel raw={raw} reloadKey={updated} />
   ) : (
@@ -204,6 +260,7 @@ export function SettingsPage({
           {device}
         </section>
         {look}
+        {desktop && startup}
         <section aria-label={t.diagTab}>
           <div className="group-label">{t.diagTab}</div>
           {diag}
@@ -214,6 +271,9 @@ export function SettingsPage({
   const tabs: Array<{ key: Tab; label: string; meta: string; danger?: boolean }> = [
     { key: "device", label: t.deviceTab, meta: radioReady ? t.ready : t.notReady, danger: !radioReady },
     { key: "look", label: t.lookTab, meta: t.themes[theme] },
+    ...(desktop
+      ? [{ key: "startup" as const, label: t.startupTab, meta: autostart === null ? "" : autostart ? t.on : t.off }]
+      : []),
     { key: "diag", label: t.diagTab, meta: "" },
   ];
   return (
@@ -228,7 +288,7 @@ export function SettingsPage({
         ))}
       </nav>
       <div className="settings-body" role="tabpanel" id="settings-panel" aria-labelledby={`settings-tab-${tab}`}>
-        {tab === "device" ? device : tab === "look" ? look : diag}
+        {tab === "device" ? device : tab === "look" ? look : tab === "startup" ? startup : diag}
       </div>
     </div>
   );
